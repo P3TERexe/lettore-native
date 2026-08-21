@@ -11,6 +11,8 @@ export class QueueController {
     this.currentJobId = null;
     this._isAdvancing = false;
     this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
   }
 
   bindDom() {
@@ -54,6 +56,8 @@ export class QueueController {
 
   async stop() {
     this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
     this.player.stop();
     await this.fetch("/v1/queue/stop", { method: "POST" });
     this.render(await this.getState());
@@ -61,6 +65,8 @@ export class QueueController {
 
   async clear() {
     this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
     this.player.stop();
     await this.fetch("/v1/queue", { method: "DELETE" });
     this.render(await this.getState());
@@ -69,6 +75,8 @@ export class QueueController {
   async remove(id) {
     if (this._activeJobId === id) {
       this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
       this.player.stop();
     }
     await this.fetch(`/v1/queue/${id}`, { method: "DELETE" });
@@ -77,6 +85,8 @@ export class QueueController {
 
   async markDone() {
     this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
     return this.fetch("/v1/queue/current/done", { method: "POST" });
   }
 
@@ -123,6 +133,23 @@ export class QueueController {
     }
   }
 
+  async preloadNext(state) {
+    if (state.jobs.length > 0) {
+      const nextJob = state.jobs[0];
+      if (!this._preloadedBuffers.has(nextJob.id) && !this._isPreloading) {
+        this._isPreloading = true;
+        try {
+          const wav = await this.synthesize(nextJob);
+          this._preloadedBuffers.set(nextJob.id, wav);
+        } catch (err) {
+          console.error("Errore preload TTS", err);
+        } finally {
+          this._isPreloading = false;
+        }
+      }
+    }
+  }
+
   async advance() {
     if (this._isAdvancing) return false;
     this._isAdvancing = true;
@@ -130,14 +157,24 @@ export class QueueController {
       const state = await this.getState();
       if (state.state !== "playing" || !state.current) {
         this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
         return false;
       }
       if (this._activeJobId === state.current.id && (this.player.state === "playing" || this.player.state === "paused")) {
+        this.preloadNext(state);
         return this.player.state === "playing";
       }
       this.onPlayingChange(state, true);
       const currentJob = state.current;
-      const wav = await this.synthesize(currentJob);
+      
+      let wav;
+      if (this._preloadedBuffers.has(currentJob.id)) {
+        wav = this._preloadedBuffers.get(currentJob.id);
+        this._preloadedBuffers.delete(currentJob.id);
+      } else {
+        wav = await this.synthesize(currentJob);
+      }
 
       const freshState = await this.getState();
       this.onPlayingChange(freshState, false);
@@ -148,6 +185,7 @@ export class QueueController {
       this._activeJobId = currentJob.id;
       this.player.speed = currentJob.speed || this.settings.speed;
       await this.player.playBytes(wav);
+      this.preloadNext(freshState);
       return true;
     } catch (err) {
       this.toast(`Errore: ${err.message}`);
@@ -160,6 +198,8 @@ export class QueueController {
 
   async next() {
     this._activeJobId = null;
+    this._preloadedBuffers = new Map();
+    this._isPreloading = false;
     this.player.stop();
     await this.markDone();
     return this.advance();
