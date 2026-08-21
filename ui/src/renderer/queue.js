@@ -211,19 +211,28 @@ export class QueueController {
   }
 
   async next() {
-    this._activeJobId = null;
-    this.player.stop();
-    
-    // Play immediately if we preloaded and decoded it!
-    if (this._nextJobPreloaded && this._preloadedBuffers.has(this._nextJobPreloaded.id)) {
-      const data = this._preloadedBuffers.get(this._nextJobPreloaded.id);
-      this._preloadedBuffers.delete(this._nextJobPreloaded.id);
-      this._activeJobId = this._nextJobPreloaded.id;
-      this.player.speed = this._nextJobPreloaded.speed || this.settings.speed;
-      this.player.playBuffer(data.audioBuf, data.wav);
+    if (this._isAdvancing) return false;
+    this._isAdvancing = true;
+    try {
+      this.player.stop();
+      
+      let nextId = null;
+      if (this._nextJobPreloaded && this._preloadedBuffers.has(this._nextJobPreloaded.id)) {
+        const data = this._preloadedBuffers.get(this._nextJobPreloaded.id);
+        this._preloadedBuffers.delete(this._nextJobPreloaded.id);
+        nextId = this._nextJobPreloaded.id;
+        this._activeJobId = nextId;
+        this.player.speed = this._nextJobPreloaded.speed || this.settings.speed;
+        this.player.playBuffer(data.audioBuf, data.wav);
+      } else {
+        this._activeJobId = null;
+      }
+      
+      await this.markDone();
+    } finally {
+      this._isAdvancing = false;
     }
     
-    await this.markDone();
     return this.advance();
   }
 }
