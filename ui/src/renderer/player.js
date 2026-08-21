@@ -34,6 +34,15 @@ export class Player {
     this.startSource();
   }
 
+  playBuffer(audioBuffer, wavBytes) {
+    this.ensureCtx();
+    this.stopInternal();
+    this.buffer = audioBuffer;
+    this._lastWav = wavBytes;
+    this._start = () => this.startSource();
+    this.startSource();
+  }
+
   startSource() {
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;

@@ -140,7 +140,11 @@ export class QueueController {
         this._isPreloading = true;
         try {
           const wav = await this.synthesize(nextJob);
-          this._preloadedBuffers.set(nextJob.id, wav);
+          this.player.ensureCtx();
+          const arrayBuf = wav.buffer ? wav.buffer.slice(wav.byteOffset, wav.byteOffset + wav.byteLength) : wav;
+          const audioBuf = await this.player.ctx.decodeAudioData(arrayBuf);
+          this._preloadedBuffers.set(nextJob.id, { wav, audioBuf });
+          this._nextJobPreloaded = nextJob;
         } catch (err) {
           console.error("Errore preload TTS", err);
         } finally {
@@ -169,8 +173,11 @@ export class QueueController {
       const currentJob = state.current;
       
       let wav;
+      let preDecoded = null;
       if (this._preloadedBuffers.has(currentJob.id)) {
-        wav = this._preloadedBuffers.get(currentJob.id);
+        const data = this._preloadedBuffers.get(currentJob.id);
+        wav = data.wav;
+        preDecoded = data.audioBuf;
         this._preloadedBuffers.delete(currentJob.id);
       } else {
         wav = await this.synthesize(currentJob);
@@ -184,7 +191,11 @@ export class QueueController {
 
       this._activeJobId = currentJob.id;
       this.player.speed = currentJob.speed || this.settings.speed;
-      await this.player.playBytes(wav);
+      if (preDecoded) {
+        this.player.playBuffer(preDecoded, wav);
+      } else {
+        await this.player.playBytes(wav);
+      }
       this.preloadNext(freshState);
       return true;
     } catch (err) {
@@ -199,6 +210,16 @@ export class QueueController {
   async next() {
     this._activeJobId = null;
     this.player.stop();
+    
+    // Play immediately if we preloaded and decoded it!
+    if (this._nextJobPreloaded && this._preloadedBuffers.has(this._nextJobPreloaded.id)) {
+      const data = this._preloadedBuffers.get(this._nextJobPreloaded.id);
+      this._preloadedBuffers.delete(this._nextJobPreloaded.id);
+      this._activeJobId = this._nextJobPreloaded.id;
+      this.player.speed = this._nextJobPreloaded.speed || this.settings.speed;
+      this.player.playBuffer(data.audioBuf, data.wav);
+    }
+    
     await this.markDone();
     return this.advance();
   }
