@@ -2,24 +2,22 @@
 <html lang="it" data-theme="dark" data-a11y="standard" data-mode="standard" data-text-size="md">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'" />
   <title>Lettore</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Titlebar: macOS Native Style -->
-  <header class="titlebar">
-    <div class="drag-region">
-      <div class="app-brand">
+  <!-- Titlebar: Native Frameless Style -->
+  <header class="titlebar" data-tauri-drag-region>
+    <div class="drag-region" data-tauri-drag-region>
+      <div class="app-brand" data-tauri-drag-region>
         <svg class="brand-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
           <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
           <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
         </svg>
-        <span class="app-title">Lettore</span>
+        <span class="app-title" data-tauri-drag-region>Lettore</span>
       </div>
-      <div class="status-indicator">
+      <div class="status-indicator" data-tauri-drag-region>
         <span id="status-dot" class="dot dot-offline" title="Stato del motore locale"></span>
         <span id="status-text" class="status-text">offline</span>
       </div>
@@ -36,7 +34,7 @@
   </header>
 
   <div class="app-layout">
-    <!-- Sidebar (Hidden in compact mode) -->
+    <!-- Sidebar -->
     <aside class="sidebar">
       <button id="tab-capture" class="sidebar-btn active" title="Testo" data-target="capture-panel">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -74,7 +72,7 @@
 
     <!-- Main Content Area -->
     <main class="content-area">
-      <!-- Player Strip (Always visible) -->
+      <!-- Player Strip -->
       <section id="player-strip" class="player-strip" aria-label="Controlli di riproduzione">
         <div class="player-left">
           <button id="btn-play" class="btn-player btn-play" title="Play / Pausa (Spazio)" aria-label="Riproduci o metti in pausa">
@@ -138,7 +136,7 @@
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          <span>Cattura automatica: abilita <strong>Accessibilità</strong> in macOS.</span>
+          <span>Cattura automatica: abilita <strong>Accessibilità</strong> nelle impostazioni di sistema.</span>
         </div>
         <button id="btn-open-ax" class="btn btn-xs btn-secondary">Abilita</button>
       </section>
@@ -297,6 +295,7 @@
   <!-- Notification Toast -->
   <div id="toast" class="toast" hidden role="alert" aria-live="polite"></div>
 
+  <script type="module" src="bridge.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

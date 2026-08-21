@@ -1,8 +1,9 @@
+import { api } from "./bridge.js";
 import { Player } from "./player.js";
 import { QueueController } from "./queue.js";
 import { SettingsController } from "./settings.js";
 
-const BASE = window.api.backendBase();
+const BASE = api.backendBase();
 
 const els = {
   dot: document.getElementById("status-dot"),
@@ -90,7 +91,6 @@ function showReading(text) {
     if (settings.windowMode === "full") {
       els.capturePanel.hidden = false;
     } else {
-      // In standard mode, if we are not reading, go back to capture panel by default if none active
       if (els.queuePanel.hidden && els.settingsPanel.hidden) {
         els.capturePanel.hidden = false;
         els.tabCapture.classList.add("active");
@@ -100,9 +100,8 @@ function showReading(text) {
   }
   els.readingPanel.hidden = false;
   if (settings.windowMode === "full") {
-    els.capturePanel.hidden = true; // reading overrides capture in main panel
+    els.capturePanel.hidden = true;
   } else {
-    // Standard mode: reading overrides everything
     els.capturePanel.hidden = true;
     els.queuePanel.hidden = true;
     els.settingsPanel.hidden = true;
@@ -196,7 +195,7 @@ const settingsCtrl = new SettingsController({
   base: BASE,
   getLang: () => settings.lang,
   onSave: async (patch) => {
-    const next = await window.api.setSettings(patch);
+    const next = await api.setSettings(patch);
     Object.assign(settings, next);
     player.setSpeed(settings.speed);
     els.speed.value = String(settings.speed);
@@ -217,7 +216,7 @@ function setStatus(online, text, cls) {
 }
 
 async function pollStatus() {
-  const st = await window.api.backendStatus();
+  const st = await api.backendStatus();
   if (!st.ok) {
     setStatus(false, "offline — clicca per avviare", "dot-offline");
     return;
@@ -233,8 +232,8 @@ async function pollStatus() {
 }
 
 async function readClipboard() {
-  const text = await window.api.readClipboard();
-  if (!text.trim()) {
+  const text = await api.readClipboard();
+  if (!text || !text.trim()) {
     toast("Clipboard vuota");
     return;
   }
@@ -243,9 +242,9 @@ async function readClipboard() {
 }
 
 async function readSelection() {
-  const resp = await window.api.captureSelection({ autoCopy: true });
+  const resp = await api.captureSelection({ autoCopy: true });
   if (resp.error === "accessibility_permission") {
-    toast("Abilita Accessibilità per il backend: Impostazioni > Privacy e sicurezza > Accessibilità");
+    toast("Abilita Accessibilità: Impostazioni di Sistema > Privacy e sicurezza > Accessibilità");
     return null;
   }
   return resp.text || null;
@@ -268,7 +267,7 @@ async function enqueueAndPlay({ split = false } = {}) {
 }
 
 async function onHotkeyCapture(payload) {
-  if (!payload.text) {
+  if (!payload || !payload.text) {
     const viaAx = await readSelection();
     if (!viaAx) {
       toast("Nessun testo catturato: seleziona del testo (o copialo con Cmd+C) e riprova");
@@ -300,7 +299,7 @@ async function exportWav() {
     const reader = new FileReader();
     reader.onload = async () => {
       const base64data = reader.result.split(",")[1];
-      const res = await window.api.exportWav({
+      const res = await api.exportWav({
         wavBase64: base64data,
         defaultName: `lettore_${Date.now()}.wav`,
       });
@@ -328,7 +327,7 @@ async function togglePlayback() {
   if (!queue.currentJobId) {
     let text = els.textInput.value.trim();
     if (!text) {
-      const clip = await window.api.readClipboard();
+      const clip = await api.readClipboard();
       if (clip && clip.trim()) {
         els.textInput.value = clip.trim();
       } else {
@@ -353,18 +352,15 @@ async function onTray(action) {
 function setWindowMode(mode) {
   settings.windowMode = mode;
   document.documentElement.dataset.mode = mode;
-  window.api.setWindowMode(mode);
+  api.setWindowMode(mode);
   
   if (mode === "full") {
     els.capturePanel.hidden = !els.readingPanel.hidden;
-    // ensure at least one side panel is visible
     if (els.queuePanel.hidden && els.settingsPanel.hidden) {
       els.queuePanel.hidden = false;
       els.tabQueue.classList.add("active");
     }
   } else if (mode === "standard") {
-    // Standard mode: only one panel at all
-    // If reading panel is open, hide everything else
     if (!els.readingPanel.hidden) {
       els.capturePanel.hidden = true;
       els.queuePanel.hidden = true;
@@ -373,7 +369,6 @@ function setWindowMode(mode) {
       els.tabQueue.classList.remove("active");
       els.tabSettings.classList.remove("active");
     } else {
-      // Find the first active side tab or default to capture
       if (!els.queuePanel.hidden) {
          els.capturePanel.hidden = true;
          els.settingsPanel.hidden = true;
@@ -426,7 +421,6 @@ function openPanel(panelEl, tabEl) {
       if (tabEl) tabEl.classList.add("active");
     }
   } else {
-    // standard mode
     els.capturePanel.hidden = true;
     els.queuePanel.hidden = true;
     els.settingsPanel.hidden = true;
@@ -465,31 +459,30 @@ function bind() {
   els.statusText.addEventListener("click", async () => {
     if (!backendOnline) {
       setStatus(false, "avvio backend...", "dot-loading");
-      await window.api.backendStart();
+      await api.backendStart();
       setTimeout(pollStatus, 1500);
     }
   });
 
-  document.getElementById("btn-pin").addEventListener("click", () => window.api.windowControls("togglepin"));
-  document.getElementById("btn-min").addEventListener("click", () => window.api.windowControls("minimize"));
-  document.getElementById("btn-close").addEventListener("click", () => window.api.windowControls("close"));
+  document.getElementById("btn-pin").addEventListener("click", () => api.windowControls("togglepin"));
+  document.getElementById("btn-min").addEventListener("click", () => api.windowControls("minimize"));
+  document.getElementById("btn-close").addEventListener("click", () => api.windowControls("close"));
 
-  els.openAx.addEventListener("click", () => window.api.openAccessibilitySettings());
+  els.openAx.addEventListener("click", () => api.openAccessibilitySettings());
 
-  window.api.onHotkeyCapture(onHotkeyCapture);
-  window.api.onTrayAction(onTray);
-  window.api.onBackendStatus((r) => {
+  api.onHotkeyCapture(onHotkeyCapture);
+  api.onTrayAction(onTray);
+  api.onBackendStatus((r) => {
     if (!r.ok) toast(`Backend non avviato: ${r.error || ""}`);
     setTimeout(pollStatus, 1000);
   });
-  window.api.onHotkeyStatus(({ ok }) => settingsCtrl.setHotkeyStatus(ok));
-  window.api.onOpenSettings(() => openPanel(els.settingsPanel, els.tabSettings));
+  api.onHotkeyStatus(({ ok }) => settingsCtrl.setHotkeyStatus(ok));
+  api.onOpenSettings(() => openPanel(els.settingsPanel, els.tabSettings));
 }
 
 async function init() {
   bind();
-  settings = await window.api.getSettings();
-  Object.assign(settings, await window.api.getSettings());
+  settings = await api.getSettings();
   
   document.documentElement.dataset.mode = settings.windowMode || "standard";
   player.setSpeed(settings.speed || 1.05);
@@ -501,7 +494,6 @@ async function init() {
   settingsCtrl.syncRuntimeConfig();
   await pollStatus();
   
-  // Applica modalità all'avvio
   setWindowMode(settings.windowMode || "standard");
 
   setInterval(async () => {
