@@ -81,12 +81,13 @@ pub async fn read_clipboard(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn capture_selection(
+    app: AppHandle,
     sidecar: State<'_, SidecarState>,
     auto_copy: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     let auto_c = auto_copy.unwrap_or(false);
 
-    // 1. Tenta lettura nativa AX
+    // 1. Prova prima con la lettura diretta AX
     if let Ok(Some(text)) = accessibility::read_focused_selection() {
         if !text.trim().is_empty() {
             return Ok(serde_json::json!({
@@ -96,11 +97,13 @@ pub async fn capture_selection(
         }
     }
 
-    // 2. Se auto_copy è richiesto e abbiamo il permesso, simula Cmd+C
-    if auto_c && accessibility::is_trusted() {
+    // 2. Se auto_copy è richiesto, simula Cmd+C e cattura dalla Clipboard / AX
+    if auto_c {
         let posted = accessibility::post_copy();
         if posted {
-            tokio::time::sleep(Duration::from_millis(300)).await;
+            tokio::time::sleep(Duration::from_millis(150)).await;
+
+            // Controlla se la selezione AX si è popolata
             if let Ok(Some(text)) = accessibility::read_focused_selection() {
                 if !text.trim().is_empty() {
                     return Ok(serde_json::json!({
@@ -109,12 +112,22 @@ pub async fn capture_selection(
                     }));
                 }
             }
+
+            // Leggi il testo copiato negli appunti
+            if let Ok(clip) = app.clipboard().read_text() {
+                if !clip.trim().is_empty() {
+                    return Ok(serde_json::json!({
+                        "text": clip.trim(),
+                        "source": "clipboard"
+                    }));
+                }
+            }
         }
     }
 
-    // 3. Fallback su endpoint /v1/capture del backend
+    // 3. Fallback su /v1/capture del backend
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(2000))
+        .timeout(Duration::from_millis(1500))
         .build()
         .unwrap_or_default();
 
@@ -126,7 +139,21 @@ pub async fn capture_selection(
         .await
     {
         if let Ok(val) = resp.json::<serde_json::Value>().await {
-            return Ok(val);
+            if let Some(txt) = val.get("text").and_then(|t| t.as_str()) {
+                if !txt.trim().is_empty() {
+                    return Ok(val);
+                }
+            }
+        }
+    }
+
+    // 4. Ultimo fallback: testo presente negli appunti
+    if let Ok(clip) = app.clipboard().read_text() {
+        if !clip.trim().is_empty() {
+            return Ok(serde_json::json!({
+                "text": clip.trim(),
+                "source": "clipboard"
+            }));
         }
     }
 

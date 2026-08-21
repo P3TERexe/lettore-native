@@ -243,11 +243,12 @@ async function readClipboard() {
 
 async function readSelection() {
   const resp = await api.captureSelection({ autoCopy: true });
-  if (resp.error === "accessibility_permission") {
-    toast("Abilita Accessibilità: Impostazioni di Sistema > Privacy e sicurezza > Accessibilità");
+  if (resp && resp.error === "accessibility_permission") {
+    els.permBanner.hidden = false;
+    toast("Abilita Accessibilità in Impostazioni di Sistema per la cattura automatica");
     return null;
   }
-  return resp.text || null;
+  return resp?.text || null;
 }
 
 async function enqueueAndPlay({ split = false } = {}) {
@@ -332,7 +333,7 @@ async function togglePlayback() {
     return;
   }
   if (!queue.currentJobId) {
-    // 1. Tenta prima di catturare la selezione attiva dall'altra applicazione (AX / auto-copy)
+    // 1. Tenta prima di catturare la selezione attiva dall'altra applicazione (AX + auto-copy Cmd+C)
     const selection = await readSelection();
     if (selection && selection.trim()) {
       els.textInput.value = selection.trim();
@@ -340,19 +341,22 @@ async function togglePlayback() {
       return;
     }
 
-    // 2. Se non c'è selezione attiva, usa il testo presente nella textarea
+    // 2. Se non c'è selezione attiva ma c'è del testo nella textarea, leggilo
     let text = els.textInput.value.trim();
-    if (!text) {
-      // 3. Fallback sulla clipboard
-      const clip = await api.readClipboard();
-      if (clip && clip.trim()) {
-        els.textInput.value = clip.trim();
-      } else {
-        toast("Nessun testo. Seleziona del testo in un'altra app o premi Cmd+Shift+S.");
-        return;
-      }
+    if (text) {
+      await enqueueAndPlay();
+      return;
     }
-    await enqueueAndPlay();
+
+    // 3. Fallback sulla clipboard
+    const clip = await api.readClipboard();
+    if (clip && clip.trim()) {
+      els.textInput.value = clip.trim();
+      await enqueueAndPlay();
+      return;
+    }
+
+    toast("Nessun testo selezionato. Seleziona del testo o copialo con Cmd+C.");
     return;
   }
   await queue.advance();

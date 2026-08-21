@@ -53,7 +53,7 @@ fn copy_attr(element: *mut c_void, attr_name: &str) -> Option<*mut c_void> {
     }
 }
 
-/// Trova il PID dell'applicazione target (quella in primo piano o appena dietro a Lettore).
+/// Trova il PID dell'applicazione target (quella in primo piano o appena sotto a Lettore).
 fn get_target_pid() -> Option<i32> {
     let my_pid = std::process::id() as i32;
 
@@ -70,8 +70,8 @@ fn get_target_pid() -> Option<i32> {
         }
     }
 
-    // 2. Se Lettore è in primo piano (perché l'utente ha appena cliccato Play),
-    // cerca la finestra applicativa subito sotto Lettore tramite CGWindowListCopyWindowInfo
+    // 2. Se Lettore ha preso il focus (click Play),
+    // trova la finestra normale (layer 0) attiva subito sotto Lettore
     unsafe {
         let list_ptr = CGWindowListCopyWindowInfo(
             K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY | K_CG_WINDOW_LIST_EXCLUDE_DESKTOP_ELEMENTS,
@@ -102,7 +102,6 @@ fn get_target_pid() -> Option<i32> {
                 CFNumberGetValue(layer_ref, kCFNumberIntType, &mut layer_val as *mut i32 as *mut c_void);
             }
 
-            // Considera solo finestre di normal layer (0)
             if layer_val == 0 {
                 let pid_ref = CFDictionaryGetValue(dict_ptr, k_pid.as_concrete_TypeRef() as *const c_void) as CFNumberRef;
                 if !pid_ref.is_null() {
@@ -166,10 +165,6 @@ pub fn read_selection() -> Result<Option<String>, String> {
 }
 
 pub fn post_copy() -> bool {
-    if !is_trusted() {
-        return false;
-    }
-
     unsafe {
         let down = CGEventCreateKeyboardEvent(std::ptr::null_mut(), K_VK_ANSI_C, true);
         let up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), K_VK_ANSI_C, false);
