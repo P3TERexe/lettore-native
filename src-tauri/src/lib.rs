@@ -36,6 +36,7 @@ pub fn run() {
             commands::capture_selection,
             commands::open_accessibility_settings,
             commands::export_wav,
+            commands::start_dragging,
             commands::window_controls,
             commands::set_window_mode,
         ])

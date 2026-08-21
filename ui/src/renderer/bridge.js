@@ -31,6 +31,7 @@ export const api = {
     }
   },
 
+  startDragging: () => invoke("start_dragging"),
   windowControls: (action) => invoke("window_controls", { action }),
   setWindowMode: (mode) => invoke("set_window_mode", { mode }),
 

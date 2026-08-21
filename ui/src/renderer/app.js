@@ -378,7 +378,7 @@ function setWindowMode(mode) {
          els.capturePanel.hidden = true;
          els.queuePanel.hidden = true;
          els.tabCapture.classList.remove("active");
-         els.tabQueue.classList.remove("active");
+         els.tabSettings.classList.remove("active");
       } else {
          els.capturePanel.hidden = false;
          els.tabCapture.classList.add("active");
@@ -436,6 +436,18 @@ function openPanel(panelEl, tabEl) {
 }
 
 function bind() {
+  // Dragging finestra nativo al mousedown sulla barra del titolo
+  document.addEventListener("mousedown", (e) => {
+    if (
+      e.target.closest("[data-tauri-drag-region], .titlebar, .drag-region") &&
+      !e.target.closest("button, input, select, textarea, .win-controls, .icon-btn")
+    ) {
+      if (e.buttons === 1) {
+        api.startDragging();
+      }
+    }
+  });
+
   els.play.addEventListener("click", togglePlayback);
   els.stop.addEventListener("click", () => queue.stop());
   els.read.addEventListener("click", () => enqueueAndPlay());

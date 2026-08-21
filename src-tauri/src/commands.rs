@@ -173,6 +173,14 @@ pub async fn export_wav(
 }
 
 #[tauri::command]
+pub async fn start_dragging(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.start_dragging();
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn window_controls(
     app: AppHandle,
     settings: State<'_, SettingsState>,

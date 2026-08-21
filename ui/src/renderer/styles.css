@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Lettore — Modern Accessible Design System
+   Lettore — Modern Accessible Design System (Tauri 2 Native)
    ========================================================================== */
 
 /* Font Faces */
@@ -60,9 +60,7 @@
   --focus-ring: 0 0 0 2px var(--accent-subtle), 0 0 0 1px var(--accent-primary);
 }
 
-/* ==========================================================================
-   Themes
-   ========================================================================== */
+/* Themes */
 [data-theme="light"] {
   --surface-base: #f3f3f0;
   --surface-header: #eaeae5;
@@ -108,14 +106,11 @@
 [data-theme="contrast"] .btn-primary { color: #000; font-weight: 700; }
 [data-theme="contrast"] .r-active { color: #000; font-weight: 700; }
 
-/* ==========================================================================
-   Accessibility Profiles
-   ========================================================================== */
+/* Accessibility Profiles */
 [data-text-size="md"] { --reading-font-size: 13.5px; }
 [data-text-size="lg"] { --reading-font-size: 16px; }
 [data-text-size="xl"] { --reading-font-size: 20px; }
 
-/* Low Vision Profile */
 [data-a11y="lowvision"] {
   --reading-font-size: 18px !important;
   --focus-ring: 0 0 0 3px var(--accent-primary);
@@ -129,7 +124,6 @@
 [data-a11y="lowvision"] [data-text-size="lg"] { --reading-font-size: 22px !important; }
 [data-a11y="lowvision"] [data-text-size="xl"] { --reading-font-size: 26px !important; }
 
-/* Dyslexia Profile */
 [data-a11y="dyslexia"] {
   --font-reading: "Atkinson Hyperlegible", sans-serif;
 }
@@ -140,9 +134,7 @@
   word-spacing: 0.15em !important;
 }
 
-/* ==========================================================================
-   Base
-   ========================================================================== */
+/* Base */
 html, body {
   height: 100%;
   overflow: hidden;
@@ -178,9 +170,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ==========================================================================
-   Titlebar
-   ========================================================================== */
+/* Titlebar */
 .titlebar {
   display: flex;
   align-items: center;
@@ -190,32 +180,78 @@ body {
   background: var(--surface-header);
   border-bottom: 1px solid var(--border-subtle);
   -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
   flex-shrink: 0;
 }
 
-.drag-region { display: flex; align-items: center; gap: 10px; }
-.app-brand { display: flex; align-items: center; gap: 6px; color: var(--accent-primary); }
-.app-title { font-size: 11px; font-weight: 600; color: var(--text-primary); letter-spacing: 0.2px; }
+.drag-region {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
 
-.status-indicator { display: flex; align-items: center; gap: 4px; }
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-primary);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
 .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .dot-offline { background: var(--status-offline); }
 .dot-ready { background: var(--status-ready); }
 .status-text { color: var(--text-muted); font-size: 10px; font-weight: 500; }
 
-.win-controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+.win-controls {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .icon-btn {
-  background: transparent; border: none; color: var(--text-secondary);
-  border-radius: var(--radius-xs); width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   transition: all var(--duration) var(--ease);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 .icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
 .icon-btn.btn-close:hover { background: rgba(239, 68, 68, 0.15); color: var(--status-offline); }
 
-/* ==========================================================================
-   App Layout Grid
-   ========================================================================== */
+/* Layout Grid */
 .app-layout {
   flex: 1;
   display: flex;
@@ -247,6 +283,8 @@ body {
   cursor: pointer;
   transition: all var(--duration) var(--ease);
   position: relative;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .sidebar-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
@@ -273,9 +311,7 @@ body {
   background: var(--surface-base);
 }
 
-/* ==========================================================================
-   Player Strip
-   ========================================================================== */
+/* Player Strip */
 .player-strip {
   display: flex;
   align-items: center;
@@ -295,12 +331,14 @@ body {
   color: var(--text-primary);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all var(--duration) var(--ease);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 .btn-player:hover { border-color: var(--border-focus); background: var(--surface-hover); }
 .btn-play { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
 .btn-play:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-.progress-container { flex: 1; display: flex; align-items: center; height: 16px; cursor: pointer; }
+.progress-container { flex: 1; display: flex; align-items: center; height: 16px; cursor: pointer; -webkit-app-region: no-drag; app-region: no-drag; }
 .progress { width: 100%; height: 4px; background: var(--surface-active); border-radius: 2px; overflow: hidden; }
 .progress-fill { width: 0; height: 100%; background: var(--accent-primary); border-radius: 2px; transition: width 0.05s linear; }
 
@@ -310,6 +348,7 @@ body {
   background: var(--surface-input); color: var(--text-primary);
   border: 1px solid var(--border-subtle); border-radius: var(--radius-xs);
   padding: 2px 4px; font-size: 11px; outline: none; cursor: pointer;
+  -webkit-app-region: no-drag; app-region: no-drag;
 }
 
 .audio-equalizer { display: flex; align-items: flex-end; gap: 2px; height: 10px; opacity: 0.2; }
@@ -320,9 +359,7 @@ body {
 .audio-equalizer.active span:nth-child(3) { animation: eq 0.7s ease-in-out 0.1s infinite alternate; }
 @keyframes eq { 0% { height: 2px; } 100% { height: 10px; } }
 
-/* ==========================================================================
-   Panels Container (Main Area)
-   ========================================================================== */
+/* Panels Container */
 .panels-container {
   flex: 1;
   display: flex;
@@ -332,7 +369,6 @@ body {
   gap: 12px;
 }
 
-/* Sections */
 .panel-section {
   display: flex;
   flex-direction: column;
@@ -391,6 +427,7 @@ body {
   display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-weight: 500;
   border-radius: var(--radius-xs); cursor: pointer; border: 1px solid transparent;
   transition: all var(--duration) var(--ease);
+  -webkit-app-region: no-drag; app-region: no-drag;
 }
 .btn-sm { padding: 4px 10px; font-size: 11px; height: 26px; }
 .btn-xs { padding: 3px 8px; font-size: 10px; height: 22px; }
@@ -454,23 +491,17 @@ body {
   z-index: 100;
 }
 
-/* ==========================================================================
-   Mode Switches (Compact / Standard / Full)
-   ========================================================================== */
-
-/* COMPACT MODE */
+/* Mode Switches (Compact / Standard / Full) */
 [data-mode="compact"] .sidebar { display: none; }
 [data-mode="compact"] .panels-container { display: none; }
-[data-mode="compact"] .player-strip { border-bottom: none; -webkit-app-region: drag; }
-[data-mode="compact"] .player-strip * { -webkit-app-region: no-drag; }
-[data-mode="compact"] .titlebar { display: none; } /* Integrato */
+[data-mode="compact"] .player-strip { border-bottom: none; -webkit-app-region: drag; app-region: drag; }
+[data-mode="compact"] .player-strip * { -webkit-app-region: no-drag; app-region: no-drag; }
+[data-mode="compact"] .titlebar { display: none; }
 [data-mode="compact"] .compact-hide { display: none; }
 
-/* STANDARD MODE */
 [data-mode="standard"] .panels-container { flex-direction: column; }
 [data-mode="standard"] .compact-only-btn { display: none; }
 
-/* FULL MODE */
 [data-mode="full"] .panels-container { flex-direction: row; }
 [data-mode="full"] .compact-only-btn { display: none; }
 [data-mode="full"] .main-panel { flex: 1.5; }
