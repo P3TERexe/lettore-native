@@ -8,6 +8,29 @@ onnxruntime non è thread-safe per sessioni condivise.
 import logging
 import threading
 import time
+
+# --- PATCH ONNXRUNTIME PER HARDWARE ACCELERATION SU MACOS ---
+try:
+    import onnxruntime as ort
+    _original_session = ort.InferenceSession
+
+    def _patched_session(path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
+        if not providers or "CoreMLExecutionProvider" not in providers:
+            available = ort.get_available_providers()
+            new_providers = []
+            if "CoreMLExecutionProvider" in available:
+                new_providers.append("CoreMLExecutionProvider")
+            if "CUDAExecutionProvider" in available:
+                new_providers.append("CUDAExecutionProvider")
+            new_providers.append("CPUExecutionProvider")
+            providers = new_providers
+        return _original_session(path_or_bytes, sess_options=sess_options, providers=providers, provider_options=provider_options, **kwargs)
+
+    ort.InferenceSession = _patched_session
+except ImportError:
+    pass
+# -----------------------------------------------------------
+
 from collections import OrderedDict
 from pathlib import Path
 

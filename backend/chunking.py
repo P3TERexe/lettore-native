@@ -92,14 +92,18 @@ def split_into_sentences(text: str, lang: str = "it") -> list[str]:
 def _group_sentences(sentences: list[str], max_chars: int) -> list[str]:
     chunks = []
     current = ""
+    is_first = True
     for s in sentences:
+        # Usa 60 caratteri per il primo chunk (riduce latenza Time-To-First-Byte), poi max_chars
+        limit = 60 if is_first else max_chars
         if not current:
             current = s
-        elif len(current) + len(s) + 1 <= max_chars:
+        elif len(current) + len(s) + 1 <= limit:
             current += " " + s
         else:
             chunks.append(current)
             current = s
+            is_first = False
     if current:
         chunks.append(current)
     return chunks
