@@ -4,8 +4,6 @@ use core_foundation::base::{CFRelease, TCFType};
 use core_foundation::dictionary::{CFDictionaryGetValue, CFDictionaryRef};
 use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberIntType, kCFNumberSInt32Type};
 use core_foundation::string::CFString;
-use objc2::msg_send;
-use objc2_app_kit::NSWorkspace;
 use std::ffi::c_void;
 
 const K_AX_ERROR_SUCCESS: i32 = 0;
@@ -53,25 +51,9 @@ fn copy_attr(element: *mut c_void, attr_name: &str) -> Option<*mut c_void> {
     }
 }
 
-/// Trova il PID dell'applicazione target (quella in primo piano o appena sotto a Lettore).
-fn get_target_pid() -> Option<i32> {
+pub fn get_target_pid() -> Option<i32> {
     let my_pid = std::process::id() as i32;
 
-    // 1. Controlla prima frontmostApplication()
-    let frontmost = unsafe {
-        let workspace = NSWorkspace::sharedWorkspace();
-        workspace.frontmostApplication()
-    };
-
-    if let Some(app) = frontmost {
-        let pid: i32 = unsafe { msg_send![&*app, processIdentifier] };
-        if pid != my_pid && pid > 0 {
-            return Some(pid);
-        }
-    }
-
-    // 2. Se Lettore ha preso il focus (click Play),
-    // trova la finestra normale (layer 0) attiva subito sotto Lettore
     unsafe {
         let list_ptr = CGWindowListCopyWindowInfo(
             K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY | K_CG_WINDOW_LIST_EXCLUDE_DESKTOP_ELEMENTS,
@@ -121,15 +103,25 @@ fn get_target_pid() -> Option<i32> {
     }
 }
 
-pub fn read_selection() -> Result<Option<String>, String> {
+pub fn activate_app(pid: i32) {
+    use objc2::msg_send;
+    use objc2::runtime::Object;
+    use objc2::class;
+
+    unsafe {
+        let cls = class!(NSRunningApplication);
+        let app: *mut Object = msg_send![cls, runningApplicationWithProcessIdentifier: pid];
+        if !app.is_null() {
+            let options: usize = 2; // NSApplicationActivateIgnoringOtherApps
+            let _: bool = msg_send![app, activateWithOptions: options];
+        }
+    }
+}
+
+pub fn read_selection_from_pid(pid: i32) -> Result<Option<String>, String> {
     if !is_trusted() {
         return Ok(None);
     }
-
-    let pid = match get_target_pid() {
-        Some(p) => p,
-        None => return Ok(None),
-    };
 
     let app_el = unsafe { AXUIElementCreateApplication(pid) };
     if app_el.is_null() {
@@ -162,6 +154,14 @@ pub fn read_selection() -> Result<Option<String>, String> {
     }
 
     Ok(None)
+}
+
+pub fn read_selection() -> Result<Option<String>, String> {
+    if let Some(pid) = get_target_pid() {
+        read_selection_from_pid(pid)
+    } else {
+        Ok(None)
+    }
 }
 
 pub fn post_copy() -> bool {

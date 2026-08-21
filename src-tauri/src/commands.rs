@@ -87,45 +87,58 @@ pub async fn capture_selection(
 ) -> Result<serde_json::Value, String> {
     let auto_c = auto_copy.unwrap_or(false);
 
-    // 1. Prova prima con la lettura diretta AX
-    if let Ok(Some(text)) = accessibility::read_focused_selection() {
-        if !text.trim().is_empty() {
-            return Ok(serde_json::json!({
-                "text": text.trim(),
-                "source": "accessibility"
-            }));
-        }
-    }
+    let initial_clip = app.clipboard().read_text().unwrap_or_default();
 
-    // 2. Se auto_copy è richiesto, simula Cmd+C e cattura dalla Clipboard / AX
-    if auto_c {
-        let posted = accessibility::post_copy();
-        if posted {
+    // 1. Troviamo il PID dell'applicazione esterna (l'ultima usata prima di Lettore)
+    if let Some(target_pid) = accessibility::get_target_pid() {
+        
+        // 1.a Tenta prima con la lettura diretta AX sull'app target (senza toccare clipboard/focus)
+        if let Ok(Some(text)) = accessibility::read_selection_from_pid(target_pid) {
+            if !text.trim().is_empty() {
+                return Ok(serde_json::json!({
+                    "text": text.trim(),
+                    "source": "accessibility"
+                }));
+            }
+        }
+
+        // 1.b Se AX fallisce (es. app non supportata) o auto_copy è forzato,
+        // attiviamo temporaneamente l'app, simuliamo Cmd+C, e torniamo a noi!
+        if auto_c {
+            // Portiamo l'app in primo piano in modo che riceva Cmd+C
+            accessibility::activate_app(target_pid);
+            
+            // Attendiamo che il focus sia effettivo
             tokio::time::sleep(Duration::from_millis(150)).await;
-
-            // Controlla se la selezione AX si è popolata
-            if let Ok(Some(text)) = accessibility::read_focused_selection() {
-                if !text.trim().is_empty() {
-                    return Ok(serde_json::json!({
-                        "text": text.trim(),
-                        "source": "accessibility"
-                    }));
+            
+            // Inviamo Cmd+C globalmente
+            let posted = accessibility::post_copy();
+            
+            if posted {
+                // Attendiamo che la clipboard si popoli
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                
+                // Riportiamo Lettore in primo piano
+                accessibility::activate_app(std::process::id() as i32);
+                tokio::time::sleep(Duration::from_millis(50)).await; // breve pausa prima di leggere
+                
+                // Leggiamo la clipboard
+                if let Ok(clip) = app.clipboard().read_text() {
+                    if clip != initial_clip && !clip.trim().is_empty() {
+                        return Ok(serde_json::json!({
+                            "text": clip.trim(),
+                            "source": "clipboard"
+                        }));
+                    }
                 }
-            }
-
-            // Leggi il testo copiato negli appunti
-            if let Ok(clip) = app.clipboard().read_text() {
-                if !clip.trim().is_empty() {
-                    return Ok(serde_json::json!({
-                        "text": clip.trim(),
-                        "source": "clipboard"
-                    }));
-                }
+            } else {
+                // Se non possiamo postare, rimettiamo in focus Lettore
+                accessibility::activate_app(std::process::id() as i32);
             }
         }
     }
 
-    // 3. Fallback su /v1/capture del backend
+    // 2. Fallback su /v1/capture del backend
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(1500))
         .build()
@@ -147,9 +160,9 @@ pub async fn capture_selection(
         }
     }
 
-    // 4. Ultimo fallback: testo presente negli appunti
+    // 3. Ultimo fallback: se il testo negli appunti è cambiato (magari l'utente ha premuto Cmd+C manualmente un istante prima)
     if let Ok(clip) = app.clipboard().read_text() {
-        if !clip.trim().is_empty() {
+        if clip != initial_clip && !clip.trim().is_empty() {
             return Ok(serde_json::json!({
                 "text": clip.trim(),
                 "source": "clipboard"
