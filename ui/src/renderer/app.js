@@ -21,6 +21,7 @@ const els = {
   tabSettings: document.getElementById("tab-settings"),
   capturePanel: document.getElementById("capture-panel"),
   queuePanel: document.getElementById("queue-panel"),
+  queueEmpty: document.getElementById("queue-empty"),
   settingsPanel: document.getElementById("settings-panel"),
   permBanner: document.getElementById("perm-banner"),
   openAx: document.getElementById("btn-open-ax"),
@@ -131,7 +132,14 @@ function highlightWord(idx) {
   for (let i = 0; i < spans.length; i++) {
     if (i === idx) {
       spans[i].classList.add("r-active");
-      spans[i].scrollIntoView({ block: "center", behavior: "smooth" });
+      const container = els.readingText;
+      const spanTop = spans[i].offsetTop;
+      const containerHalf = container.clientHeight / 2;
+      const targetScroll = spanTop - containerHalf;
+      // Scrolla solo se la differenza è maggiore di mezza riga per evitare jank
+      if (Math.abs(container.scrollTop - targetScroll) > 20) {
+        container.scrollTo({ top: targetScroll, behavior: "smooth" });
+      }
     } else {
       spans[i].classList.remove("r-active");
     }
@@ -173,15 +181,17 @@ const queue = new QueueController({
       els.play.title = "Pausa (Spazio)";
       if (isProcessing) {
         els.audioWave?.classList.remove("active");
-        els.timeLabel.textContent = "in elaborazione...";
+        els.audioWave?.classList.add("processing");
+        els.timeLabel.textContent = "elaborazione...";
       } else {
+        els.audioWave?.classList.remove("processing");
         els.audioWave?.classList.add("active");
       }
     } else {
       if (els.iconPlay) els.iconPlay.hidden = false;
       if (els.iconPause) els.iconPause.hidden = true;
       els.play.title = "Play (Spazio)";
-      els.audioWave?.classList.remove("active");
+      els.audioWave?.classList.remove("active", "processing");
       if (player.state === "paused") {
          els.timeLabel.textContent = "in pausa";
       } else {
@@ -542,6 +552,7 @@ async function init() {
       }
       if (state.state === "playing") {
         await queue.advance();
+      if (els.queueEmpty) els.queueEmpty.hidden = (state.jobs.length > 0 || state.current);
       } else if (state.state === "idle" && (state.current || state.jobs.length > 0)) {
         await queue.play();
         await queue.advance();
