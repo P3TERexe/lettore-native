@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="it" data-theme="dark" data-a11y="standard" data-mode="standard" data-text-size="md">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'" />
+  <title>Lettore</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Titlebar: macOS Native Style -->
+  <header class="titlebar">
+    <div class="drag-region">
+      <div class="app-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <span class="app-title">Lettore</span>
+      </div>
+      <div class="status-indicator">
+        <span id="status-dot" class="dot dot-offline" title="Stato del motore locale"></span>
+        <span id="status-text" class="status-text">offline</span>
+      </div>
+    </div>
+    <div class="win-controls">
+      <button id="btn-pin" class="icon-btn" title="Mantieni sempre in primo piano" aria-label="Sempre in primo piano">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 17v5M5 12V7a5 5 0 0 1 10 0v5l2 3H3l2-3z"/>
+        </svg>
+      </button>
+      <button id="btn-min" class="icon-btn" title="Minimizza" aria-label="Minimizza">&minus;</button>
+      <button id="btn-close" class="icon-btn btn-close" title="Chiudi" aria-label="Chiudi">&times;</button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- Sidebar (Hidden in compact mode) -->
+    <aside class="sidebar">
+      <button id="tab-capture" class="sidebar-btn active" title="Testo" data-target="capture-panel">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+      </button>
+      <button id="tab-queue" class="sidebar-btn" title="Coda" data-target="queue-panel">
+        <div class="icon-container">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+          <span id="queue-count" class="badge" hidden>0</span>
+        </div>
+      </button>
+      <button id="tab-settings" class="sidebar-btn" title="Impostazioni" data-target="settings-panel">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+      <div class="sidebar-spacer"></div>
+      <button id="btn-mode" class="sidebar-btn" title="Cambia visualizzazione (Compact / Standard / Full)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="3" x2="9" y2="21"></line>
+        </svg>
+      </button>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      <!-- Player Strip (Always visible) -->
+      <section id="player-strip" class="player-strip" aria-label="Controlli di riproduzione">
+        <div class="player-left">
+          <button id="btn-play" class="btn-player btn-play" title="Play / Pausa (Spazio)" aria-label="Riproduci o metti in pausa">
+            <svg id="icon-play" viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+              <polygon points="6 3 20 12 6 21 6 3"></polygon>
+            </svg>
+            <svg id="icon-pause" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" hidden>
+              <rect x="5" y="4" width="4" height="16" rx="1"></rect>
+              <rect x="15" y="4" width="4" height="16" rx="1"></rect>
+            </svg>
+          </button>
+
+          <button id="btn-stop" class="btn-player btn-stop" title="Stop (Esc)" aria-label="Ferma riproduzione">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+              <rect x="4" y="4" width="16" height="16" rx="1.5"></rect>
+            </svg>
+          </button>
+        </div>
+
+        <div class="progress-container">
+          <div class="progress" role="progressbar" aria-label="Progresso riproduzione">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="player-right">
+          <div id="audio-wave" class="audio-equalizer" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+
+          <span id="time-label" class="time-label">0:00 / 0:00</span>
+
+          <div class="select-wrapper compact-hide">
+            <select id="speed-select" title="Velocità di riproduzione" aria-label="Velocità di riproduzione">
+              <option value="0.7">0.7x</option>
+              <option value="0.85">0.85x</option>
+              <option value="1.0">1.0x</option>
+              <option value="1.05" selected>1.05x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="1.75">1.75x</option>
+              <option value="2.0">2.0x</option>
+            </select>
+          </div>
+          
+          <button id="btn-expand-compact" class="icon-btn compact-only-btn" title="Espandi finestra">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <polyline points="9 21 3 21 3 15"></polyline>
+              <line x1="21" y1="3" x2="14" y2="10"></line>
+              <line x1="3" y1="21" x2="10" y2="14"></line>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Accessibility Permission Banner -->
+      <section id="perm-banner" class="banner banner-warn" hidden>
+        <div class="banner-content">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>Cattura automatica: abilita <strong>Accessibilità</strong> in macOS.</span>
+        </div>
+        <button id="btn-open-ax" class="btn btn-xs btn-secondary">Abilita</button>
+      </section>
+
+      <!-- Panels Container -->
+      <div class="panels-container">
+        <!-- Reading Word Highlighting -->
+        <section id="reading-panel" class="panel-section main-panel" hidden>
+          <div class="panel-header">
+            <span class="panel-label">In riproduzione</span>
+          </div>
+          <div id="reading-text" class="reading-text" tabindex="0"></div>
+        </section>
+
+        <!-- Text Capture -->
+        <section id="capture-panel" class="panel-section main-panel active-panel">
+            <div class="textarea-wrapper">
+              <textarea id="text-input" spellcheck="false"
+                placeholder="Incolla un testo qui, oppure selezionalo in qualsiasi app (Cmd+Shift+S)..."></textarea>
+            </div>
+            <div class="action-toolbar">
+              <div class="action-group">
+                <button id="btn-clipboard" class="btn btn-sm btn-ghost" title="Incolla dagli appunti">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  </svg>
+                  <span>Clipboard</span>
+                </button>
+                <button id="btn-export" class="btn btn-sm btn-ghost" title="Esporta ultimo audio in file WAV">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>WAV</span>
+                </button>
+              </div>
+
+              <div class="action-group">
+                <button id="btn-read-paragraphs" class="btn btn-sm btn-secondary" title="Spezza per paragrafi e leggi in sequenza">A paragrafi</button>
+                <button id="btn-read" class="btn btn-sm btn-primary" title="Avvia lettura immediata">
+                  <span>Leggi</span>
+                  <kbd class="key-chip">⏎</kbd>
+                </button>
+              </div>
+            </div>
+        </section>
+
+        <!-- Queue Panel -->
+        <section id="queue-panel" class="panel-section side-panel" hidden>
+          <div class="panel-header">
+            <span class="panel-label">Coda di riproduzione</span>
+            <button id="btn-clear-queue" class="btn-micro" title="Svuota coda">Svuota</button>
+          </div>
+          <ul id="queue-list" class="queue-list"></ul>
+        </section>
+
+        <!-- Settings Panel -->
+        <section id="settings-panel" class="panel-section side-panel" hidden>
+            <div class="panel-header">
+              <span class="panel-label">Preferenze e Accessibilità</span>
+            </div>
+            <div class="settings-scroll-area">
+              <div class="settings-grid">
+                
+                <!-- A11y Theme -->
+                <div class="setting-item">
+                  <label for="set-theme">Tema Colore</label>
+                  <select id="set-theme">
+                    <option value="dark">Dark (Predefinito)</option>
+                    <option value="light">Light</option>
+                    <option value="contrast">Alto Contrasto</option>
+                  </select>
+                </div>
+                
+                <!-- A11y Profile -->
+                <div class="setting-item">
+                  <label for="set-a11y">Profilo Visivo</label>
+                  <select id="set-a11y">
+                    <option value="standard">Standard</option>
+                    <option value="lowvision">Ipovedenti (Testo grande, alto contrasto)</option>
+                    <option value="dyslexia">Dislessia (Font Atkinson, spazi larghi)</option>
+                  </select>
+                </div>
+
+                <div class="setting-item full-width divider"></div>
+
+                <!-- Voice / Lang -->
+                <div class="setting-item">
+                  <label for="set-voice">Voce</label>
+                  <select id="set-voice"></select>
+                </div>
+                <div class="setting-item">
+                  <label for="set-lang">Lingua</label>
+                  <select id="set-lang"></select>
+                </div>
+
+                <div class="setting-item">
+                  <label for="set-steps">Qualità (steps)</label>
+                  <select id="set-steps">
+                    <option value="5">5 (veloce)</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8" selected>8 (bilanciata)</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12 (massima)</option>
+                  </select>
+                </div>
+
+                <div class="setting-item">
+                  <label for="set-text-size">Dimensione testo lettura</label>
+                  <select id="set-text-size">
+                    <option value="md" selected>Normale</option>
+                    <option value="lg">Grande</option>
+                    <option value="xl">Molto grande</option>
+                  </select>
+                </div>
+
+                <div class="setting-item full-width">
+                  <label for="set-hotkey">Hotkey globale di cattura</label>
+                  <div class="input-with-status">
+                    <input id="set-hotkey" type="text" spellcheck="false" placeholder="Cmd+Shift+S" />
+                    <span id="hotkey-status" class="hotkey-indicator"></span>
+                  </div>
+                </div>
+
+                <div class="setting-item checkbox-item">
+                  <label class="toggle-label">
+                    <input id="set-pin" type="checkbox" />
+                    <span>Sempre in primo piano</span>
+                  </label>
+                </div>
+
+                <div class="setting-item checkbox-item">
+                  <label class="toggle-label">
+                    <input id="set-capture-auto" type="checkbox" />
+                    <span>Cattura automatica alla selezione (AX)</span>
+                  </label>
+                </div>
+
+                <div class="setting-item full-width">
+                  <button id="btn-manage-voices" class="btn btn-sm btn-secondary">Gestisci nomi e lingue voci</button>
+                </div>
+              </div>
+
+              <div id="voice-manager" class="voice-manager" hidden></div>
+            </div>
+          </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast" hidden role="alert" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

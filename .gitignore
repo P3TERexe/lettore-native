@@ -1,0 +1,31 @@
+# Rust / Tauri
+src-tauri/target/
+src-tauri/binaries/lettore-backend-*
+!src-tauri/binaries/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Node
+node_modules/
+ui/node_modules/
+ui/dist/
+
+# Audio / runtime data
+*.wav
+*.mp3
+*.log
+backend/*.log
+
+# OS / Editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
