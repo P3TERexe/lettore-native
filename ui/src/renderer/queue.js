@@ -198,8 +198,6 @@ export class QueueController {
 
   async next() {
     this._activeJobId = null;
-    this._preloadedBuffers = new Map();
-    this._isPreloading = false;
     this.player.stop();
     await this.markDone();
     return this.advance();
