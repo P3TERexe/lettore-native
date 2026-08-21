@@ -20,6 +20,12 @@ export class QueueController {
     this.countEl = document.getElementById("queue-count");
   }
 
+  _clearPreload() {
+    if (this._preloadedBuffers) this._preloadedBuffers.clear();
+    this._nextJobPreloaded = null;
+    this._isPreloading = false;
+  }
+
   async fetch(path, options = {}) {
     const res = await fetch(`${this.base}${path}`, options);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -56,8 +62,7 @@ export class QueueController {
 
   async stop() {
     this._activeJobId = null;
-    this._preloadedBuffers = new Map();
-    this._isPreloading = false;
+    this._clearPreload();
     this.player.stop();
     await this.fetch("/v1/queue/stop", { method: "POST" });
     this.render(await this.getState());
@@ -65,18 +70,16 @@ export class QueueController {
 
   async clear() {
     this._activeJobId = null;
-    this._preloadedBuffers = new Map();
-    this._isPreloading = false;
+    this._clearPreload();
     this.player.stop();
     await this.fetch("/v1/queue", { method: "DELETE" });
     this.render(await this.getState());
   }
 
   async remove(id) {
+    this._clearPreload();
     if (this._activeJobId === id) {
       this._activeJobId = null;
-    this._preloadedBuffers = new Map();
-    this._isPreloading = false;
       this.player.stop();
     }
     await this.fetch(`/v1/queue/${id}`, { method: "DELETE" });
