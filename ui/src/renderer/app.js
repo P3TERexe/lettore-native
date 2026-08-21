@@ -251,9 +251,16 @@ async function readSelection() {
 }
 
 async function enqueueAndPlay({ split = false } = {}) {
-  const text = els.textInput.value.trim();
+  let text = els.textInput.value.trim();
   if (!text) {
-    toast("Nessun testo da leggere");
+    const sel = await readSelection();
+    if (sel && sel.trim()) {
+      text = sel.trim();
+      els.textInput.value = text;
+    }
+  }
+  if (!text) {
+    toast("Nessun testo da leggere: seleziona del testo in un'altra app o incollalo qui");
     return;
   }
   try {
@@ -325,13 +332,23 @@ async function togglePlayback() {
     return;
   }
   if (!queue.currentJobId) {
+    // 1. Tenta prima di catturare la selezione attiva dall'altra applicazione (AX / auto-copy)
+    const selection = await readSelection();
+    if (selection && selection.trim()) {
+      els.textInput.value = selection.trim();
+      await enqueueAndPlay();
+      return;
+    }
+
+    // 2. Se non c'è selezione attiva, usa il testo presente nella textarea
     let text = els.textInput.value.trim();
     if (!text) {
+      // 3. Fallback sulla clipboard
       const clip = await api.readClipboard();
       if (clip && clip.trim()) {
         els.textInput.value = clip.trim();
       } else {
-        toast("Nessun testo. Usa Cmd+Shift+S o copia qualcosa negli appunti.");
+        toast("Nessun testo. Seleziona del testo in un'altra app o premi Cmd+Shift+S.");
         return;
       }
     }
@@ -378,7 +395,7 @@ function setWindowMode(mode) {
          els.capturePanel.hidden = true;
          els.queuePanel.hidden = true;
          els.tabCapture.classList.remove("active");
-         els.tabSettings.classList.remove("active");
+         els.tabQueue.classList.remove("active");
       } else {
          els.capturePanel.hidden = false;
          els.tabCapture.classList.add("active");

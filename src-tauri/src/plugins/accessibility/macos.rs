@@ -1,5 +1,8 @@
 #[cfg(target_os = "macos")]
+use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
+use core_foundation::dictionary::{CFDictionaryGetValue, CFDictionaryRef};
+use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberIntType, kCFNumberSInt32Type};
 use core_foundation::string::CFString;
 use objc2::msg_send;
 use objc2_app_kit::NSWorkspace;
@@ -9,6 +12,10 @@ const K_AX_ERROR_SUCCESS: i32 = 0;
 const K_CG_HID_EVENT_TAP: u32 = 0;
 const K_CG_EVENT_FLAG_MASK_COMMAND: u64 = 1 << 20;
 const K_VK_ANSI_C: u16 = 8;
+
+const K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY: u32 = 1;
+const K_CG_WINDOW_LIST_EXCLUDE_DESKTOP_ELEMENTS: u32 = 16;
+const K_CG_NULL_WINDOW_ID: u32 = 0;
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
@@ -23,6 +30,7 @@ extern "C" {
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
+    fn CGWindowListCopyWindowInfo(option: u32, relativeToWindow: u32) -> *mut c_void;
     fn CGEventCreateKeyboardEvent(source: *mut c_void, virtual_key: u16, key_down: bool) -> *mut c_void;
     fn CGEventSetFlags(event: *mut c_void, flags: u64);
     fn CGEventPost(tap: u32, event: *mut c_void);
@@ -45,22 +53,85 @@ fn copy_attr(element: *mut c_void, attr_name: &str) -> Option<*mut c_void> {
     }
 }
 
-pub fn read_selection() -> Result<Option<String>, String> {
-    if !is_trusted() {
-        return Ok(None);
-    }
+/// Trova il PID dell'applicazione target (quella in primo piano o appena dietro a Lettore).
+fn get_target_pid() -> Option<i32> {
+    let my_pid = std::process::id() as i32;
 
+    // 1. Controlla prima frontmostApplication()
     let frontmost = unsafe {
         let workspace = NSWorkspace::sharedWorkspace();
         workspace.frontmostApplication()
     };
 
-    let frontmost = match frontmost {
-        Some(app) => app,
+    if let Some(app) = frontmost {
+        let pid: i32 = unsafe { msg_send![&*app, processIdentifier] };
+        if pid != my_pid && pid > 0 {
+            return Some(pid);
+        }
+    }
+
+    // 2. Se Lettore è in primo piano (perché l'utente ha appena cliccato Play),
+    // cerca la finestra applicativa subito sotto Lettore tramite CGWindowListCopyWindowInfo
+    unsafe {
+        let list_ptr = CGWindowListCopyWindowInfo(
+            K_CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY | K_CG_WINDOW_LIST_EXCLUDE_DESKTOP_ELEMENTS,
+            K_CG_NULL_WINDOW_ID,
+        );
+
+        if list_ptr.is_null() {
+            return None;
+        }
+
+        let array_ref = list_ptr as core_foundation::array::CFArrayRef;
+        let count = CFArrayGetCount(array_ref);
+
+        let k_pid = CFString::new("kCGWindowOwnerPID");
+        let k_layer = CFString::new("kCGWindowLayer");
+
+        let mut target_pid: Option<i32> = None;
+
+        for i in 0..count {
+            let dict_ptr = CFArrayGetValueAtIndex(array_ref, i) as CFDictionaryRef;
+            if dict_ptr.is_null() {
+                continue;
+            }
+
+            let mut layer_val: i32 = -1;
+            let layer_ref = CFDictionaryGetValue(dict_ptr, k_layer.as_concrete_TypeRef() as *const c_void) as CFNumberRef;
+            if !layer_ref.is_null() {
+                CFNumberGetValue(layer_ref, kCFNumberIntType, &mut layer_val as *mut i32 as *mut c_void);
+            }
+
+            // Considera solo finestre di normal layer (0)
+            if layer_val == 0 {
+                let pid_ref = CFDictionaryGetValue(dict_ptr, k_pid.as_concrete_TypeRef() as *const c_void) as CFNumberRef;
+                if !pid_ref.is_null() {
+                    let mut pid_val: i32 = 0;
+                    if CFNumberGetValue(pid_ref, kCFNumberSInt32Type, &mut pid_val as *mut i32 as *mut c_void) {
+                        if pid_val != my_pid && pid_val > 0 {
+                            target_pid = Some(pid_val);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        CFRelease(list_ptr);
+        target_pid
+    }
+}
+
+pub fn read_selection() -> Result<Option<String>, String> {
+    if !is_trusted() {
+        return Ok(None);
+    }
+
+    let pid = match get_target_pid() {
+        Some(p) => p,
         None => return Ok(None),
     };
 
-    let pid: i32 = unsafe { msg_send![&*frontmost, processIdentifier] };
     let app_el = unsafe { AXUIElementCreateApplication(pid) };
     if app_el.is_null() {
         return Ok(None);
