@@ -87,9 +87,6 @@ export class QueueController {
   }
 
   async markDone() {
-    this._activeJobId = null;
-    this._preloadedBuffers = new Map();
-    this._isPreloading = false;
     return this.fetch("/v1/queue/current/done", { method: "POST" });
   }
 
