@@ -35,4 +35,4 @@ if [[ -d "$ROOT/ui" ]]; then
   echo "UI: dipendenze installate."
 fi
 
-echo "Setup completato. Avvia con: python scripts/start.py"
+echo "Setup completato. Avvia con: npm run dev"
