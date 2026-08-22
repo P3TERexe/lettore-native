@@ -54,33 +54,41 @@ def build():
         "PyInstaller",
         "--name",
         out_name,
-        "--onedir",
+        # onefile: l'eseguibile deve essere autonomo perché Tauri lo bundla
+        # come externalBin singolo (onedir richiederebbe _internal/ accanto).
+        "--onefile",
         "--noconfirm",
         "--clean",
         "--collect-all",
         "supertonic",
-        "--collect-all",
-        "onnxruntime",
+        # NOTA: niente --collect-all su onnxruntime — l'hook nativo di
+        # PyInstaller basta e collect-all duplica il pacchetto, spezzando
+        # l'identità della classe ort.InferenceSession (isinstance() fallisce).
         "--collect-all",
         "pysbd",
         "--collect-all",
         "langdetect",
-        "--add-data",
-        f"{BACKEND_DIR}:backend",
-        str(BACKEND_DIR / "main.py"),
+        # Il pacchetto backend deve essere importabile nel bundle (import
+        # risolti in fase di analisi), non copiato come dati.
+        "--paths",
+        str(ROOT),
+        str(ROOT / "scripts" / "sidecar_entry.py"),
     ]
 
     print("==> Esecuzione PyInstaller:", " ".join(cmd))
     subprocess.check_call(cmd, cwd=ROOT)
 
-    dist_bin = ROOT / "dist" / out_name / out_name
+    dist_bin = ROOT / "dist" / out_name
     if not dist_bin.exists() and sys.platform == "win32":
-        dist_bin = ROOT / "dist" / out_name / f"{out_name}.exe"
+        dist_bin = ROOT / "dist" / f"{out_name}.exe"
 
     if dist_bin.exists():
         shutil.copy2(dist_bin, target_path)
         os.chmod(target_path, 0o755)
         print(f"[✓] Sidecar compilato con successo in: {target_path}")
+        # Output transitorio di PyInstaller alla root del progetto.
+        for tmp in (ROOT / "dist", ROOT / "build"):
+            shutil.rmtree(tmp, ignore_errors=True)
     else:
         print(f"[!] File binario dist non trovato in {dist_bin}")
 

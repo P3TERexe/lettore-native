@@ -10,23 +10,39 @@ import threading
 import time
 
 # --- PATCH ONNXRUNTIME PER HARDWARE ACCELERATION SU MACOS ---
+# Attenzione: ort.InferenceSession va sostituito con una SOTTOCLASSE, non
+# con una funzione — supertonic fa isinstance(session, ort.InferenceSession)
+# e il secondo argomento deve restare un tipo.
 try:
     import onnxruntime as ort
-    _original_session = ort.InferenceSession
 
-    def _patched_session(path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
-        if not providers or "CoreMLExecutionProvider" not in providers:
-            available = ort.get_available_providers()
-            new_providers = []
-            if "CoreMLExecutionProvider" in available:
-                new_providers.append("CoreMLExecutionProvider")
-            if "CUDAExecutionProvider" in available:
-                new_providers.append("CUDAExecutionProvider")
-            new_providers.append("CPUExecutionProvider")
-            providers = new_providers
-        return _original_session(path_or_bytes, sess_options=sess_options, providers=providers, provider_options=provider_options, **kwargs)
+    def _resolve_providers(providers):
+        if providers and "CoreMLExecutionProvider" in providers:
+            return providers
+        available = ort.get_available_providers()
+        resolved = [
+            p
+            for p in ("CoreMLExecutionProvider", "CUDAExecutionProvider")
+            if p in available
+        ]
+        resolved.append("CPUExecutionProvider")
+        return resolved
 
-    ort.InferenceSession = _patched_session
+    class _AcceleratedSession(ort.InferenceSession):
+        """InferenceSession con selezione automatica dei provider (CoreML/CUDA/CPU)."""
+
+        def __init__(
+            self, path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs
+        ):
+            super().__init__(
+                path_or_bytes,
+                sess_options=sess_options,
+                providers=_resolve_providers(providers),
+                provider_options=provider_options,
+                **kwargs,
+            )
+
+    ort.InferenceSession = _AcceleratedSession
 except ImportError:
     pass
 # -----------------------------------------------------------
