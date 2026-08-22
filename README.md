@@ -47,25 +47,23 @@ Seleziona un testo in qualsiasi applicazione e ascoltalo istantaneamente con con
 
 1. **Installazione dipendenze**:
    ```bash
-   # Configura ambiente Python
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r backend/requirements.txt
-   pip install -r backend/requirements-macos.txt # o windows/linux
-
-   # Configura frontend
-   cd ui && npm install && cd ..
+   # Crea .venv, installa requirements (+ quelli del SO) e le dipendenze UI
+   bash scripts/setup.sh
    ```
 
 2. **Avvio in modalità sviluppo**:
    ```bash
-   cd src-tauri && cargo tauri dev
+   npm run dev
    ```
+   Tauri avvia Vite (porta 1420) e il backend Python: se non trova il sidecar
+   compilato usa `.venv/bin/python -m uvicorn backend.main:app`.
 
 3. **Compilazione pacchetto di produzione**:
    ```bash
-   bash scripts/build.sh
+   npm run build   # equivale a: bash scripts/build.sh
    ```
+   Pipeline: build UI → sidecar PyInstaller (`scripts/build_sidecar.py`) → `cargo build --release`.
+   Binario finale: `src-tauri/target/release/lettore`.
 
 ---
 
