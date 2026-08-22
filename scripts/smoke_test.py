@@ -15,7 +15,9 @@ from backend.tts_manager import TTSManager  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Smoke test backend TTS")
-    parser.add_argument("text", nargs="?", default="Ciao, questa è la prova di lettura con Supertonic.")
+    parser.add_argument(
+        "text", nargs="?", default="Ciao, questa è la prova di lettura con Supertonic."
+    )
     parser.add_argument("-l", "--lang", default="it")
     parser.add_argument("-v", "--voice", default="M1")
     parser.add_argument("-s", "--steps", type=int, default=8)
@@ -31,8 +33,10 @@ def main() -> int:
     with open(args.output, "wb") as fh:
         fh.write(wav)
     builtin, custom = manager.voices()
-    print(f"OK  [{args.voice} / {args.lang}] durata={duration_ms}ms "
-          f"tempo_totale={(time.monotonic()-t0):.1f}s file={args.output}")
+    print(
+        f"OK  [{args.voice} / {args.lang}] durata={duration_ms}ms "
+        f"tempo_totale={(time.monotonic() - t0):.1f}s file={args.output}"
+    )
     print(f"Voci builtin: {builtin}  custom: {custom}")
     return 0
 

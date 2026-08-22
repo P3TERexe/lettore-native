@@ -21,9 +21,7 @@ def png_chunk(tag: bytes, data: bytes) -> bytes:
 
 
 def make_png(size: int, pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
-    raw = b"".join(
-        b"\x00" + b"".join(struct.pack("4B", *p) for p in row) for row in pixels
-    )
+    raw = b"".join(b"\x00" + b"".join(struct.pack("4B", *p) for p in row) for row in pixels)
     ihdr = struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)
     return (
         b"\x89PNG\r\n\x1a\n"
@@ -42,7 +40,9 @@ def speaker(size: int, rgb: tuple[int, int, int]) -> list[list[tuple[int, int, i
         for x in range(size):
             fx, fy = x + 0.5, y + 0.5
             in_body = x0 <= fx <= x1 and y0 <= fy <= y1
-            in_cone = (x1 <= fx) and (y0 <= fy <= y1) and (fy - y0) <= (y1 - y0) * (fx - x1) / (size - x1)
+            in_cone = (
+                (x1 <= fx) and (y0 <= fy <= y1) and (fy - y0) <= (y1 - y0) * (fx - x1) / (size - x1)
+            )
             if in_body or in_cone:
                 px[y][x] = (*rgb, 255)
     return px

@@ -21,9 +21,7 @@ try:
             return providers
         available = ort.get_available_providers()
         resolved = [
-            p
-            for p in ("CoreMLExecutionProvider", "CUDAExecutionProvider")
-            if p in available
+            p for p in ("CoreMLExecutionProvider", "CUDAExecutionProvider") if p in available
         ]
         resolved.append("CPUExecutionProvider")
         return resolved
@@ -216,7 +214,7 @@ class TTSManager:
             self._cache[cache_key] = res
             if len(self._cache) > self._cache_max_size:
                 self._cache.popitem(last=False)
-        
+
         return res
 
     @staticmethod

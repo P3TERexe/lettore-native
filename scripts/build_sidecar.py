@@ -42,9 +42,9 @@ def build():
     print(f"==> Compilazione sidecar per target: {triple}")
 
     # Verifica se PyInstaller è disponibile
-    try:
-        import PyInstaller
-    except ImportError:
+    import importlib.util
+
+    if importlib.util.find_spec("PyInstaller") is None:
         print("[!] PyInstaller non trovato nell'ambiente corrente. Installazione...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
 
