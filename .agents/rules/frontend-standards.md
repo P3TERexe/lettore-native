@@ -1,6 +1,6 @@
 # Standard di Sviluppo Frontend per Lettore
 
-Questo documento definisce i criteri di qualità grafica, architetturale e di accessibilità per l'interfaccia Electron.
+Questo documento definisce i criteri di qualità grafica, architetturale e di accessibilità per l'interfaccia Tauri 2 (WebView, vanilla ES modules).
 
 ---
 
@@ -33,4 +33,4 @@ Questo documento definisce i criteri di qualità grafica, architetturale e di ac
   * Supportare scorciatoie rapide per il controllo (`Space` per Play/Pause quando non si scrive in textarea, `Esc` per fermare la riproduzione).
   * Utilizzare `aria-label` e attributi `title` espliciti su tutti i pulsanti iconici.
 * **Finestra Flottante**:
-  * Rispettare `-webkit-app-region: drag` sulla titlebar e `-webkit-app-region: no-drag` su tutti gli elementi interattivi.
+   * Usare l'attributo `data-tauri-drag-region` sulla titlebar per il trascinamento (Tauri 2); NON usare `-webkit-app-region`, che è specifico di Electron e qui non ha effetto.
