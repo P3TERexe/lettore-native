@@ -65,3 +65,26 @@ Trascinando lo strip la finestra si sposta (drag region attiva).
 
 ## Actual Behavior
 La finestra non si sposta: il drag non parte.
+
+---
+
+# Bug Report 5
+
+## Description
+La lettura dalla coda fallisce con il messaggio "Errore: sintesi fallita (HTTP 400)".
+
+## Steps to Reproduce
+1. Aggiungere un testo alla coda e avviare la riproduzione.
+2. La sintesi del job risponde HTTP 400 e il toast mostra l'errore (origine UI: `queue.js:105`).
+
+## Expected Behavior
+Il job in coda viene sintetizzato e riprodotto.
+
+## Actual Behavior
+`POST /v1/tts` risponde 400. Il backend mappa ValueError → 400; le fonti note sono "voce sconosciuta: {voice}" (`tts_manager.py:239`) o errori sollevati dal motore su text/lang non validi.
+
+## Diagnosi raccolte (2026-08-24)
+- Replay con i settaggi attuali (voice F2, lang auto, steps 12, speed 1.5) contro `/v1/tts`: **HTTP 200**, sintesi corretta.
+- Coda attualmente vuota: il job fallito non è più ispezionabile.
+- Sospetto: job accodato con parametri vecchi (voce/lang salvati all'enqueue) non più validi, o ValueError del motore su quel testo specifico.
+- Da fare al prossimo verificarsi: loggare il `detail` JSON della risposta 400 (oggi il toast lo scarta) e ispezionare il job prima che venga rimosso.
