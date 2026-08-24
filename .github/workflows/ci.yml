@@ -29,6 +29,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Placeholder sidecar (gitignored)
+        run: |
+          mkdir -p src-tauri/binaries
+          touch src-tauri/binaries/lettore-backend-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/lettore-backend-aarch64-apple-darwin
       - name: Cargo check
         run: cargo check --quiet
         working-directory: src-tauri
