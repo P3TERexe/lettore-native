@@ -7,7 +7,6 @@ import sys
 def request_permission():
     try:
         from ApplicationServices import (
-            AXIsProcessTrusted,
             AXIsProcessTrustedWithOptions,
             kAXTrustedCheckOptionPrompt,
         )
