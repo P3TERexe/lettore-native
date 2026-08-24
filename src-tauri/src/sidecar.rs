@@ -58,43 +58,56 @@ impl SidecarState {
             *self.log_path.lock().unwrap() = Some(log_file);
         }
 
-        // 1. Prova a spawnare come sidecar Tauri
-        let sidecar_result = app.shell().sidecar("lettore-backend");
-        match sidecar_result {
-            Ok(command) => {
-                let cmd = command
-                    .args(["--host", "127.0.0.1", "--port", &self.port.to_string()])
-                    .env("LETTORE_PORT", self.port.to_string());
+        let mut started = false;
 
-                if let Ok((mut rx, child)) = cmd.spawn() {
-                    *self.tauri_child.lock().unwrap() = Some(child);
-                    
-                    let log_p = self.log_path.lock().unwrap().clone();
-                    tauri::async_runtime::spawn(async move {
-                        use std::io::Write;
-                        while let Some(event) = rx.recv().await {
-                            if let Some(ref path) = log_p {
-                                if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(path) {
-                                    match event {
-                                        tauri_plugin_shell::process::CommandEvent::Stdout(bytes) => {
-                                            let _ = f.write_all(&bytes);
+        // In debug mode, preferisci l'interprete Python locale (.venv) per caricare modifiche live
+        #[cfg(debug_assertions)]
+        {
+            if self.spawn_dev_python(app).is_ok() {
+                started = true;
+            }
+        }
+
+        if !started {
+            // 1. Prova a spawnare come sidecar Tauri
+            let sidecar_result = app.shell().sidecar("lettore-backend");
+            match sidecar_result {
+                Ok(command) => {
+                    let cmd = command
+                        .args(["--host", "127.0.0.1", "--port", &self.port.to_string()])
+                        .env("LETTORE_PORT", self.port.to_string());
+
+                    if let Ok((mut rx, child)) = cmd.spawn() {
+                        *self.tauri_child.lock().unwrap() = Some(child);
+                        
+                        let log_p = self.log_path.lock().unwrap().clone();
+                        tauri::async_runtime::spawn(async move {
+                            use std::io::Write;
+                            while let Some(event) = rx.recv().await {
+                                if let Some(ref path) = log_p {
+                                    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(path) {
+                                        match event {
+                                            tauri_plugin_shell::process::CommandEvent::Stdout(bytes) => {
+                                                let _ = f.write_all(&bytes);
+                                            }
+                                            tauri_plugin_shell::process::CommandEvent::Stderr(bytes) => {
+                                                let _ = f.write_all(&bytes);
+                                            }
+                                            _ => {}
                                         }
-                                        tauri_plugin_shell::process::CommandEvent::Stderr(bytes) => {
-                                            let _ = f.write_all(&bytes);
-                                        }
-                                        _ => {}
                                     }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
+                }
+                Err(_) => {
+                    // 2. Fallback per ambiente di sviluppo locale (python venv)
+                    self.spawn_dev_python(app)?;
                 }
             }
-            Err(_) => {
-                // 2. Fallback per ambiente di sviluppo locale (python venv)
-                self.spawn_dev_python(app)?;
-            }
         }
+
 
         // Attendi che il backend risponda a /v1/status (polling per max 60s)
         for _ in 0..120 {
@@ -110,12 +123,15 @@ impl SidecarState {
         Err("Timeout attesa avvio backend locale".into())
     }
 
-    fn spawn_dev_python(&self, app: &AppHandle) -> Result<(), String> {
+    fn spawn_dev_python(&self, _app: &AppHandle) -> Result<(), String> {
+        // root della repo: CARGO_MANIFEST_DIR = src-tauri/ al momento della compilazione
+        let project_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
         let candidates = [
             std::env::var("LETTORE_PYTHON").ok(),
-            Some(format!("{}/../.venv/bin/python", app.path().app_data_dir().unwrap_or_default().display())),
-            Some("../.venv/bin/python".into()),
-            Some(".venv/bin/python".into()),
+            Some(project_root.join(".venv/bin/python").display().to_string()),
             Some("/opt/homebrew/bin/python3.11".into()),
             Some("python3".into()),
         ];
@@ -138,6 +154,7 @@ impl SidecarState {
             if let Ok(child) = std::process::Command::new(&py)
                 .args(["-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", &self.port.to_string()])
                 .env("LETTORE_PORT", self.port.to_string())
+                .current_dir(&project_root)
                 .stdout(stdout_dest)
                 .stderr(stderr_dest)
                 .spawn()
