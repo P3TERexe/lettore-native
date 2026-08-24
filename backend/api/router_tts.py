@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
-from ..models import BatchRequest, BatchResponse, BatchResult, TTSRequest
+from ..audio_utils import concat_wav_bytes
+from ..chunking import smart_chunk_text
+from ..models import BatchRequest, BatchResponse, BatchResult, ExportRequest, TTSRequest
 
 if TYPE_CHECKING:
     from ..tts_manager import TTSManager
@@ -64,3 +66,30 @@ def synthesize_batch(req: BatchRequest, request: Request):
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return BatchResponse(results=results)
+
+
+@router.post("/tts/export", response_class=Response)
+def synthesize_export(req: ExportRequest, request: Request):
+    manager = _tts(request)
+    chunks = [c for c in smart_chunk_text(req.text, lang=req.lang) if c]
+    if not chunks:
+        raise HTTPException(status_code=422, detail="testo vuoto dopo il parsing")
+    try:
+        parts = [
+            manager.synthesize(
+                text=c, lang=req.lang, voice=req.voice, steps=req.steps, speed=req.speed
+            )[0]
+            for c in chunks
+        ]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return Response(
+        content=concat_wav_bytes(parts, manager.sample_rate),
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": 'attachment; filename="lettore.wav"',
+            "Cache-Control": "no-store",
+        },
+    )
