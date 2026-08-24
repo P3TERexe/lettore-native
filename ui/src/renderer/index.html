@@ -147,8 +147,24 @@
         <section id="reading-panel" class="panel-section main-panel" hidden>
           <div class="panel-header">
             <span class="panel-label">In riproduzione</span>
+            <button id="btn-reading-edit" class="btn-micro" title="Mostra editor di testo">Mostra testo</button>
           </div>
           <div id="reading-text" class="reading-text" tabindex="0"></div>
+          <div class="action-toolbar">
+            <div class="action-group">
+              <button id="btn-reading-export" class="btn btn-sm btn-ghost" title="Esporta l'audio dell'intero testo in un file WAV">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>WAV</span>
+              </button>
+            </div>
+            <div class="action-group">
+              <button id="btn-reading-back" class="btn btn-sm btn-secondary" title="Torna all'editor di testo">Modifica testo</button>
+            </div>
+          </div>
         </section>
 
         <!-- Text Capture -->
@@ -166,7 +182,7 @@
                   </svg>
                   <span>Clipboard</span>
                 </button>
-                <button id="btn-export" class="btn btn-sm btn-ghost" title="Esporta ultimo audio in file WAV">
+                <button id="btn-export" class="btn btn-sm btn-ghost" title="Esporta l'audio dell'intero testo in un file WAV">
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>

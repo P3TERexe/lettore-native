@@ -27,6 +27,9 @@ const els = {
   openAx: document.getElementById("btn-open-ax"),
   readingPanel: document.getElementById("reading-panel"),
   readingText: document.getElementById("reading-text"),
+  readingExportBtn: document.getElementById("btn-reading-export"),
+  readingEditBtn: document.getElementById("btn-reading-edit"),
+  readingBackBtn: document.getElementById("btn-reading-back"),
   speed: document.getElementById("speed-select"),
   timeLabel: document.getElementById("time-label"),
   progressFill: document.getElementById("progress-fill"),
@@ -81,7 +84,7 @@ function buildReadingWords(text) {
   return words;
 }
 
-function showReading(text) {
+function showReading(text, forceOpen = false) {
   readingLastText = text || null;
   readingWords = text ? buildReadingWords(text) : [];
   readingDur = 0;
@@ -99,18 +102,19 @@ function showReading(text) {
     }
     return;
   }
-  els.readingPanel.hidden = false;
-  if (settings.windowMode === "full") {
-    els.capturePanel.hidden = true;
-  } else {
-    els.capturePanel.hidden = true;
-    els.queuePanel.hidden = true;
-    els.settingsPanel.hidden = true;
-    els.tabCapture.classList.remove("active");
-    els.tabQueue.classList.remove("active");
-    els.tabSettings.classList.remove("active");
-  }
   
+  const isMainVisible = !els.capturePanel.hidden || !els.readingPanel.hidden;
+  if (forceOpen || isMainVisible) {
+    els.readingPanel.hidden = false;
+    els.capturePanel.hidden = true;
+    els.tabCapture.classList.add("active");
+    if (settings.windowMode !== "full") {
+      els.queuePanel.hidden = true;
+      els.settingsPanel.hidden = true;
+      els.tabQueue.classList.remove("active");
+      els.tabSettings.classList.remove("active");
+    }
+  }
   els.readingText.innerHTML = "";
   for (const tok of text.split(/(\s+)/)) {
     if (!tok) continue;
@@ -261,8 +265,11 @@ async function readSelection() {
   return resp?.text || null;
 }
 
-async function enqueueAndPlay({ split = false } = {}) {
+async function resolveReadingText() {
   let text = els.textInput.value.trim();
+  if (!text && readingLastText) {
+    text = readingLastText.trim();
+  }
   if (!text) {
     const sel = await readSelection();
     if (sel && sel.trim()) {
@@ -270,6 +277,11 @@ async function enqueueAndPlay({ split = false } = {}) {
       els.textInput.value = text;
     }
   }
+  return text || null;
+}
+
+async function enqueueAndPlay({ split = false } = {}) {
+  const text = await resolveReadingText();
   if (!text) {
     toast("Nessun testo da leggere: seleziona del testo in un'altra app o incollalo qui");
     return;
@@ -305,29 +317,56 @@ async function onHotkeyCapture(payload) {
   }
 }
 
+let exportingWav = false;
+
+function setExportBusy(busy) {
+  exportingWav = busy;
+  if (els.exportBtn) els.exportBtn.disabled = busy;
+  if (els.readingExportBtn) els.readingExportBtn.disabled = busy;
+}
+
 async function exportWav() {
-  const wav = player.lastWav();
-  if (!wav) {
-    toast("Nessun audio da esportare");
-    return;
-  }
+  if (exportingWav) return;
+  setExportBusy(true);
   try {
-    const bytes = new Uint8Array(wav);
-    const blob = new Blob([bytes], { type: "audio/wav" });
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64data = reader.result.split(",")[1];
-      const res = await api.exportWav({
-        wavBase64: base64data,
-        defaultName: `lettore_${Date.now()}.wav`,
-      });
-      if (res.ok) toast(`Salvato: ${res.filePath}`);
-      else if (!res.canceled) toast("Errore salvataggio");
-    };
-    reader.onerror = () => toast("Errore preparazione file WAV");
-    reader.readAsDataURL(blob);
+    const text = await resolveReadingText();
+    if (!text) {
+      toast("Nessun testo da esportare");
+      return;
+    }
+    toast("Generazione audio in corso...");
+    const res = await fetch(`${BASE}/v1/tts/export`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        text,
+        lang: settings.lang,
+        voice: settings.voice,
+        steps: settings.steps,
+        speed: settings.speed,
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      throw new Error(detail?.detail || `HTTP ${res.status}`);
+    }
+    const wav = await res.arrayBuffer();
+    const base64data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(new Blob([wav], { type: "audio/wav" }));
+    });
+    const saved = await api.exportWav({
+      wavBase64: base64data,
+      defaultName: `lettore_export_${Date.now()}.wav`,
+    });
+    if (saved.ok) toast(`Salvato: ${saved.filePath}`);
+    else if (!saved.canceled) toast("Errore salvataggio");
   } catch (err) {
     toast(`Errore export: ${err.message}`);
+  } finally {
+    setExportBusy(false);
   }
 }
 
@@ -485,6 +524,9 @@ function bind() {
   els.readParagraphs.addEventListener("click", () => enqueueAndPlay({ split: true }));
   els.clipboard.addEventListener("click", readClipboard);
   els.exportBtn.addEventListener("click", exportWav);
+  if (els.readingExportBtn) els.readingExportBtn.addEventListener("click", exportWav);
+  if (els.readingEditBtn) els.readingEditBtn.addEventListener("click", () => openPanel(els.capturePanel, els.tabCapture));
+  if (els.readingBackBtn) els.readingBackBtn.addEventListener("click", () => openPanel(els.capturePanel, els.tabCapture));
   els.clearQueue.addEventListener("click", () => queue.clear());
 
   if (els.tabCapture) els.tabCapture.addEventListener("click", () => openPanel(els.capturePanel, els.tabCapture));

@@ -7,7 +7,6 @@ export class Player {
     this.speed = 1.05;
     this._startTime = 0;
     this._duration = 0;
-    this._lastWav = null;
     this.onEnded = onEnded || (() => {});
     this.onProgress = onProgress || (() => {});
     this._raf = null;
@@ -29,7 +28,6 @@ export class Player {
     } catch {
       throw new Error("decode audio fallito");
     }
-    this._lastWav = wavBytes;
     this._start = () => this.startSource();
     this.startSource();
   }
@@ -38,7 +36,6 @@ export class Player {
     this.ensureCtx();
     this.stopInternal();
     this.buffer = audioBuffer;
-    this._lastWav = wavBytes;
     this._start = () => this.startSource();
     this.startSource();
   }
@@ -106,10 +103,6 @@ export class Player {
     this.buffer = null;
     this.state = "idle";
     this.onProgress(0, 0);
-  }
-
-  lastWav() {
-    return this._lastWav;
   }
 
   setSpeed(s) {
