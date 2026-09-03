@@ -124,11 +124,11 @@ pub fn get_target_pid() -> Option<i32> {
 pub fn activate_app(pid: i32) {
     use objc2::class;
     use objc2::msg_send;
-    use objc2::runtime::Object;
+    use objc2::runtime::AnyObject;
 
     unsafe {
         let cls = class!(NSRunningApplication);
-        let app: *mut Object = msg_send![cls, runningApplicationWithProcessIdentifier: pid];
+        let app: *mut AnyObject = msg_send![cls, runningApplicationWithProcessIdentifier: pid];
         if !app.is_null() {
             let options: usize = 2; // NSApplicationActivateIgnoringOtherApps
             let _: bool = msg_send![app, activateWithOptions: options];
