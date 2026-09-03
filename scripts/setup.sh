@@ -22,11 +22,6 @@ source "$VENV/bin/activate"
 pip install --upgrade pip >/dev/null
 pip install -r "$ROOT/backend/requirements.txt"
 
-case "$(uname -s)" in
-  Darwin) pip install -r "$ROOT/backend/requirements-macos.txt" ;;
-  Linux)  pip install -r "$ROOT/backend/requirements-linux.txt" ;;
-  MINGW*|MSYS*|CYGWIN*) pip install -r "$ROOT/backend/requirements-windows.txt" ;;
-esac
 
 echo "Backend: dipendenze installate."
 

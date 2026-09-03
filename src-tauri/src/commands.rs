@@ -29,7 +29,8 @@ pub async fn set_settings(
     }
 
     if (patch.hotkey.is_some() && patch.hotkey.as_ref() != Some(&old_hotkey))
-        || (patch.hotkey_secondary.is_some() && patch.hotkey_secondary.as_ref() != Some(&old_secondary))
+        || (patch.hotkey_secondary.is_some()
+            && patch.hotkey_secondary.as_ref() != Some(&old_secondary))
     {
         let _ = shortcuts::register_all(&app);
     }
@@ -48,7 +49,10 @@ pub async fn backend_status(sidecar: State<'_, SidecarState>) -> Result<serde_js
     match client.get(&url).send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let data = resp.json::<serde_json::Value>().await.map_err(|e| e.to_string())?;
+                let data = resp
+                    .json::<serde_json::Value>()
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok(serde_json::json!({
                     "ok": true,
                     "ready": data.get("ready").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -67,7 +71,10 @@ pub async fn backend_status(sidecar: State<'_, SidecarState>) -> Result<serde_js
 }
 
 #[tauri::command]
-pub async fn backend_start(app: AppHandle, sidecar: State<'_, SidecarState>) -> Result<serde_json::Value, String> {
+pub async fn backend_start(
+    app: AppHandle,
+    sidecar: State<'_, SidecarState>,
+) -> Result<serde_json::Value, String> {
     match sidecar.ensure_started(&app).await {
         Ok(_) => Ok(serde_json::json!({ "ok": true })),
         Err(e) => Ok(serde_json::json!({ "ok": false, "error": e })),
@@ -82,7 +89,7 @@ pub async fn read_clipboard(app: AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub async fn capture_selection(
     app: AppHandle,
-    sidecar: State<'_, SidecarState>,
+    _sidecar: State<'_, SidecarState>,
     auto_copy: Option<bool>,
 ) -> Result<serde_json::Value, String> {
     let auto_c = auto_copy.unwrap_or(false);
@@ -91,7 +98,6 @@ pub async fn capture_selection(
 
     // 1. Troviamo il PID dell'applicazione esterna (l'ultima usata prima di Lettore)
     if let Some(target_pid) = accessibility::get_target_pid() {
-        
         // 1.a Tenta prima con la lettura diretta AX sull'app target (senza toccare clipboard/focus)
         if let Ok(Some(text)) = accessibility::read_selection_from_pid(target_pid) {
             if !text.trim().is_empty() {
@@ -107,21 +113,21 @@ pub async fn capture_selection(
         if auto_c {
             // Portiamo l'app in primo piano in modo che riceva Cmd+C
             accessibility::activate_app(target_pid);
-            
+
             // Attendiamo che il focus sia effettivo
             tokio::time::sleep(Duration::from_millis(150)).await;
-            
+
             // Inviamo Cmd+C globalmente
             let posted = accessibility::post_copy();
-            
+
             if posted {
                 // Attendiamo che la clipboard si popoli
                 tokio::time::sleep(Duration::from_millis(150)).await;
-                
+
                 // Riportiamo Lettore in primo piano
                 accessibility::activate_app(std::process::id() as i32);
                 tokio::time::sleep(Duration::from_millis(50)).await; // breve pausa prima di leggere
-                
+
                 // Leggiamo la clipboard
                 if let Ok(clip) = app.clipboard().read_text() {
                     if clip != initial_clip && !clip.trim().is_empty() {
@@ -134,28 +140,6 @@ pub async fn capture_selection(
             } else {
                 // Se non possiamo postare, rimettiamo in focus Lettore
                 accessibility::activate_app(std::process::id() as i32);
-            }
-        }
-    }
-
-    // 2. Fallback su /v1/capture del backend
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(1500))
-        .build()
-        .unwrap_or_default();
-
-    let url = format!("http://127.0.0.1:{}/v1/capture", sidecar.port);
-    if let Ok(resp) = client
-        .post(&url)
-        .json(&serde_json::json!({ "auto_copy": auto_c }))
-        .send()
-        .await
-    {
-        if let Ok(val) = resp.json::<serde_json::Value>().await {
-            if let Some(txt) = val.get("text").and_then(|t| t.as_str()) {
-                if !txt.trim().is_empty() {
-                    return Ok(val);
-                }
             }
         }
     }

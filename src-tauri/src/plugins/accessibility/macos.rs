@@ -2,7 +2,9 @@
 use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
 use core_foundation::base::{CFRelease, TCFType};
 use core_foundation::dictionary::{CFDictionaryGetValue, CFDictionaryRef};
-use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberIntType, kCFNumberSInt32Type};
+use core_foundation::number::{
+    kCFNumberIntType, kCFNumberSInt32Type, CFNumberGetValue, CFNumberRef,
+};
 use core_foundation::string::CFString;
 use std::ffi::c_void;
 
@@ -29,7 +31,11 @@ extern "C" {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGWindowListCopyWindowInfo(option: u32, relativeToWindow: u32) -> *mut c_void;
-    fn CGEventCreateKeyboardEvent(source: *mut c_void, virtual_key: u16, key_down: bool) -> *mut c_void;
+    fn CGEventCreateKeyboardEvent(
+        source: *mut c_void,
+        virtual_key: u16,
+        key_down: bool,
+    ) -> *mut c_void;
     fn CGEventSetFlags(event: *mut c_void, flags: u64);
     fn CGEventPost(tap: u32, event: *mut c_void);
 }
@@ -79,16 +85,28 @@ pub fn get_target_pid() -> Option<i32> {
             }
 
             let mut layer_val: i32 = -1;
-            let layer_ref = CFDictionaryGetValue(dict_ptr, k_layer.as_concrete_TypeRef() as *const c_void) as CFNumberRef;
+            let layer_ref =
+                CFDictionaryGetValue(dict_ptr, k_layer.as_concrete_TypeRef() as *const c_void)
+                    as CFNumberRef;
             if !layer_ref.is_null() {
-                CFNumberGetValue(layer_ref, kCFNumberIntType, &mut layer_val as *mut i32 as *mut c_void);
+                CFNumberGetValue(
+                    layer_ref,
+                    kCFNumberIntType,
+                    &mut layer_val as *mut i32 as *mut c_void,
+                );
             }
 
             if layer_val == 0 {
-                let pid_ref = CFDictionaryGetValue(dict_ptr, k_pid.as_concrete_TypeRef() as *const c_void) as CFNumberRef;
+                let pid_ref =
+                    CFDictionaryGetValue(dict_ptr, k_pid.as_concrete_TypeRef() as *const c_void)
+                        as CFNumberRef;
                 if !pid_ref.is_null() {
                     let mut pid_val: i32 = 0;
-                    if CFNumberGetValue(pid_ref, kCFNumberSInt32Type, &mut pid_val as *mut i32 as *mut c_void) {
+                    if CFNumberGetValue(
+                        pid_ref,
+                        kCFNumberSInt32Type,
+                        &mut pid_val as *mut i32 as *mut c_void,
+                    ) {
                         if pid_val != my_pid && pid_val > 0 {
                             target_pid = Some(pid_val);
                             break;
@@ -104,9 +122,9 @@ pub fn get_target_pid() -> Option<i32> {
 }
 
 pub fn activate_app(pid: i32) {
+    use objc2::class;
     use objc2::msg_send;
     use objc2::runtime::Object;
-    use objc2::class;
 
     unsafe {
         let cls = class!(NSRunningApplication);
@@ -170,8 +188,12 @@ pub fn post_copy() -> bool {
         let up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), K_VK_ANSI_C, false);
 
         if down.is_null() || up.is_null() {
-            if !down.is_null() { CFRelease(down); }
-            if !up.is_null() { CFRelease(up); }
+            if !down.is_null() {
+                CFRelease(down);
+            }
+            if !up.is_null() {
+                CFRelease(up);
+            }
             return false;
         }
 

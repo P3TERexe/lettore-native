@@ -1,80 +1,159 @@
-"""Rilevamento automatico della lingua del testo (langdetect).
+"""Rilevamento leggero della lingua del testo tramite stdlib.
 
-Ritorna un codice ISO tra quelli supportati da Supertonic, o None se il
-rilevamento non è affidabile (testo troppo corto, confidenza bassa, lingua
-non supportata) — in quel caso il chiamante usa il fallback "na".
+Identifica script non-latini (cirillico, arabo, giapponese, coreano, greco, devanagari)
+tramite range Unicode e lingue latine principali (it, en, es, fr, de, pt) tramite stopwords.
+Ritorna un codice ISO supportato o None per usare il fallback di default ("na").
 """
 
-import hashlib
-import logging
+from __future__ import annotations
 
-from langdetect import DetectorFactory, detect_langs
-from langdetect.lang_detect_exception import LangDetectException
+import re
 
-from .tts_manager import SUPPORTED_LANGUAGES, UNKNOWN_LANG
-
-logger = logging.getLogger(__name__)
-
-DetectorFactory.seed = 0
-MIN_TEXT_LENGTH = 10
-MIN_CONFIDENCE = 0.5
-MAX_CACHE_ENTRIES = 256
-
-# mappature tra codici langdetect e codici ISO Supertonic
-_ALIASES = {
-    "zh-cn": "na",
-    "zh-tw": "na",
-    "zh": "na",
-    "pt-br": "pt",
-    "nb": "no",  # niente norvegese in supertonic -> na via set
-    "mk": "na",
-    "so": "na",
-    "sq": "na",
-    "sw": "na",
-    "ta": "na",
-    "te": "na",
-    "th": "na",
-    "tl": "na",
-    "bn": "na",
-    "fa": "na",
-    "gu": "na",
-    "kn": "na",
-    "ml": "na",
-    "mr": "na",
-    "ne": "na",
-    "pa": "na",
+# Stopword frequenti per le principali lingue a caratteri latini
+_STOPWORDS: dict[str, set[str]] = {
+    "it": {
+        "il",
+        "la",
+        "di",
+        "che",
+        "per",
+        "un",
+        "una",
+        "sono",
+        "con",
+        "nel",
+        "della",
+        "questo",
+        "questa",
+        "anche",
+        "delle",
+    },
+    "en": {
+        "the",
+        "and",
+        "is",
+        "in",
+        "to",
+        "of",
+        "that",
+        "it",
+        "with",
+        "as",
+        "for",
+        "was",
+        "on",
+        "are",
+        "by",
+        "this",
+    },
+    "es": {
+        "el",
+        "la",
+        "de",
+        "que",
+        "y",
+        "en",
+        "un",
+        "una",
+        "por",
+        "con",
+        "para",
+        "los",
+        "las",
+        "del",
+        "como",
+    },
+    "fr": {
+        "le",
+        "la",
+        "les",
+        "de",
+        "des",
+        "du",
+        "et",
+        "est",
+        "un",
+        "une",
+        "que",
+        "dans",
+        "pour",
+        "qui",
+        "sur",
+    },
+    "de": {
+        "der",
+        "die",
+        "das",
+        "und",
+        "in",
+        "den",
+        "von",
+        "zu",
+        "mit",
+        "ist",
+        "des",
+        "nicht",
+        "eine",
+        "einer",
+        "dem",
+    },
+    "pt": {
+        "o",
+        "a",
+        "os",
+        "as",
+        "de",
+        "do",
+        "da",
+        "em",
+        "um",
+        "uma",
+        "para",
+        "com",
+        "não",
+        "que",
+        "por",
+    },
 }
 
-_SUPPORTED = set(SUPPORTED_LANGUAGES)
-_cache: dict[str, str | None] = {}
+_WORD_PATTERN = re.compile(r"\b\w+\b")
 
 
 def detect(text: str) -> str | None:
-    """Ritorna un codice ISO supertonic (o None per usare 'na')."""
+    """Ritorna un codice ISO lingua supportato, o None se non rilevabile."""
     clean = text.strip()
-    if len(clean) < MIN_TEXT_LENGTH:
+    if len(clean) < 5:
         return None
-    key = hashlib.sha256(clean.encode("utf-8", "replace")).hexdigest()
-    if key in _cache:
-        return _cache[key]
-    result = _detect(clean)
-    if len(_cache) >= MAX_CACHE_ENTRIES:
-        _cache.clear()
-    _cache[key] = result
-    return result
 
+    # Rilevamento immediato per script non-latini
+    for char in clean:
+        cp = ord(char)
+        if 0x0600 <= cp <= 0x06FF:
+            return "ar"
+        if 0x0400 <= cp <= 0x04FF:
+            return "ru"
+        if 0x0370 <= cp <= 0x03FF:
+            return "el"
+        if 0x0900 <= cp <= 0x097F:
+            return "hi"
+        if 0xAC00 <= cp <= 0xD7AF or 0x1100 <= cp <= 0x11FF:
+            return "ko"
+        if 0x3040 <= cp <= 0x30FF:
+            return "ja"
 
-def _detect(clean: str) -> str | None:
-    try:
-        langs = detect_langs(clean)
-    except LangDetectException:
+    # Rilevamento per lingue latine basato su stopword
+    words = _WORD_PATTERN.findall(clean.lower())
+    if not words:
         return None
-    if not langs:
-        return None
-    best = langs[0]
-    if best.prob < MIN_CONFIDENCE:
-        return None
-    code = _ALIASES.get(best.lang, best.lang)
-    if code == UNKNOWN_LANG or code not in _SUPPORTED:
-        return None
-    return code
+
+    scores = {lang: 0 for lang in _STOPWORDS}
+    for word in words:
+        for lang, sw in _STOPWORDS.items():
+            if word in sw:
+                scores[lang] += 1
+
+    best_lang, best_score = max(scores.items(), key=lambda item: item[1])
+    if best_score >= 1:
+        return best_lang
+
+    return None

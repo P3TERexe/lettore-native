@@ -1,62 +1,50 @@
-"""Modulo per la segmentazione intelligente del testo (paragrafi e frasi).
+"""Modulo per la segmentazione del testo (paragrafi e frasi).
 
-Usa pySBD (Python Sentence Boundary Disambiguation) per dividere i testi in
-frasi o paragrafi preservando abbreviazioni, numeri decimali e punteggiatura.
+Segmentazione leggera basata su regex con protezione delle abbreviazioni comuni
+e numeri decimali, senza dipendenze pesanti esterne.
 """
 
 from __future__ import annotations
 
-import logging
 import re
 
-logger = logging.getLogger("lettore.chunking")
-
 _PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
-_FALLBACK_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_ABBR_PATTERN = re.compile(r"\b([A-Za-z]+(?:\.[A-Za-z]+)*)\.")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
-# Lingue ufficialmente supportate da pySBD
-_PYSBD_LANGUAGES = {
-    "en",
-    "it",
-    "es",
-    "fr",
-    "de",
-    "pt",
-    "ru",
-    "ja",
-    "zh",
-    "nl",
-    "pl",
-    "ro",
-    "da",
-    "el",
-    "sk",
-    "ar",
-    "bg",
-    "hy",
+# Abbreviazioni comuni (italiano e inglese) che non devono interrompere la frase
+_ABBREVIATIONS = {
+    "dott",
+    "dott.ssa",
+    "sig",
+    "sig.ra",
+    "prof",
+    "prof.ssa",
+    "avv",
+    "ing",
+    "arch",
     "mr",
-    "my",
-    "hi",
-    "ur",
+    "mrs",
+    "ms",
+    "dr",
+    "jr",
+    "sr",
+    "st",
+    "vs",
+    "etc",
+    "e.g",
+    "i.e",
+    "p",
+    "pp",
+    "pag",
+    "pagg",
+    "cap",
+    "art",
+    "n",
+    "vol",
+    "a.m",
+    "p.m",
 }
-
-_segmenters: dict[str, object] = {}
-
-
-def _get_segmenter(lang: str):
-    import pysbd
-
-    normalized_lang = lang.lower() if lang else "en"
-    if normalized_lang not in _PYSBD_LANGUAGES:
-        normalized_lang = "en"
-
-    if normalized_lang not in _segmenters:
-        try:
-            _segmenters[normalized_lang] = pysbd.Segmenter(language=normalized_lang, clean=False)
-        except Exception as e:
-            logger.warning("Impossibile inizializzare pySBD per '%s': %s", lang, e)
-            return None
-    return _segmenters[normalized_lang]
 
 
 def split_into_paragraphs(text: str) -> list[str]:
@@ -68,25 +56,22 @@ def split_into_paragraphs(text: str) -> list[str]:
 
 
 def split_into_sentences(text: str, lang: str = "it") -> list[str]:
-    """Divide il testo in frasi usando pySBD con fallback su regex."""
+    """Divide il testo in frasi preservando abbreviazioni e numeri decimali."""
     text = text.strip()
     if not text:
         return []
 
-    segmenter = _get_segmenter(lang)
-    if segmenter is not None:
-        try:
-            segments = segmenter.segment(text)
-            if isinstance(segments, list):
-                result = [s.strip() for s in segments if s and s.strip()]
-                if result:
-                    return result
-        except Exception as e:
-            logger.warning("Errore durante segmentazione pySBD: %s", e)
+    def _protect_abbr(match: re.Match[str]) -> str:
+        token = match.group(1)
+        if token.lower() in _ABBREVIATIONS:
+            return token + "\u200b"
+        return match.group(0)
 
-    # Fallback su regex
-    parts = [s.strip() for s in _FALLBACK_SENTENCE_SPLIT.split(text)]
-    return [s for s in parts if s]
+    protected = _ABBR_PATTERN.sub(_protect_abbr, text)
+    raw_splits = _SENTENCE_SPLIT.split(protected)
+
+    sentences = [s.replace("\u200b", ".").strip() for s in raw_splits]
+    return [s for s in sentences if s]
 
 
 def _group_sentences(sentences: list[str], max_chars: int) -> list[str]:
@@ -94,7 +79,6 @@ def _group_sentences(sentences: list[str], max_chars: int) -> list[str]:
     current = ""
     is_first = True
     for s in sentences:
-        # Usa 60 caratteri per il primo chunk (riduce latenza Time-To-First-Byte), poi max_chars
         limit = 60 if is_first else max_chars
         if not current:
             current = s
@@ -115,9 +99,7 @@ def smart_chunk_text(
     split_paragraphs: bool = False,
     max_chunk_chars: int = 150,
 ) -> list[str]:
-    """Segmenta il testo in chunk ottimali per la sintesi vocale,
-    privilegiando una bassa latenza per le frasi lunghe.
-    """
+    """Segmenta il testo in chunk ottimali per la sintesi vocale."""
     text = text.strip()
     if not text:
         return []
@@ -133,6 +115,5 @@ def smart_chunk_text(
                 chunks.extend(_group_sentences(sentences, max_chunk_chars))
         return chunks
     else:
-        # Segmentazione attiva in frasi per streaming reattivo
         sentences = split_into_sentences(text, lang=lang)
         return _group_sentences(sentences, max_chunk_chars)

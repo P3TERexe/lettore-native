@@ -15,8 +15,4 @@ def get_config(request: Request):
 @router.put("", response_model=AppConfig)
 def set_config(cfg: AppConfig, request: Request):
     request.app.state.runtime_config = cfg
-    if cfg.capture_auto:
-        request.app.state.capture.start_watcher(request.app.state.capture_callback)
-    else:
-        request.app.state.capture.stop_watcher()
     return cfg

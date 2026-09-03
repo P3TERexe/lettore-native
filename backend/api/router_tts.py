@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import logging
 from typing import TYPE_CHECKING
 
@@ -9,7 +8,7 @@ from fastapi.responses import Response
 
 from ..audio_utils import concat_wav_bytes
 from ..chunking import smart_chunk_text
-from ..models import BatchRequest, BatchResponse, BatchResult, ExportRequest, TTSRequest
+from ..models import ExportRequest, TTSRequest
 
 if TYPE_CHECKING:
     from ..tts_manager import TTSManager
@@ -39,33 +38,6 @@ def synthesize(req: TTSRequest, request: Request):
         media_type="audio/wav",
         headers={"X-Duration-Ms": str(duration_ms), "Cache-Control": "no-store"},
     )
-
-
-@router.post("/tts/batch", response_model=BatchResponse)
-def synthesize_batch(req: BatchRequest, request: Request):
-    manager = _tts(request)
-    defaults = req.defaults or {}
-    results: list[BatchResult] = []
-    try:
-        for item in req.items:
-            steps = int(defaults.get("steps", 8))
-            wav_bytes, duration_ms = manager.synthesize(
-                text=item.text,
-                lang=item.lang,
-                voice=item.voice,
-                steps=steps,
-                speed=item.speed,
-            )
-            results.append(
-                BatchResult(
-                    wav_base64=base64.b64encode(wav_bytes).decode("ascii"), duration_ms=duration_ms
-                )
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return BatchResponse(results=results)
 
 
 @router.post("/tts/export", response_class=Response)

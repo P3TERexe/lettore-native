@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..models import CaptureRequest, StatusResponse, VoiceList, VoiceUpdate
+from ..models import StatusResponse, VoiceList, VoiceUpdate
 
 router = APIRouter(prefix="/v1", tags=["meta"])
 
@@ -30,19 +30,10 @@ def languages(request: Request):
 @router.get("/status", response_model=StatusResponse)
 def status(request: Request):
     tts = request.app.state.tts
-    capture = request.app.state.capture
     return StatusResponse(
         ready=tts.ready,
         model_loading=tts.loading,
         model=tts.model,
         sample_rate=tts.sample_rate,
-        capture_enabled=capture.enabled,
-        capture_available=capture.available,
-        capture_permission=capture.permission_granted,
         queue=request.app.state.queue.snapshot(),
     )
-
-
-@router.post("/capture")
-def capture(request: Request, payload: CaptureRequest | None = None):
-    return request.app.state.capture.read_selection(auto_copy=bool(payload and payload.auto_copy))

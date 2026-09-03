@@ -79,18 +79,24 @@ impl SidecarState {
 
                     if let Ok((mut rx, child)) = cmd.spawn() {
                         *self.tauri_child.lock().unwrap() = Some(child);
-                        
+
                         let log_p = self.log_path.lock().unwrap().clone();
                         tauri::async_runtime::spawn(async move {
                             use std::io::Write;
                             while let Some(event) = rx.recv().await {
                                 if let Some(ref path) = log_p {
-                                    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(path) {
+                                    if let Ok(mut f) =
+                                        OpenOptions::new().create(true).append(true).open(path)
+                                    {
                                         match event {
-                                            tauri_plugin_shell::process::CommandEvent::Stdout(bytes) => {
+                                            tauri_plugin_shell::process::CommandEvent::Stdout(
+                                                bytes,
+                                            ) => {
                                                 let _ = f.write_all(&bytes);
                                             }
-                                            tauri_plugin_shell::process::CommandEvent::Stderr(bytes) => {
+                                            tauri_plugin_shell::process::CommandEvent::Stderr(
+                                                bytes,
+                                            ) => {
                                                 let _ = f.write_all(&bytes);
                                             }
                                             _ => {}
@@ -108,18 +114,23 @@ impl SidecarState {
             }
         }
 
-
         // Attendi che il backend risponda a /v1/status (polling per max 60s)
         for _ in 0..120 {
             tokio::time::sleep(Duration::from_millis(500)).await;
             if self.check_alive().await {
                 self.is_running.store(true, Ordering::SeqCst);
-                let _ = app.emit("backend-status", serde_json::json!({ "ok": true, "reused": false }));
+                let _ = app.emit(
+                    "backend-status",
+                    serde_json::json!({ "ok": true, "reused": false }),
+                );
                 return Ok(true);
             }
         }
 
-        let _ = app.emit("backend-status", serde_json::json!({ "ok": false, "error": "Timeout avvio backend" }));
+        let _ = app.emit(
+            "backend-status",
+            serde_json::json!({ "ok": false, "error": "Timeout avvio backend" }),
+        );
         Err("Timeout attesa avvio backend locale".into())
     }
 
@@ -140,19 +151,37 @@ impl SidecarState {
 
         for py in candidates.into_iter().flatten() {
             let stdout_dest = if let Some(ref path) = log_file {
-                OpenOptions::new().create(true).append(true).open(path).map(Stdio::from).unwrap_or_else(|_| Stdio::null())
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)
+                    .map(Stdio::from)
+                    .unwrap_or_else(|_| Stdio::null())
             } else {
                 Stdio::null()
             };
 
             let stderr_dest = if let Some(ref path) = log_file {
-                OpenOptions::new().create(true).append(true).open(path).map(Stdio::from).unwrap_or_else(|_| Stdio::null())
+                OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)
+                    .map(Stdio::from)
+                    .unwrap_or_else(|_| Stdio::null())
             } else {
                 Stdio::null()
             };
 
             if let Ok(child) = std::process::Command::new(&py)
-                .args(["-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", &self.port.to_string()])
+                .args([
+                    "-m",
+                    "uvicorn",
+                    "backend.main:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    &self.port.to_string(),
+                ])
                 .env("LETTORE_PORT", self.port.to_string())
                 .current_dir(&project_root)
                 .stdout(stdout_dest)

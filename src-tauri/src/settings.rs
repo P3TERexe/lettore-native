@@ -22,7 +22,6 @@ pub struct Settings {
     pub hotkey: String,
     pub hotkey_secondary: String,
     pub always_on_top: bool,
-    pub capture_auto: bool,
     pub theme: String,
     pub a11y_profile: String,
     pub window_mode: String,
@@ -40,7 +39,6 @@ impl Default for Settings {
             hotkey: "CommandOrControl+Shift+S".into(),
             hotkey_secondary: "CommandOrControl+Shift+L".into(),
             always_on_top: true,
-            capture_auto: false,
             theme: "dark".into(),
             a11y_profile: "standard".into(),
             window_mode: "standard".into(),
@@ -60,7 +58,6 @@ pub struct SettingsPatch {
     pub hotkey: Option<String>,
     pub hotkey_secondary: Option<String>,
     pub always_on_top: Option<bool>,
-    pub capture_auto: Option<bool>,
     pub theme: Option<String>,
     pub a11y_profile: Option<String>,
     pub window_mode: Option<String>,
@@ -108,19 +105,42 @@ impl SettingsState {
 
     pub fn apply_patch(&self, patch: SettingsPatch) -> Settings {
         let mut current = self.data.lock().unwrap();
-        if let Some(v) = patch.voice { current.voice = v; }
-        if let Some(l) = patch.lang { current.lang = l; }
-        if let Some(s) = patch.speed { current.speed = s; }
-        if let Some(st) = patch.steps { current.steps = st; }
-        if let Some(h) = patch.hotkey { current.hotkey = h; }
-        if let Some(hs) = patch.hotkey_secondary { current.hotkey_secondary = hs; }
-        if let Some(a) = patch.always_on_top { current.always_on_top = a; }
-        if let Some(c) = patch.capture_auto { current.capture_auto = c; }
-        if let Some(t) = patch.theme { current.theme = t; }
-        if let Some(ap) = patch.a11y_profile { current.a11y_profile = ap; }
-        if let Some(wm) = patch.window_mode { current.window_mode = wm; }
-        if let Some(ts) = patch.text_size { current.text_size = ts; }
-        if let Some(wb) = patch.window_bounds { current.window_bounds = Some(wb); }
+        if let Some(v) = patch.voice {
+            current.voice = v;
+        }
+        if let Some(l) = patch.lang {
+            current.lang = l;
+        }
+        if let Some(s) = patch.speed {
+            current.speed = s;
+        }
+        if let Some(st) = patch.steps {
+            current.steps = st;
+        }
+        if let Some(h) = patch.hotkey {
+            current.hotkey = h;
+        }
+        if let Some(hs) = patch.hotkey_secondary {
+            current.hotkey_secondary = hs;
+        }
+        if let Some(a) = patch.always_on_top {
+            current.always_on_top = a;
+        }
+        if let Some(t) = patch.theme {
+            current.theme = t;
+        }
+        if let Some(ap) = patch.a11y_profile {
+            current.a11y_profile = ap;
+        }
+        if let Some(wm) = patch.window_mode {
+            current.window_mode = wm;
+        }
+        if let Some(ts) = patch.text_size {
+            current.text_size = ts;
+        }
+        if let Some(wb) = patch.window_bounds {
+            current.window_bounds = Some(wb);
+        }
 
         let cloned = current.clone();
         let _ = self.save_locked(&cloned);

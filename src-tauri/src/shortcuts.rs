@@ -7,7 +7,14 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 fn parse_shortcut(spec: &str) -> Option<Shortcut> {
     let normalized = spec
-        .replace("CommandOrControl", if cfg!(target_os = "macos") { "Super" } else { "Control" })
+        .replace(
+            "CommandOrControl",
+            if cfg!(target_os = "macos") {
+                "Super"
+            } else {
+                "Control"
+            },
+        )
         .replace("Cmd", "Super")
         .replace("Ctrl", "Control");
     Shortcut::from_str(&normalized).ok()
@@ -53,7 +60,7 @@ pub fn handle_shortcut_event(app: &AppHandle, _shortcut: &Shortcut, event: Short
 
         if text.is_empty() {
             // Tenta cattura nativa Accessibility
-            if let Ok(Some(ax_text)) = accessibility::read_focused_selection() {
+            if let Ok(Some(ax_text)) = accessibility::read_selection() {
                 if !ax_text.trim().is_empty() {
                     text = ax_text.trim().to_string();
                     source = "accessibility".to_string();

@@ -12,12 +12,11 @@ export class SettingsController {
       steps: document.getElementById("set-steps"),
       hotkey: document.getElementById("set-hotkey"),
       pin: document.getElementById("set-pin"),
-      captureAuto: document.getElementById("set-capture-auto"),
       hotkeyStatus: document.getElementById("hotkey-status"),
       textSize: document.getElementById("set-text-size")
     };
     this.manager = document.getElementById("voice-manager");
-    this._syncKeys = ["voice", "lang", "speed", "steps", "captureAuto"];
+    this._syncKeys = ["voice", "lang", "speed", "steps"];
     this.settings = null;
   }
 
@@ -146,7 +145,6 @@ export class SettingsController {
     if (this.el.steps) this.el.steps.value = String(s.steps || 8);
     if (this.el.hotkey) this.el.hotkey.value = s.hotkey || "CommandOrControl+Shift+S";
     if (this.el.pin) this.el.pin.checked = Boolean(s.alwaysOnTop);
-    if (this.el.captureAuto) this.el.captureAuto.checked = Boolean(s.captureAuto);
     
     if (this.el.textSize) this.el.textSize.value = s.textSize || "md";
     if (this.el.theme) this.el.theme.value = s.theme || "dark";
@@ -168,9 +166,6 @@ export class SettingsController {
     });
     this.el.steps.addEventListener("change", () => this.save({ steps: Number(this.el.steps.value) }));
     this.el.pin.addEventListener("change", () => this.save({ alwaysOnTop: this.el.pin.checked }));
-    this.el.captureAuto.addEventListener("change", () =>
-      this.save({ captureAuto: this.el.captureAuto.checked })
-    );
     this.el.hotkey.addEventListener("change", () => {
       const value = this.el.hotkey.value.trim() || "CommandOrControl+Shift+S";
       this.el.hotkey.value = value;
@@ -221,7 +216,6 @@ export class SettingsController {
       lang: patch.lang ?? this.getLang(),
       speed: patch.speed ?? this.settings?.speed ?? 1.05,
       steps: patch.steps ?? this.settings?.steps ?? 8,
-      capture_auto: patch.captureAuto ?? this.settings?.captureAuto ?? false,
     };
     try {
       await fetch(`${this.base}/v1/config`, {

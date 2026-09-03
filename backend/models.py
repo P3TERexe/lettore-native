@@ -13,28 +13,6 @@ class TTSRequest(BaseModel):
     speed: float = Field(default=1.05, ge=0.7, le=2.0)
 
 
-class BatchItem(BaseModel):
-    text: str = Field(min_length=1, max_length=20000)
-    lang: str = "auto"
-    voice: str = "M1"
-    speed: float = Field(default=1.05, ge=0.7, le=2.0)
-
-
-class BatchRequest(BaseModel):
-    items: list[BatchItem] = Field(min_length=1, max_length=64)
-    defaults: dict | None = None
-    response_format: Literal["wav"] = "wav"
-
-
-class BatchResult(BaseModel):
-    wav_base64: str
-    duration_ms: int
-
-
-class BatchResponse(BaseModel):
-    results: list[BatchResult]
-
-
 class ExportRequest(BaseModel):
     text: str = Field(min_length=1, max_length=50000)
     lang: str = "auto"
@@ -101,14 +79,7 @@ class StatusResponse(BaseModel):
     model_loading: bool
     model: str
     sample_rate: int | None = None
-    capture_enabled: bool
-    capture_available: bool
-    capture_permission: bool = False
     queue: QueueState
-
-
-class CaptureRequest(BaseModel):
-    auto_copy: bool = False
 
 
 class AppConfig(BaseModel):
@@ -116,10 +87,3 @@ class AppConfig(BaseModel):
     lang: str = "auto"
     speed: float = Field(default=1.05, ge=0.7, le=2.0)
     steps: int = Field(default=8, ge=5, le=12)
-    capture_auto: bool = False
-
-
-class CaptureResponse(BaseModel):
-    text: str
-    source: str
-    error: str | None = None

@@ -11,8 +11,6 @@ class BackendConfig:
     port: int = 7788
     model: str = "supertonic-3"
     auto_download: bool = True
-    capture_enabled: bool = True
-    capture_delay_ms: int = 400
     config_dir: Path = field(
         default_factory=lambda: Path(
             os.getenv("LETTORE_CONFIG_DIR", str(Path.home() / ".config" / "lettore"))

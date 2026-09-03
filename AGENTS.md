@@ -27,7 +27,7 @@ python scripts/smoke_test.py                       # end-to-end TTS synth to WAV
 - Version lives in 4 places that must stay in sync: root `package.json`, `ui/package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
 - CSP in `tauri.conf.json` only allows `connect-src` to localhost — backend must stay on 127.0.0.1.
 - New Tauri commands/plugins require matching permissions in `src-tauri/capabilities/default.json`.
-- macOS text capture needs Accessibility permission (`scripts/request_accessibility.py`).
+- macOS text capture needs Accessibility permission (gestito nativamente dal plugin Rust AX).
 - The Web Audio queue in `ui/src/renderer/player.js` is race-sensitive (source of most past bugs): clear `source.onended` before `source.stop()`, always `disconnect()` nodes, and keep queue-advance guarded against reentrancy. Check recent fix commits before touching playback flow.
 
 ## Conventions

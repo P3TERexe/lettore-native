@@ -64,10 +64,6 @@ def build():
         # NOTA: niente --collect-all su onnxruntime — l'hook nativo di
         # PyInstaller basta e collect-all duplica il pacchetto, spezzando
         # l'identità della classe ort.InferenceSession (isinstance() fallisce).
-        "--collect-all",
-        "pysbd",
-        "--collect-all",
-        "langdetect",
         # Il pacchetto backend deve essere importabile nel bundle (import
         # risolti in fase di analisi), non copiato come dati.
         "--paths",
