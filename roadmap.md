@@ -74,6 +74,8 @@ Normalizza il testo prima del TTS: l'utente non deve ascoltare "Dott. Rossi pag�
 | Normalizzatore IT | **Partire dalle ~30 regole che coprono il 90% dei casi reali** (frequenza misurata su testo italiano reale), non da 100 casi teorici: abbreviazioni, valute, date, numeri, URL/email, ordinali |
 | Integrazione pipeline | `capture_selection → normalize(text, lang) → smart_chunk_text → queue` |
 | Config utente | Toggle "Normalizza testo" + dizionario personale (es. "Dr." → "Dottore") |
+| Esclusione di testo | Filtro configurabile di stringhe o pattern esatti da eliminare/ignorare prima della sintesi (es. disclaimer, boilerplate, firme) |
+| "Leggi da qui" (Cattura da cursore) | Cattura a partire dalla posizione del cursore nel documento attivo in avanti, senza obbligo di selezione estesa manuale |
 | Test regression | Suite frasi ambigue IT-specifiche: decimali con virgola, "1°", "n. 12/2024", orari, valute |
 
 **Perché accessibilità**: utenti screen reader sentono testo "pulito" → meno carico cognitivo, niente "http due punti slash slash…".
@@ -90,7 +92,8 @@ Le feature a basso sforzo / alto impatto rimaste fuori dalle settimane precedent
 1. **Anteprima voce istantanea** — pulsante ▶️ accanto a ogni voce; endpoint `/v1/tts/preview?voice=M1&lang=it` con step bassi.
 2. **Media keys + controlli globali** — Play/Pause toggle, Next salta frase, Previous ripeti frase.
 3. **Esportazione MP3 + metadati** — FFmpeg nel sidecar, tag ID3, `Content-Disposition: attachment`.
-
+4. **Icona Megafono (Tray & Titlebar)** — icona menubar/tray e barra superiore sostituita con megafono dedicato e riconoscibile.
+5. **Player minimale a barra singola** — modalità ultra-compatta con sola barra di avanzamento, onde vocali animate (waveform lines) e controlli play/pausa.
 Poi: **secondo round di test utenti** (stessi 3–4 soggetti della settimana 0) sulle novità delle settimane 4–5.
 
 ---
@@ -124,7 +127,24 @@ Priorità ridefinita dal feedback reale degli utenti MVP:
 4. **Feedback backend visibile** (medio impatto, basso) — toast/banner: "Avvio motore TTS…" → "Download modello (400 MB)… 23%" → "Pronto". *(Settimane 1–3)*
 5. **Media keys + controlli globali** (medio impatto, medio) — Play/Pause toggle, Next salta frase, Previous ripeti frase. *(Settimana 6)*
 6. **Esportazione MP3/OGG + metadati** (basso impatto, basso) — FFmpeg nel sidecar, tag ID3. *(Settimana 6)*
+7. **Icona Megafono nella barra superiore / Tray** (basso impatto, bassissimo sforzo) — icona a megafono ad alta visibilità per menubar/tray e titlebar. *(Settimana 6)*
+8. **"Leggi da qui" / Cursor-based reading** (alto impatto, medio sforzo) — riproduzione dal cursore attivo in poi senza selezione manuale estesa. *(Settimane 4–5)*
+9. **Player minimale a barra singola con onde vocali** (alto impatto, medio sforzo) — floating player ultra-compatto con barra di durata, linee vocali animate e play/pausa. *(Settimana 6)*
+10. **Filtro esclusione testo** (medio impatto, basso sforzo) — esclusione di stringhe configurate prima della sintesi vocale. *(Settimane 4–5)*
 
+
+---
+
+## Focus Feature Utente — UI, Controllo & Cattura 🎙️
+
+Specifiche operative per le 4 feature utente approvate:
+
+| Feature | Descrizione & Comportamento | Collocazione & Impatto |
+|---|---|---|
+| 📣 **Icona Megafono (Tray & Titlebar)** | Sostituzione delle icone menubar/tray e titlebar con una silhouette vettoriale a megafono, migliorando la riconoscibilità del lettore in background e nella barra superiore. | *Settimana 6 (UI Polish)* — Rapida implementazione asset SVG/multipiattaforma. |
+| 📍 **"Leggi da qui" (Cursor-based reading)** | Consente all'utente di posizionare il cursore in un punto arbitrario del testo e avviare la lettura da lì fino alla fine del contesto/paragrafo, superando il vincolo della selezione manuale estesa. | *Settimane 4–5 (Cattura)* — Integrazione con provider AX/UIA per rilevare text offset o selezione automatica da cursore. |
+| 🎚️ **Player Minimale a Barra Singola** | Modalità compatta ridisegnata: una barra sottile e discreta con barra di avanzamento temporale, piccole linee vocali animate (waveform indicator) reattive alla riproduzione e controlli play/pausa essenziali. Minimo ingombro visivo. | *Settimana 6 (Player UI)* — CSS/Canvas leggero, zero overhead CPU, transizione fluida tra player esteso e mini-bar. |
+| 🚫 **Esclusione di Testo (Filtro Stringhe)** | Configurazione utente per escludere stringhe esatte, pattern ricorrenti o disclaimer (es. "Inviato da iPhone", header ripetitivi, note legali) prima del chunking e della sintesi TTS. | *Settimane 4–5 (Smart Pipeline)* — Pre-elaborazione nel normalizzatore Python/JS con matching rapido e lista personalizzabile. |
 ---
 
 ## Rischi & Mitigazioni
