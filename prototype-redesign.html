@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="it" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Lettore — Redesign</title>
+<!--
+  Design Read (taste-skill §0.B): redesign (overhaul) dell'anatomia di una utility desktop
+  nativa macOS per l'ascolto di testi; linguaggio "pure monochrome + single saturated pop"
+  (rotazione §4.2), native CSS, tipografia di sistema.
+  Dials (§1, overhaul = base utility +2/+2): DESIGN_VARIANCE 6 / MOTION_INTENSITY 5 / VISUAL_DENSITY 5.
+
+  Anatomia nuova (il redesign è strutturale, non di colore):
+  - UNA barra superiore da 40px: traffic lights, titolo+stato, pin, ingranaggio.
+    Eliminati la vecchia titlebar + player strip separati (76px di chrome) e la sidebar a rail.
+  - UN canvas per stato: la vista segue lo stato dell'app (cattura → lettura → coda),
+    niente view-switcher. La lettura è la superficie dominante, colonna max 52ch.
+  - Trasporto in basso (46px), come un player audio: play, stop, progress, tempo, velocità,
+    chip coda con conteggio.
+  - Impostazioni: sheet centrata su canvas attenuato, non un pannello piatto.
+  - Stati coperti: cattura vuota, sintesi in corso (progress indeterminato), coda vuota,
+    banner permesso Accessibilità.
+
+  Palette: neutri zinc + UN accento smeraldo (sat ~75%), unico significato "in riproduzione".
+  Motivo identità: il "tick" smeraldo di 2px marca ciò che sta parlando.
+  Shape lock (§4.4): finestre 12px, controlli 6px, chip 4px.
+  Ombre neutre tinteggiate zinc, nessun glow. Vetro solo sulla strip compatta.
+  Contrasti WCAG AA verificati su entrambi i temi.
+-->
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* Superfici: zinc neutro */
+  --bg-window:        rgba(22, 22, 24, 0.94);
+  --bg-solid:         #151517;
+  --bg-surface:       #1c1c1f;
+  --bg-elevated:      #232326;
+  --bg-hover:         rgba(255,255,255,0.05);
+  --bg-active:        rgba(255,255,255,0.07);
+  --bg-input:         rgba(0,0,0,0.25);
+  --bg-inset:         rgba(0,0,0,0.18);
+
+  /* Testo */
+  --text-primary:     rgba(255,255,255,0.94);
+  --text-secondary:   rgba(255,255,255,0.60);
+  --text-tertiary:    rgba(255,255,255,0.52);
+
+  /* Accento: smeraldo, unico portatore del significato "in riproduzione" */
+  --accent:           #0e8556;
+  --accent-text:      #2fbf82;
+  --accent-hover:     #0c7148;
+  --accent-subtle:    rgba(16,163,110,0.15);
+
+  /* Separator */
+  --sep:              rgba(255,255,255,0.07);
+  --sep-strong:       rgba(255,255,255,0.11);
+  --sep-opaque:       #34343a;
+
+  /* Semantici (desaturati) */
+  --red:              #d9564c;
+  --green:            #4a9d68;
+  --yellow:           #d9a13c;
+  --orange:           #d0783a;
+
+  /* Profondità: ombre neutre, nessun glow */
+  --shadow-sm:        0 1px 2px rgba(9,9,11,0.35), 0 0 0 0.5px rgba(255,255,255,0.04) inset;
+  --shadow-md:        0 4px 16px rgba(9,9,11,0.4), 0 1px 3px rgba(9,9,11,0.3);
+  --shadow-btn:       0 0.5px 1px rgba(9,9,11,0.4), 0 0 0 0.5px rgba(255,255,255,0.06) inset;
+
+  /* Shape */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+
+  /* Type: sistema Apple, coerenza con l'host */
+  --font-ui:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --font-num:   ui-monospace, 'SF Mono', monospace;
+  --font-read:  -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  /* Motion */
+  --ease:       cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur:        150ms;
+}
+
+[data-theme="light"] {
+  --bg-window:        rgba(248, 248, 250, 0.94);
+  --bg-solid:         #f8f8fa;
+  --bg-surface:       #ffffff;
+  --bg-elevated:      #ffffff;
+  --bg-hover:         rgba(24,24,27,0.04);
+  --bg-active:        rgba(24,24,27,0.06);
+  --bg-input:         rgba(24,24,27,0.05);
+  --bg-inset:         rgba(24,24,27,0.03);
+
+  --text-primary:     rgba(24,24,27,0.92);
+  --text-secondary:   rgba(24,24,27,0.70);
+  --text-tertiary:    rgba(24,24,27,0.64);
+
+  --accent:           #0b7a4e;
+  --accent-text:      #096a44;
+  --accent-hover:     #096b45;
+  --accent-subtle:    rgba(11,122,78,0.10);
+
+  --sep:              rgba(24,24,27,0.08);
+  --sep-strong:       rgba(24,24,27,0.12);
+  --sep-opaque:       #d9d9de;
+
+  --shadow-sm:        0 1px 2px rgba(24,24,27,0.07), 0 0 0 0.5px rgba(24,24,27,0.05);
+  --shadow-md:        0 4px 16px rgba(24,24,27,0.1), 0 1px 3px rgba(24,24,27,0.07);
+  --shadow-btn:       0 0.5px 1px rgba(24,24,27,0.1), 0 0 0 0.5px rgba(24,24,27,0.07);
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 40px;
+  gap: 48px;
+  flex-wrap: wrap;
+  overflow-y: auto;
+  background: #0d0d0f;
+  min-height: 100vh;
+}
+[data-theme="light"] body { background: #d8d8dc; }
+
+[hidden] { display: none !important; }
+
+/* Focus visibile su tutto (tastiera) */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+}
+.toggle input:focus-visible { outline: none; }
+
+/* ═══════════ WINDOW FRAME ═══════════ */
+.window-frame {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-solid);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow:
+    0 0 0 0.5px rgba(255,255,255,0.07),
+    0 1px 0 0 rgba(255,255,255,0.04) inset,
+    0 20px 60px rgba(9,9,11,0.5),
+    0 4px 16px rgba(9,9,11,0.3);
+}
+[data-theme="light"] .window-frame {
+  box-shadow:
+    0 0 0 0.5px rgba(24,24,27,0.12),
+    0 1px 0 0 rgba(255,255,255,0.7) inset,
+    0 20px 60px rgba(24,24,27,0.16),
+    0 4px 16px rgba(24,24,27,0.08);
+}
+
+.window-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.05) inset;
+}
+[data-theme="light"] .window-frame::before {
+  box-shadow: 0 0 0 0.5px rgba(24,24,27,0.07) inset;
+}
+
+.window-std     { width: 420px; height: 360px; }
+.window-full    { width: 660px; height: 400px; }
+.window-compact { width: 380px; height: 44px; border-radius: 12px; }
+
+/* ═══════════ HEADER UNICO ═══════════ */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 0.5px solid var(--sep);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.traffic-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  position: relative;
+}
+.traffic-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.15) inset;
+}
+.td-close { background: linear-gradient(180deg, #e05a52 0%, #d94b43 100%); }
+.td-min   { background: linear-gradient(180deg, #edb43a 0%, #e5aa2c 100%); }
+.td-zoom  { background: linear-gradient(180deg, #47b354 0%, #3fa54c 100%); }
+
+.hdr-title {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.hdr-name {
+  font-size: 13px; font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.hdr-status {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-secondary);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  align-self: center;
+}
+.dot-on  { background: var(--green); }
+.dot-off { background: var(--red); }
+.dot-load { background: var(--text-tertiary); animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+
+.hdr-actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 2px;
+}
+.hbtn {
+  width: 26px; height: 26px;
+  border-radius: var(--r-sm);
+  background: none; border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur);
+}
+.hbtn:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.hbtn.active { color: var(--accent-text); }
+
+/* ═══════════ CANVAS (una superficie per stato) ═══════════ */
+.canvas {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-solid);
+}
+.views { flex: 1; display: flex; overflow: hidden; }
+
+.view {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  animation: viewIn 200ms var(--ease-out);
+}
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Cattura ─── */
+.capture-view { flex: 1; display: flex; flex-direction: column; }
+.capture-view textarea {
+  flex: 1;
+  background: transparent;
+  border: none; resize: none;
+  padding: 18px 20px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--text-primary);
+  letter-spacing: -0.1px;
+  user-select: text;
+}
+.capture-view textarea:focus { outline: none; }
+.capture-view textarea::placeholder {
+  color: var(--text-tertiary);
+}
+.capture-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 0.5px solid var(--sep);
+  flex-shrink: 0;
+}
+.capture-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex; align-items: center; gap: 5px;
+}
+kbd.chip {
+  font-family: var(--font-num);
+  font-size: 9px; font-weight: 600;
+  background: var(--bg-hover);
+  border: 0.5px solid var(--sep-strong);
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  color: var(--text-secondary);
+}
+.capture-actions { display: flex; align-items: center; gap: 8px; }
+
+/* ─── Lettura: la superficie dominante ─── */
+.reading-canvas {
+  flex: 1; overflow-y: auto;
+  padding: 24px 28px;
+  display: flex; justify-content: center;
+}
+.read-col {
+  max-width: 52ch;
+  font-family: var(--font-read);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.9;
+  letter-spacing: -0.1px;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+.r-word {
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: 0 -1px;
+  transition: color 200ms var(--ease), background 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.r-done { color: var(--text-tertiary); }
+.r-active {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.read-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 0.5px solid var(--sep);
+  flex-shrink: 0;
+}
+.read-foot .spacer { flex: 1; }
+
+/* ─── Coda ─── */
+.q-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px 8px;
+  flex-shrink: 0;
+}
+.q-title {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary);
+  display: flex; align-items: center; gap: 6px;
+}
+.q-count {
+  font-family: var(--font-num);
+  font-size: 10px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+  padding: 1px 6px;
+  border-radius: var(--r-full, 6px);
+  border-radius: var(--r-sm);
+}
+.btn-tiny {
+  background: none; border: none;
+  font-size: 11px; font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  padding: 3px 6px;
+  border-radius: var(--r-xs);
+  transition: all var(--dur);
+}
+.btn-tiny:hover {
+  color: var(--red);
+  background: rgba(217,86,76,0.08);
+}
+.q-list {
+  list-style: none;
+  flex: 1; overflow-y: auto;
+  padding: 0 8px 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.q-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  font-size: 12px; font-weight: 400;
+  color: var(--text-primary);
+  border-radius: var(--r-sm);
+  transition: all var(--dur);
+  position: relative;
+  letter-spacing: -0.1px;
+}
+.q-item:hover { background: var(--bg-hover); }
+.q-item.playing { background: var(--accent-subtle); }
+.q-item.playing::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.q-idx {
+  font-family: var(--font-num);
+  font-size: 10px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.q-item.playing .q-idx { color: var(--accent-text); }
+.q-text {
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.q-meta {
+  font-family: var(--font-num);
+  font-size: 9px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+  background: var(--bg-hover);
+  padding: 2px 5px;
+  border-radius: var(--r-xs);
+}
+.q-rm {
+  background: none; border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 15px; line-height: 1;
+  padding: 0 3px;
+  transition: all var(--dur);
+  font-family: var(--font-ui);
+  border-radius: var(--r-xs);
+  opacity: 0;
+}
+.q-item:hover .q-rm, .q-rm:focus-visible { opacity: 1; }
+.q-rm:hover { color: var(--red); background: rgba(217,86,76,0.08); }
+
+/* Stato vuoto della coda: dice perché è vuota e come riempirla */
+.empty-st {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  padding: 24px;
+  text-align: center;
+}
+.empty-st p { font-size: 12px; line-height: 1.6; max-width: 30ch; }
+.empty-st .hint-line { font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 4px; }
+
+/* ─── Split ─── */
+.views.split { flex-direction: row; }
+.views.split > .view:first-child {
+  flex: 1.6;
+  border-right: 0.5px solid var(--sep);
+}
+.views.split > .view:last-child { flex: 1; }
+
+/* ═══════════ TRASPORTO (in basso, come un player) ═══════════ */
+.transport {
+  display: flex; align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px;
+  background: var(--bg-surface);
+  border-top: 0.5px solid var(--sep);
+  flex-shrink: 0;
+}
+
+.btn-play {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(9,9,11,0.35), 0 0 0 0.5px rgba(255,255,255,0.08) inset;
+  transition: all var(--dur) var(--ease);
+  flex-shrink: 0;
+}
+.btn-play:hover { background: var(--accent-hover); transform: scale(1.04); }
+.btn-play:active { transform: scale(0.94); box-shadow: 0 0.5px 1px rgba(9,9,11,0.3); }
+.btn-play:disabled {
+  background: var(--bg-active);
+  color: var(--text-tertiary);
+  cursor: default;
+  box-shadow: var(--shadow-btn);
+  transform: none;
+}
+
+.btn-ctrl {
+  width: 26px; height: 26px;
+  border-radius: var(--r-sm);
+  background: none; border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur);
+  flex-shrink: 0;
+}
+.btn-ctrl:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+.progress-wrap {
+  flex: 1; height: 24px;
+  display: flex; align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+.progress-track {
+  width: 100%; height: 3px;
+  background: var(--bg-active);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  position: relative;
+  transition: width 50ms linear;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 50%;
+  transform: translate(50%, -50%) scale(0);
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(9,9,11,0.35), 0 0 0 0.5px rgba(0,0,0,0.06);
+  transition: transform 200ms var(--ease-spring);
+}
+.progress-wrap:hover .progress-fill::after {
+  transform: translate(50%, -50%) scale(1);
+}
+/* Progress indeterminato durante la sintesi */
+.progress-fill.indet {
+  width: 30%;
+  transition: none;
+  animation: indet 1.2s var(--ease) infinite;
+}
+@keyframes indet {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(380%); }
+}
+
+.time-lbl {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  min-width: 58px;
+  text-align: center;
+  white-space: nowrap;
+}
+.time-lbl.loading {
+  color: var(--accent-text);
+  animation: pulse 1s infinite alternate;
+  min-width: auto;
+}
+
+.speed-pill {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border: 0.5px solid var(--sep-strong);
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--dur);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.speed-pill:hover {
+  color: var(--text-primary);
+  border-color: var(--sep-opaque);
+  background: var(--bg-active);
+}
+
+/* Chip coda nel trasporto */
+.q-chip {
+  display: flex; align-items: center; gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  font-family: var(--font-ui);
+  font-size: 11px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border: 0.5px solid var(--sep-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--dur);
+  flex-shrink: 0;
+}
+.q-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--sep-opaque);
+  background: var(--bg-active);
+}
+.q-chip .n { color: var(--accent-text); font-weight: 600; }
+
+/* ═══════════ SHEET IMPOSTAZIONI ═══════════ */
+.sheet-layer {
+  position: absolute; inset: 0;
+  background: rgba(9,9,11,0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+[data-theme="light"] .sheet-layer { background: rgba(24,24,27,0.25); }
+
+.sheet {
+  width: 320px;
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(9,9,11,0.45), 0 0 0 0.5px rgba(255,255,255,0.08);
+  animation: sheetIn 200ms var(--ease-out);
+}
+[data-theme="light"] .sheet {
+  box-shadow: 0 12px 40px rgba(24,24,27,0.2), 0 0 0 0.5px rgba(24,24,27,0.08);
+}
+@keyframes sheetIn {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px 8px;
+}
+.sheet-title {
+  font-size: 13px; font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.sheet-body { padding: 0 16px 12px; }
+
+.s-group + .s-group::before {
+  content: '';
+  display: block;
+  height: 0.5px;
+  background: var(--sep);
+  margin-bottom: 4px;
+}
+.s-title {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-secondary);
+  padding: 8px 0 4px;
+}
+.s-row {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 28px;
+  padding: 2px 0;
+  gap: 16px;
+}
+.s-row + .s-row { border-top: 0.5px solid var(--sep); }
+.s-lbl {
+  font-size: 12px; font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: -0.1px;
+}
+.s-hint {
+  display: block;
+  font-size: 10px; font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+select.sel {
+  height: 24px;
+  padding: 0 24px 0 8px;
+  font-size: 11px; font-weight: 500;
+  font-family: var(--font-ui);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border: 0.5px solid var(--sep-strong);
+  border-radius: var(--r-sm);
+  outline-offset: 1px;
+  cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L4 4L7 1' stroke='%23888' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  min-width: 110px;
+  transition: all var(--dur);
+  box-shadow: var(--shadow-btn);
+}
+select.sel:hover { border-color: var(--sep-opaque); }
+select.sel:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-btn);
+}
+
+input.inp {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px; font-weight: 500;
+  font-family: var(--font-num);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 0.5px solid var(--sep-strong);
+  border-radius: var(--r-sm);
+  outline: none;
+  min-width: 80px;
+  transition: all var(--dur);
+  box-shadow: 0 1px 2px rgba(9,9,11,0.2) inset;
+  letter-spacing: 0.5px;
+}
+input.inp:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle), 0 1px 2px rgba(9,9,11,0.15) inset;
+}
+
+/* Toggle */
+.toggle {
+  position: relative;
+  width: 30px; height: 18px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-bg {
+  position: absolute; inset: 0;
+  background: rgba(120,120,128,0.32);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 250ms var(--ease);
+}
+.toggle-bg::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(9,9,11,0.25), 0 0 0 0.5px rgba(0,0,0,0.04);
+  transition: transform 250ms var(--ease-spring);
+}
+.toggle input:checked + .toggle-bg { background: var(--accent); }
+.toggle input:checked + .toggle-bg::after { transform: translateX(12px); }
+.toggle input:focus-visible + .toggle-bg {
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.hk-wrap { display: flex; align-items: center; gap: 6px; }
+.hk-ok { font-size: 11px; color: var(--green); font-weight: 600; }
+
+/* ═══════════ BANNER ═══════════ */
+.banner-w {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px;
+  font-size: 11px; font-weight: 500;
+  color: var(--orange);
+  border-bottom: 0.5px solid rgba(208,120,58,0.18);
+  background: rgba(208,120,58,0.06);
+  flex-shrink: 0; gap: 10px;
+}
+.banner-txt { display: flex; align-items: center; gap: 7px; }
+
+/* ═══════════ COMPACT ═══════════ */
+/* Unico elemento in vetro: la mini-strip fluttua sopra finestre altrui */
+.compact-strip {
+  display: flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 12px;
+  background: var(--bg-window);
+  backdrop-filter: saturate(1.8) blur(24px);
+  -webkit-backdrop-filter: saturate(1.8) blur(24px);
+  border-radius: 12px;
+}
+.compact-strip .btn-play { width: 28px; height: 28px; }
+.btn-exp {
+  width: 22px; height: 22px;
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  border: 0.5px solid var(--sep-strong);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-btn);
+}
+.btn-exp:hover {
+  color: var(--text-primary);
+  background: var(--bg-active);
+  border-color: var(--sep-opaque);
+}
+
+/* ═══════════ BOTTONI CONDIVISI ═══════════ */
+.btn-ghost {
+  background: none; border: none;
+  color: var(--text-secondary);
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  transition: all var(--dur);
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  display: flex; align-items: center; gap: 5px;
+  letter-spacing: -0.1px;
+}
+.btn-ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.btn-m {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur) var(--ease);
+  display: inline-flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
+  letter-spacing: -0.1px;
+}
+.btn-m.sec {
+  background: var(--bg-hover);
+  border: 0.5px solid var(--sep-strong);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-btn);
+}
+.btn-m.sec:hover { background: var(--bg-active); border-color: var(--sep-opaque); }
+.btn-m.sec:active { transform: scale(0.98); }
+
+.btn-m.pri {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(9,9,11,0.3), 0 0 0 0.5px rgba(255,255,255,0.08) inset;
+}
+.btn-m.pri:hover { background: var(--accent-hover); }
+.btn-m.pri:active {
+  transform: scale(0.97);
+  box-shadow: 0 0.5px 1px rgba(9,9,11,0.25);
+}
+.btn-m.pri .key-chip {
+  font-family: var(--font-num);
+  font-size: 9px; font-weight: 600;
+  background: rgba(255,255,255,0.18);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: inherit;
+}
+
+/* ═══════════ SCROLLBAR ═══════════ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--sep-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ═══════════ PROTO CHROME ═══════════ */
+.p-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.35);
+  text-align: center;
+  margin-bottom: 12px;
+}
+[data-theme="light"] .p-label { color: rgba(24,24,27,0.35); }
+
+.p-controls {
+  position: fixed;
+  top: 14px; right: 14px;
+  display: flex; gap: 4px;
+  z-index: 200;
+}
+.p-btn {
+  height: 28px; padding: 0 14px;
+  border-radius: var(--r-sm);
+  border: 0.5px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.4);
+  font-size: 11px; font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all 200ms;
+}
+.p-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); }
+.p-btn.on {
+  background: var(--accent); border-color: transparent;
+  color: #fff;
+}
+[data-theme="light"] .p-btn {
+  border-color: rgba(24,24,27,0.1);
+  background: rgba(24,24,27,0.03);
+  color: rgba(24,24,27,0.35);
+}
+[data-theme="light"] .p-btn:hover {
+  background: rgba(24,24,27,0.06);
+  color: rgba(24,24,27,0.55);
+}
+[data-theme="light"] .p-btn.on {
+  background: var(--accent); border-color: transparent;
+  color: #fff;
+}
+
+.p-section { text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="p-controls">
+  <button class="p-btn on" onclick="setTheme('dark')">Scuro</button>
+  <button class="p-btn" onclick="setTheme('light')">Chiaro</button>
+</div>
+
+<!-- ═══════ COMPACTA ═══════ -->
+<div class="p-section">
+  <div class="p-label">Compatta</div>
+  <div class="window-frame window-compact" style="margin:0 auto">
+    <div class="compact-strip">
+      <button class="btn-play">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"/></svg>
+      </button>
+      <button class="btn-ctrl">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>
+      </button>
+      <div class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill" style="width:35%"></div>
+        </div>
+      </div>
+      <span class="time-lbl">0:03 / 0:12</span>
+      <button class="btn-exp">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ CATTURA (stato vuoto) ═══════ -->
+<div class="p-section">
+  <div class="p-label">Cattura, vuota</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>Pronto</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view capture-view">
+        <textarea placeholder="Incolla o scrivi qui il testo da ascoltare..."></textarea>
+        <div class="capture-foot">
+          <span class="capture-hint"><kbd class="chip">⌘⇧S</kbd> da qualsiasi app</span>
+          <div class="capture-actions">
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>Da clipboard</button>
+            <button class="btn-m pri">Leggi <span class="key-chip">⏎</span></button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:0%"></div></div></div>
+      <span class="time-lbl">0:00 / 0:00</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ LETTURA (in riproduzione) ═══════ -->
+<div class="p-section">
+  <div class="p-label">Lettura</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>In riproduzione</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view">
+        <div class="reading-canvas"><div class="read-col"><span class="r-word r-done">La</span> <span class="r-word r-done">tecnologia</span> <span class="r-word r-done">text-to-speech</span> <span class="r-word r-done">ha</span> <span class="r-word r-done">fatto</span> <span class="r-word r-done">enormi</span> <span class="r-word r-done">progressi</span> <span class="r-word r-done">negli</span> <span class="r-word r-done">ultimi</span> <span class="r-word r-done">anni,</span> <span class="r-word r-done">rendendo</span> <span class="r-word r-done">possibile</span> <span class="r-word r-done">la</span> <span class="r-word r-done">generazione</span> <span class="r-word r-done">di</span> <span class="r-word r-done">voci</span> <span class="r-word r-done">sintetiche</span> <span class="r-word r-done">sempre</span> <span class="r-word r-done">più</span> <span class="r-word r-active">naturali</span> <span class="r-word">e</span> <span class="r-word">realistiche</span> <span class="r-word">grazie</span> <span class="r-word">ai</span> <span class="r-word">modelli</span> <span class="r-word">neurali</span> <span class="r-word">locali,</span> <span class="r-word">che</span> <span class="r-word">elaborano</span> <span class="r-word">il</span> <span class="r-word">testo</span> <span class="r-word">senza</span> <span class="r-word">inviarlo</span> <span class="r-word">su</span> <span class="r-word">server</span> <span class="r-word">esterni.</span></div></div>
+        <div class="read-foot">
+          <button class="btn-ghost"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>WAV</button>
+          <button class="btn-ghost">Modifica testo</button>
+          <span class="spacer"></span>
+        </div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg></button>
+      <button class="btn-ctrl"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:42%"></div></div></div>
+      <span class="time-lbl">0:05 / 0:12</span>
+      <span class="speed-pill">1.05×</span>
+      <button class="q-chip"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="0.5" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="0.5" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="0.5" fill="currentColor" stroke="none"/></svg><span class="n">3</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ CODA ═══════ -->
+<div class="p-section">
+  <div class="p-label">Coda</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>In riproduzione</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view">
+        <div class="q-head"><span class="q-title">Coda <span class="q-count">3</span></span><button class="btn-tiny">Svuota</button></div>
+        <ul class="q-list">
+          <li class="q-item playing"><span class="q-idx">1</span><span class="q-text">La tecnologia text-to-speech ha fatto enormi progressi negli ultimi anni...</span><span class="q-meta">F1 · it</span><button class="q-rm">×</button></li>
+          <li class="q-item"><span class="q-idx">2</span><span class="q-text">Lettore utilizza modelli neurali locali per garantire privacy e velocità.</span><span class="q-meta">F1 · it</span><button class="q-rm">×</button></li>
+          <li class="q-item"><span class="q-idx">3</span><span class="q-text">Le voci sintetiche sono sempre più naturali e realistiche grazie ai recenti avanzamenti.</span><span class="q-meta">F1 · it</span><button class="q-rm">×</button></li>
+        </ul>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:65%"></div></div></div>
+      <span class="time-lbl">0:08 / 0:12</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ CODA VUOTA (stato) ═══════ -->
+<div class="p-section">
+  <div class="p-label">Coda vuota</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>Pronto</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view">
+        <div class="q-head"><span class="q-title">Coda</span></div>
+        <div class="empty-st">
+          <p>Nessun testo in coda. Ciò che leggi appare qui e viene riprodotto in sequenza.</p>
+          <span class="hint-line">Aggiungi testo con <kbd class="chip">⌘⇧S</kbd> oppure incollalo nella schermata iniziale</span>
+        </div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:0%"></div></div></div>
+      <span class="time-lbl">0:00 / 0:00</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ SINTESI IN CORSO (loading) ═══════ -->
+<div class="p-section">
+  <div class="p-label">Sintesi in corso</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-load"></i>Sintesi…</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view">
+        <div class="reading-canvas"><div class="read-col"><span class="r-word">La</span> <span class="r-word">tecnologia</span> <span class="r-word">text-to-speech</span> <span class="r-word">ha</span> <span class="r-word">fatto</span> <span class="r-word">enormi</span> <span class="r-word">progressi</span> <span class="r-word">negli</span> <span class="r-word">ultimi</span> <span class="r-word">anni,</span> <span class="r-word">rendendo</span> <span class="r-word">possibile</span> <span class="r-word">la</span> <span class="r-word">generazione</span> <span class="r-word">di</span> <span class="r-word">voci</span> <span class="r-word">sintetiche</span> <span class="r-word">sempre</span> <span class="r-word">più</span> <span class="r-word">naturali</span> <span class="r-word">e</span> <span class="r-word">realistiche.</span></div></div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill indet"></div></div></div>
+      <span class="time-lbl loading">sintesi…</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FULL — LETTURA + CODA ═══════ -->
+<div class="p-section">
+  <div class="p-label">Finestra allargata, lettura + coda</div>
+  <div class="window-frame window-full" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>In riproduzione</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views split">
+        <div class="view">
+          <div class="reading-canvas"><div class="read-col"><span class="r-word r-done">La</span> <span class="r-word r-done">tecnologia</span> <span class="r-word r-done">text-to-speech</span> <span class="r-word r-done">ha</span> <span class="r-word r-done">fatto</span> <span class="r-word r-done">enormi</span> <span class="r-word r-done">progressi</span> <span class="r-word r-done">negli</span> <span class="r-word r-done">ultimi</span> <span class="r-word r-done">anni,</span> <span class="r-word r-done">rendendo</span> <span class="r-word r-done">possibile</span> <span class="r-word r-done">la</span> <span class="r-word r-done">generazione</span> <span class="r-word r-done">di</span> <span class="r-word r-done">voci</span> <span class="r-word r-done">sintetiche</span> <span class="r-word r-done">sempre</span> <span class="r-word r-done">più</span> <span class="r-word r-active">naturali</span> <span class="r-word">e</span> <span class="r-word">realistiche</span> <span class="r-word">grazie</span> <span class="r-word">ai</span> <span class="r-word">modelli</span> <span class="r-word">neurali</span> <span class="r-word">locali.</span></div></div>
+        </div>
+        <div class="view">
+          <div class="q-head"><span class="q-title">Coda <span class="q-count">3</span></span><button class="btn-tiny">Svuota</button></div>
+          <ul class="q-list">
+            <li class="q-item playing"><span class="q-idx">1</span><span class="q-text">La tecnologia text-to-speech ha fatto enormi progressi...</span><span class="q-meta">F1</span><button class="q-rm">×</button></li>
+            <li class="q-item"><span class="q-idx">2</span><span class="q-text">Lettore utilizza modelli neurali locali per privacy.</span><span class="q-meta">F1</span><button class="q-rm">×</button></li>
+            <li class="q-item"><span class="q-idx">3</span><span class="q-text">Le voci sintetiche sono sempre più naturali e realistiche.</span><span class="q-meta">F1</span><button class="q-rm">×</button></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="transport">
+      <button class="btn-play"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg></button>
+      <button class="btn-ctrl"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:28%"></div></div></div>
+      <span class="time-lbl">0:03 / 0:12</span>
+      <span class="speed-pill">1.05×</span>
+      <button class="btn-ghost">Mostra testo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ IMPOSTAZIONI (sheet) ═══════ -->
+<div class="p-section">
+  <div class="p-label">Impostazioni come sheet</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-on"></i>In riproduzione</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn active"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view">
+        <div class="reading-canvas"><div class="read-col"><span class="r-word r-done">La</span> <span class="r-word r-done">tecnologia</span> <span class="r-word r-done">text-to-speech</span> <span class="r-word r-done">ha</span> <span class="r-word r-done">fatto</span> <span class="r-word r-done">enormi</span> <span class="r-word r-done">progressi</span> <span class="r-word r-done">negli</span> <span class="r-word r-done">ultimi</span> <span class="r-word r-done">anni,</span> <span class="r-word r-done">rendendo</span> <span class="r-word r-done">possibile</span> <span class="r-word r-done">la</span> <span class="r-word r-done">generazione</span> <span class="r-word r-done">di</span> <span class="r-word r-done">voci</span> <span class="r-word r-active">sintetiche</span> <span class="r-word">sempre</span> <span class="r-word">più</span> <span class="r-word">naturali</span> <span class="r-word">e</span> <span class="r-word">realistiche.</span></div></div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="5" y="4" width="4" height="16" rx="1"/><rect x="15" y="4" width="4" height="16" rx="1"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:55%"></div></div></div>
+      <span class="time-lbl">0:07 / 0:12</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+    <div class="sheet-layer">
+      <div class="sheet">
+        <div class="sheet-head">
+          <span class="sheet-title">Impostazioni</span>
+          <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div class="s-group">
+            <div class="s-title">Aspetto</div>
+            <div class="s-row"><span class="s-lbl">Tema</span><select class="sel"><option selected>Scuro</option><option>Chiaro</option><option>Alto contrasto</option></select></div>
+            <div class="s-row"><span class="s-lbl">Dimensione testo</span><select class="sel"><option selected>Normale</option><option>Grande</option><option>Molto grande</option></select></div>
+          </div>
+          <div class="s-group">
+            <div class="s-title">Voce</div>
+            <div class="s-row"><span class="s-lbl">Voce</span><select class="sel"><option selected>F1 · Fiona</option><option>M1 · Marco</option></select></div>
+            <div class="s-row"><span class="s-lbl">Lingua</span><select class="sel"><option selected>Automatica</option><option>Italiano</option><option>English</option></select></div>
+            <div class="s-row"><span class="s-lbl">Qualità</span><select class="sel"><option>5 (veloce)</option><option selected>8 (bilanciata)</option><option>12 (massima)</option></select></div>
+          </div>
+          <div class="s-group">
+            <div class="s-title">Comportamento</div>
+            <div class="s-row"><span class="s-lbl">Hotkey globale</span><div class="hk-wrap"><input class="inp" type="text" value="⌘⇧S" style="width:70px;text-align:center"><span class="hk-ok">✓</span></div></div>
+            <div class="s-row"><span class="s-lbl">Sempre in primo piano</span><label class="toggle"><input type="checkbox" checked><span class="toggle-bg"></span></label></div>
+            <div class="s-row"><span class="s-lbl">Cattura automatica<span class="s-hint">Richiede permesso Accessibilità</span></span><label class="toggle"><input type="checkbox"><span class="toggle-bg"></span></label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ BANNER ACCESSIBILITÀ ═══════ -->
+<div class="p-section">
+  <div class="p-label">Banner permesso Accessibilità</div>
+  <div class="window-frame window-std" style="margin:0 auto">
+    <div class="app-header">
+      <div class="traffic-lights"><div class="traffic-dot td-close"></div><div class="traffic-dot td-min"></div><div class="traffic-dot td-zoom"></div></div>
+      <div class="hdr-title"><span class="hdr-name">Lettore</span><span class="hdr-status"><i class="status-dot dot-off"></i>Offline</span></div>
+      <div class="hdr-actions">
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M9 6l6 0M8 12l8 0M10 12v4l2 6 2-6v-4"/></svg></button>
+        <button class="hbtn"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1H21a2 2 0 1 1 0 4Z"/></svg></button>
+      </div>
+    </div>
+    <div class="banner-w">
+      <span class="banner-txt">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Abilita Accessibilità per la cattura automatica
+      </span>
+      <button class="btn-m sec" style="font-size:10px;height:22px;padding:0 8px">Abilita</button>
+    </div>
+    <div class="canvas">
+      <div class="views"><div class="view capture-view">
+        <textarea placeholder="Incolla o scrivi qui il testo da ascoltare..."></textarea>
+        <div class="capture-foot">
+          <span class="capture-hint"><kbd class="chip">⌘⇧S</kbd> da qualsiasi app</span>
+          <div class="capture-actions">
+            <button class="btn-ghost"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>Da clipboard</button>
+            <button class="btn-m pri">Leggi <span class="key-chip">⏎</span></button>
+          </div>
+        </div>
+      </div></div>
+    </div>
+    <div class="transport">
+      <button class="btn-play" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"/></svg></button>
+      <div class="progress-wrap"><div class="progress-track"><div class="progress-fill" style="width:0%"></div></div></div>
+      <span class="time-lbl">0:00 / 0:00</span>
+      <span class="speed-pill">1.05×</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll('.p-btn').forEach(b => b.classList.toggle('on', b.textContent.trim() === (t === 'dark' ? 'Scuro' : 'Chiaro')));
+}
+</script>
+</body>
+</html>
