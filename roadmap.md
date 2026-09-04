@@ -40,9 +40,9 @@ Tutto l'accessibility core, con **test aXe-core in CI dal giorno 1** (non a fine
 | Linux | ⚠️ Solo fallback clipboard, documentato come noto limite | CPU (`onnxruntime`) | AppImage "best effort", non promessa |
 
 - **CI/CD**: GitHub Actions matrix (macOS-latest, windows-latest; ubuntu solo build check).
-- **Config unificata**: `BackendConfig` rileva provider disponibili (`CoreMLExecutionProvider`, `DmlExecutionProvider`, `CPUExecutionProvider`) → auto-seleziona il migliore, fallback silenzioso a CPU.
+- **Config unificata & Astrazione Motore TTS**: architettura pluggabile a provider/driver (`BaseTTSEngine`). L'app non si accoppia rigidamente a una singola libreria/runtime: runtime attuale isolato come provider (Supertonic/ONNX), pronto per swap futuro a nuove librerie/modelli TTS senza riscrivere API o frontend.
+- **Rilevamento acceleratori**: `BackendConfig` rileva provider disponibili (`CoreMLExecutionProvider`, `DmlExecutionProvider`, `CPUExecutionProvider`) → auto-seleziona il migliore, fallback silenzioso a CPU.
 - **Prerequisito Windows**: macchina fisica o VM usabile per testare UIA interattivamente — sviluppare UIA "alla cieca" su CI è quasi garantito che fallisca.
-
 ### Architettura
 
 ```
@@ -54,11 +54,14 @@ src-tauri/
 │   │   └── mod.rs           // trait CaptureProvider + factory per OS
 │   └── sidecar.rs           // rileva OS → provider cattura + provider ONNX
 backend/
+├── engines/                 // NUOVO: Astrazione modulare TTS
+│   ├── base.py              // Interfaccia BaseTTSEngine (load, synthesize, stream, unload)
+│   ├── onnx_engine.py       // Implementazione attuale Supertonic ONNX
+│   └── factory.py           // Selezione dinamica del motore da config
 ├── textnorm/                // NUOVO modulo Python
 │   ├── rules_it.yaml
 │   └── normalizer.py
-└── tts_manager.py           // usa normalizer se config.enabled
-```
+└── tts_manager.py           // Orchestra il motore tramite BaseTTSEngine + normalizzatore
 
 ### ✅ Gate di uscita Settimana 3
 Un utente VoiceOver completa il flusso cattura→lettura senza mouse e senza aiuto.
@@ -151,6 +154,7 @@ Specifiche operative per le feature utente approvate:
 | 🚫 **Esclusione di Testo (Filtro Stringhe)** | Configurazione utente per escludere stringhe esatte, pattern ricorrenti o disclaimer (es. "Inviato da iPhone", header ripetitivi, note legali) prima del chunking e della sintesi TTS. | *Settimane 4–5 (Smart Pipeline)* — Pre-elaborazione nel normalizzatore Python/JS con matching rapido e lista personalizzabile. |
 | ⌨️ **Scorciatoie Personalizzabili (Play / Pausa / Stop)** | Impostazione dedicata nelle preferenze che consente all'utente di registrare e rimappare le scorciatoie da tastiera globali per Play, Pausa e Stop. Include set raccomandato per macOS: **Play: `Fn + F`**, **Pausa: `Fn + J`**, **Stop: `Fn + JJ`** (doppio tap rapido o combinazione dedicata). | *Settimana 6 (Controllo & Accessibilità)* — Plugin shortcut globali Tauri / handler eventi nativo con persistenza in config e prevenzione conflitti OS. |
 | 🔍 **Auto-identificazione Testo & Cattura Assistita a Riquadri (R&D / Fattibilità)** | **(Da pianificare & validare)** Due modalità di cattura intelligente senza selezione manuale: <br>1. *Automatica*: rilevamento automatico del blocco di testo principale dell'app/browser in primo piano (tramite traversing dell'albero AX/UIA o Readability engine locale). <br>2. *Assistita*: overlay su schermo con box visivi attorno alle sezioni di testo rilevate; con un click l'utente sceglie se avviare la riproduzione immediata del blocco o aggiungerlo alla coda di lettura. | *TRACK 2 — Visione v2 (R&D / Prototipazione)* — Studio fattibilità tecnica: performance traversing AX/UIA su alberi complessi di browser, precisione coordinate bounding box per overlay trasparente in Tauri. |
+| 🧩 **Modularità Motore Vocale (Plug-and-Play TTS)** | Disaccoppiamento del runtime TTS tramite interfaccia/adattatore unificato (`BaseTTSEngine`). Permette di sostituire o affiancare l'engine attuale con librerie o modelli emergenti più performanti/naturali senza impattare frontend, API FastAPI o IPC Tauri. | *Settimane 1–3 (Architettura Core)* — Refactor modulare backend Python (`engines/base.py`, driver factory e compatibilità streaming). |
 ---
 
 ## Rischi & Mitigazioni
