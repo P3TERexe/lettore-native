@@ -90,10 +90,10 @@ Ascolto cieco A/B — 5 frasi "difficili" normalizzate vs raw: l'utente preferis
 Le feature a basso sforzo / alto impatto rimaste fuori dalle settimane precedenti:
 
 1. **Anteprima voce istantanea** — pulsante ▶️ accanto a ogni voce; endpoint `/v1/tts/preview?voice=M1&lang=it` con step bassi.
-2. **Media keys + controlli globali** — Play/Pause toggle, Next salta frase, Previous ripeti frase.
+2. **Media keys + scorciatoie globali personalizzabili** — configurazione tasti da UI (Play, Pausa, Stop) con raccomandati per Mac (`Fn + F` Play, `Fn + J` Pausa, `Fn + JJ` Stop/doppio tap); supporto media keys hardware (Next salta frase, Previous ripeti frase).
 3. **Esportazione MP3 + metadati** — FFmpeg nel sidecar, tag ID3, `Content-Disposition: attachment`.
-4. **Icona Megafono (Tray & Titlebar)** — icona menubar/tray e barra superiore sostituita con megafono dedicato e riconoscibile.
-5. **Player minimale a barra singola** — modalità ultra-compatta con sola barra di avanzamento, onde vocali animate (waveform lines) e controlli play/pausa.
+4. **Megafono Widget Funzionante (Tray & Titlebar)** — non una semplice icona passiva, ma un widget interattivo presente sia nella tray/menubar di sistema che nella titlebar dell'app. Al click apre un menu popover con Play/Pausa e avvia all'occorrenza la modalità minimale (floating pill); alla fine della riproduzione o all'interruzione manuale, la pillola sfuma verso la trasparenza.
+5. **Player minimale a barra singola (Floating Pill)** — modalità ultra-compatta con sola barra di avanzamento, onde vocali animate (waveform lines), controlli play/pausa ed effetto dissolvenza/trasparenza al termine della riproduzione.
 Poi: **secondo round di test utenti** (stessi 3–4 soggetti della settimana 0) sulle novità delle settimane 4–5.
 
 ---
@@ -115,7 +115,10 @@ Priorità ridefinita dal feedback reale degli utenti MVP:
 2. **Navigazione strutturata + resume** — schema robusto: anchor basato su posizione frase nel chunk + fingerprint fuzzy (non hash fragile che rompe al minimo cambio di selezione). Navigazione per unità semantiche: Ctrl+Freccia = paragrafo, Alt+Freccia = frase, Shift+Freccia = parola. Esportazione capitoli da heading Markdown/HTML.
 3. **Smart Capture multilingua** (EN, poi ES/FR/DE)
 4. **"Leggi e Traduci"** (Live Translation TTS) — killer feature rimandata ma tenuta calda: selezioni testo EN → senti IT con stessa voce, zero cloud. Serve language detect + traduzione locale (argostranslate / MarianMT ~300MB).
-5. **"Modalità Studio Lingue"** (Listen-Repeat-Score) — la più rischiosa, per ultima: TTS → utente ripete al microfono → ASR locale (whisper.cpp tiny) → feedback pronuncia + score, loop automatico (~150MB sidecar).
+5. **Studio di Fattibilità: Auto-identificazione del testo principale & Cattura Assistita (Visual Block Reading)** 🔬 — tutto da pianificare/valutare tecnicamente:
+   - *Modalità Automatica*: se è attiva un'app di lettura o browser in primo piano, il motore rileva ed estrae in autonomia il corpo del testo principale (main article/content extraction via accessibility tree AX/UIA, heuristics DOM o Readability locale) saltando barre laterali, pubblicità e menu.
+   - *Modalità Assistita (Overlay a riquadri)*: overlay trasparente a schermo intero che traccia bounding box rettangolari attorno ai singoli blocchi/paragrafi di testo rilevati; l'utente clicca su un riquadro per avviare subito la lettura o metterlo in coda.
+6. **"Modalità Studio Lingue"** (Listen-Repeat-Score) — la più rischiosa, per ultima: TTS → utente ripete al microfono → ASR locale (whisper.cpp tiny) → feedback pronuncia + score, loop automatico (~150MB sidecar).
 
 ---
 
@@ -125,26 +128,29 @@ Priorità ridefinita dal feedback reale degli utenti MVP:
 2. **Anteprima voce istantanea** (alto impatto, basso sforzo) — pulsante ▶️ accanto a ogni voce. *(Settimana 6)*
 3. **Gestione coda visibile e manipolabile** (alto impatto, medio) — drag-handle riordino, rimozione singola, svuota tutto; endpoint `DELETE /v1/queue/{id}`, `PATCH /v1/queue/reorder`. *(Settimane 1–3)*
 4. **Feedback backend visibile** (medio impatto, basso) — toast/banner: "Avvio motore TTS…" → "Download modello (400 MB)… 23%" → "Pronto". *(Settimane 1–3)*
-5. **Media keys + controlli globali** (medio impatto, medio) — Play/Pause toggle, Next salta frase, Previous ripeti frase. *(Settimana 6)*
+5. **Scorciatoie globali personalizzabili & Media keys** (medio impatto, medio sforzo) — pannello impostazioni per rimappare Play, Pausa e Stop (default raccomandati Mac: `Fn + F` Play, `Fn + J` Pausa, `Fn + JJ` Stop). *(Settimana 6)*
 6. **Esportazione MP3/OGG + metadati** (basso impatto, basso) — FFmpeg nel sidecar, tag ID3. *(Settimana 6)*
-7. **Icona Megafono nella barra superiore / Tray** (basso impatto, bassissimo sforzo) — icona a megafono ad alta visibilità per menubar/tray e titlebar. *(Settimana 6)*
+7. **Megafono Widget Funzionante (Tray & Titlebar)** (alto impatto, medio sforzo) — widget interattivo con menu comandi rapidi (Play/Pausa), trigger della floating pill e transizione di dissolvenza/trasparenza al completamento della lettura. *(Settimana 6)*
 8. **"Leggi da qui" / Cursor-based reading** (alto impatto, medio sforzo) — riproduzione dal cursore attivo in poi senza selezione manuale estesa. *(Settimane 4–5)*
-9. **Player minimale a barra singola con onde vocali** (alto impatto, medio sforzo) — floating player ultra-compatto con barra di durata, linee vocali animate e play/pausa. *(Settimana 6)*
+9. **Player minimale a barra singola con onde vocali (Floating Pill)** (alto impatto, medio sforzo) — floating pill/player ultra-compatto con barra di durata, linee vocali animate, play/pausa e fade-out trasparente al termine. *(Settimana 6)*
 10. **Filtro esclusione testo** (medio impatto, basso sforzo) — esclusione di stringhe configurate prima della sintesi vocale. *(Settimane 4–5)*
+11. **Pannello rimappatura scorciatoie da tastiera** (medio impatto, basso-medio sforzo) — interfaccia utente per configurare hotkey globali/locali con rilevamento conflitti e profili raccomandati per OS. *(Settimana 6)*
 
 
 ---
 
 ## Focus Feature Utente — UI, Controllo & Cattura 🎙️
 
-Specifiche operative per le 4 feature utente approvate:
+Specifiche operative per le feature utente approvate:
 
 | Feature | Descrizione & Comportamento | Collocazione & Impatto |
 |---|---|---|
-| 📣 **Icona Megafono (Tray & Titlebar)** | Sostituzione delle icone menubar/tray e titlebar con una silhouette vettoriale a megafono, migliorando la riconoscibilità del lettore in background e nella barra superiore. | *Settimana 6 (UI Polish)* — Rapida implementazione asset SVG/multipiattaforma. |
+| 📣 **Megafono Widget Funzionante (Tray & Titlebar)** | Widget interattivo presente nella system tray/menubar e nella barra superiore dell'app (titlebar). Al click apre un menu/popover rapido con controlli Play/Pausa e richiama/attiva la visualizzazione minimale (floating pill della sintesi vocale) se non già visibile. Quando la lettura termina (fine testo o stop manuale), la pillola attiva una transizione animata verso la trasparenza (dissolvenza continua/fade-out). | *Settimana 6 (UI Polish & Widget Interattivo)* — Gestione eventi Tray/Menu Tauri + integrazione IPC con la floating pill e gestione transizioni di opacità/trasparenza CSS/Tauri. |
 | 📍 **"Leggi da qui" (Cursor-based reading)** | Consente all'utente di posizionare il cursore in un punto arbitrario del testo e avviare la lettura da lì fino alla fine del contesto/paragrafo, superando il vincolo della selezione manuale estesa. | *Settimane 4–5 (Cattura)* — Integrazione con provider AX/UIA per rilevare text offset o selezione automatica da cursore. |
-| 🎚️ **Player Minimale a Barra Singola** | Modalità compatta ridisegnata: una barra sottile e discreta con barra di avanzamento temporale, piccole linee vocali animate (waveform indicator) reattive alla riproduzione e controlli play/pausa essenziali. Minimo ingombro visivo. | *Settimana 6 (Player UI)* — CSS/Canvas leggero, zero overhead CPU, transizione fluida tra player esteso e mini-bar. |
+| 🎚️ **Player Minimale a Barra Singola (Floating Pill)** | Modalità compatta ridisegnata: una barra sottile e discreta (pillola fluttuante) con barra di avanzamento temporale, piccole linee vocali animate (waveform indicator) reattive alla riproduzione, controlli play/pausa essenziali e dissolvenza trasparente al termine. Minimo ingombro visivo. | *Settimana 6 (Player UI)* — CSS/Canvas leggero, zero overhead CPU, transizione fluida tra player esteso e mini-bar/pillola con gestione fadeout trasparente. |
 | 🚫 **Esclusione di Testo (Filtro Stringhe)** | Configurazione utente per escludere stringhe esatte, pattern ricorrenti o disclaimer (es. "Inviato da iPhone", header ripetitivi, note legali) prima del chunking e della sintesi TTS. | *Settimane 4–5 (Smart Pipeline)* — Pre-elaborazione nel normalizzatore Python/JS con matching rapido e lista personalizzabile. |
+| ⌨️ **Scorciatoie Personalizzabili (Play / Pausa / Stop)** | Impostazione dedicata nelle preferenze che consente all'utente di registrare e rimappare le scorciatoie da tastiera globali per Play, Pausa e Stop. Include set raccomandato per macOS: **Play: `Fn + F`**, **Pausa: `Fn + J`**, **Stop: `Fn + JJ`** (doppio tap rapido o combinazione dedicata). | *Settimana 6 (Controllo & Accessibilità)* — Plugin shortcut globali Tauri / handler eventi nativo con persistenza in config e prevenzione conflitti OS. |
+| 🔍 **Auto-identificazione Testo & Cattura Assistita a Riquadri (R&D / Fattibilità)** | **(Da pianificare & validare)** Due modalità di cattura intelligente senza selezione manuale: <br>1. *Automatica*: rilevamento automatico del blocco di testo principale dell'app/browser in primo piano (tramite traversing dell'albero AX/UIA o Readability engine locale). <br>2. *Assistita*: overlay su schermo con box visivi attorno alle sezioni di testo rilevate; con un click l'utente sceglie se avviare la riproduzione immediata del blocco o aggiungerlo alla coda di lettura. | *TRACK 2 — Visione v2 (R&D / Prototipazione)* — Studio fattibilità tecnica: performance traversing AX/UIA su alberi complessi di browser, precisione coordinate bounding box per overlay trasparente in Tauri. |
 ---
 
 ## Rischi & Mitigazioni
@@ -156,6 +162,7 @@ Specifiche operative per le 4 feature utente approvate:
 | DirectML lento/buggato | Medio | Medio (fallback CPU ok) | CI testa provider; default CPU se init fallisce |
 | Sidecar size > 100MB (DirectML + modelli) | Alto | Medio (download utente) | Compressione UPX + `--strip` PyInstaller; split modelli opzionali |
 | Normalizzatore: scope creep sulle regole | Alto | Medio (settimane 4–5 slittano) | Hard cap ~30 regole ad alta frequenza; tutto il resto in backlog v2 |
+| Fattibilità auto-identificazione testo & overlay a riquadri | Alto | Basso (R&D Track 2, non impatta MVP) | Prototipazione preliminare separata; timebox R&D su AX/UIA tree vs browser DOM |
 | Accessibilità regressa in refactor | Medio | Critico | Test automatizzati aXe-core in CI dal giorno 1 + test manuali settimanali |
 
 ---
