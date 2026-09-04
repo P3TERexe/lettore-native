@@ -33,4 +33,10 @@ python scripts/smoke_test.py                       # end-to-end TTS synth to WAV
 ## Conventions
 
 - Commit messages, docs, and UI copy are in Italian — keep them that way.
+- **Documenti operativi viventi (`dev-docs/`)**: vanno mantenuti rigorosamente allineati ad ogni modifica e seguono formati precisi (vedi `dev-docs/README.md`):
+  - `dev-docs/FEATURES.md`: solo feature realmente implementate nel codice (checkbox `[x]`) e capacità native del motore TTS.
+  - `dev-docs/roadmap.md`: pianificazione per sprint/settimane e gate misurabili.
+  - `dev-docs/bug.md`: registro bug con schema fisso (Description, Steps to Reproduce, Expected, Actual, Diagnosi).
+  - `dev-docs/decisions.md`: decisioni architetturali vincolanti (ADR) con schema fisso ([ADR-XXX], Contesto, Decisione, Alternative, Vincoli Intoccabili).
+  - `dev-docs/testing-checklist.md`: scenari di smoke test manuale rapido ([TC-XXX], Prerequisiti, Passaggi, Esito Atteso, Segnale di Allarme).
 - Follow `.agents/rules/python-standards.md` (Pydantic v2, `from __future__ import annotations`, modern typing) and `.agents/rules/frontend-standards.md`. Caveat: the frontend rules predate the Electron→Tauri migration — use `data-tauri-drag-region`, not `-webkit-app-region`.
