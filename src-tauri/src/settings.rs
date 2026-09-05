@@ -4,6 +4,22 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
+fn default_hotkey_play() -> String {
+    "Alt+KeyP".into()
+}
+fn default_hotkey_pause() -> String {
+    "Alt+KeyJ".into()
+}
+fn default_hotkey_stop() -> String {
+    "Alt+KeyK".into()
+}
+fn default_hotkey_cursor() -> String {
+    "CommandOrControl+Shift+C".into()
+}
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowBounds {
     pub width: Option<f64>,
@@ -21,6 +37,18 @@ pub struct Settings {
     pub steps: u8,
     pub hotkey: String,
     pub hotkey_secondary: String,
+    #[serde(default = "default_hotkey_play")]
+    pub hotkey_play: String,
+    #[serde(default = "default_hotkey_pause")]
+    pub hotkey_pause: String,
+    #[serde(default = "default_hotkey_stop")]
+    pub hotkey_stop: String,
+    #[serde(default = "default_hotkey_cursor")]
+    pub hotkey_read_from_cursor: String,
+    #[serde(default = "default_true")]
+    pub normalize_text: bool,
+    #[serde(default)]
+    pub text_exclusions: Vec<String>,
     pub always_on_top: bool,
     pub theme: String,
     pub a11y_profile: String,
@@ -38,6 +66,12 @@ impl Default for Settings {
             steps: 8,
             hotkey: "CommandOrControl+Shift+S".into(),
             hotkey_secondary: "CommandOrControl+Shift+L".into(),
+            hotkey_play: default_hotkey_play(),
+            hotkey_pause: default_hotkey_pause(),
+            hotkey_stop: default_hotkey_stop(),
+            hotkey_read_from_cursor: default_hotkey_cursor(),
+            normalize_text: true,
+            text_exclusions: Vec::new(),
             always_on_top: true,
             theme: "dark".into(),
             a11y_profile: "standard".into(),
@@ -57,6 +91,12 @@ pub struct SettingsPatch {
     pub steps: Option<u8>,
     pub hotkey: Option<String>,
     pub hotkey_secondary: Option<String>,
+    pub hotkey_play: Option<String>,
+    pub hotkey_pause: Option<String>,
+    pub hotkey_stop: Option<String>,
+    pub hotkey_read_from_cursor: Option<String>,
+    pub normalize_text: Option<bool>,
+    pub text_exclusions: Option<Vec<String>>,
     pub always_on_top: Option<bool>,
     pub theme: Option<String>,
     pub a11y_profile: Option<String>,
@@ -122,6 +162,24 @@ impl SettingsState {
         }
         if let Some(hs) = patch.hotkey_secondary {
             current.hotkey_secondary = hs;
+        }
+        if let Some(hp) = patch.hotkey_play {
+            current.hotkey_play = hp;
+        }
+        if let Some(hp) = patch.hotkey_pause {
+            current.hotkey_pause = hp;
+        }
+        if let Some(hs) = patch.hotkey_stop {
+            current.hotkey_stop = hs;
+        }
+        if let Some(hc) = patch.hotkey_read_from_cursor {
+            current.hotkey_read_from_cursor = hc;
+        }
+        if let Some(nt) = patch.normalize_text {
+            current.normalize_text = nt;
+        }
+        if let Some(te) = patch.text_exclusions {
+            current.text_exclusions = te;
         }
         if let Some(a) = patch.always_on_top {
             current.always_on_top = a;

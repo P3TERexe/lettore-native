@@ -56,3 +56,24 @@ Ogni decisione deve seguire tassativamente questa struttura:
 - **Decisione Presa**: Creare una sottoclasse formale `_AcceleratedSession(ort.InferenceSession)` che inietta i provider rilevati (`CoreMLExecutionProvider`, poi `CPUExecutionProvider`) prima di passare gli argomenti al costruttore genitore, assegnandola a `ort.InferenceSession`.
 - **Alternative Scartate**: Monkey-patching con funzione (fallisce l'istanziazione in `supertonic`) o fork della libreria esterna (overhead di manutenzione).
 - **Conseguenze & Vincoli Intoccabili**: Se si aggiorna o si fa refactor dell'import di `onnxruntime`, preservare l'ereditarietà di classe per non disabilitare CoreML.
+
+---
+
+## [ADR-005] Astrazione Modulare BaseTTSEngine per Motori Vocali Plug-and-Play (2026-09-04)
+- **Stato**: Accettata
+- **Contesto & Problema**: L'accoppiamento diretto di `TTSManager` con l'implementazione interna della libreria `supertonic` impediva la sostituzione o l'affiancamento trasparente di runtime alternativi (es. Piper, Kokoro, Coqui, PyTorch o provider cloud) senza riscrivere router, API o logica applicativa.
+- **Decisione Presa**: Definire l'interfaccia astratta `BaseTTSEngine` in `backend/engines/base.py` con contratto uniforme (`sample_rate`, `voice_names`, `supported_languages`, `load()`, `unload()`, `synthesize()`, `discover_custom_voices()`). Incapsulare il runtime Supertonic ONNX in `SupertonicONNXEngine` (`backend/engines/onnx_engine.py`) e istanziarlo tramite il factory `create_engine` guidato da configurazione (`LETTORE_ENGINE`).
+- **Alternative Scartate**: Mantenere il codice ONNX direttamente in `TTSManager` con `if/else` per ogni nuovo motore (debito tecnico e violazione Open/Closed Principle).
+- **Conseguenze & Vincoli Intoccabili**: L'applicazione e i router devono dipendere unicamente dall'interfaccia `BaseTTSEngine` e da `TTSManager`. Il lock di serializzazione (ADR-002) e la patch CoreML (ADR-004) devono restare rigorosamente attivi all'interno dell'engine ONNX.
+
+---
+
+## [ADR-006] Pipeline di Normalizzazione Fonetica Italiana ed Esclusioni Pre-Sintesi (2026-09-04)
+- **Stato**: Accettata
+- **Contesto & Problema**: Il modello neurale TTS pronuncia i testi in modo letterale. Sigle, abbreviazioni frequenti (`Dott.`, `Prof.`, `Art.`), importi con valuta (`12.50€`), orari (`14:30`), link (`http://...`) e firme o disclaimer di posta ("Inviato da iPhone") generano un ascolto frammentato, sgradevole o incomprensibile per utenti con disabilità visiva o cognitiva.
+- **Decisione Presa**: Implementare `TextNormalizer` in `backend/textnorm/normalizer.py` con una pipeline a due fasi:
+  1. `filter_exclusions`: rimozione pulita di stringhe esatte/pattern blacklistati configurati dall'utente, normalizzando punteggiatura orfana o doppi punti.
+  2. `normalize_italian`: catena di espansione fonetica deterministica (30 regole ad alta frequenza per la lingua italiana).
+  Applicare la normalizzazione a monte della segmentazione (`smart_chunk_text`) e della sintesi vocale su `/v1/queue` e `/v1/tts`.
+- **Alternative Scartate**: Normalizzazione demandata al frontend (risulterebbe disallineata rispetto ad esportazioni WAV o chiamate dirette API) oppure affidata a modelli LLM pesanti (latenza e consumo CPU incompatibili con TTS in tempo reale).
+- **Conseguenze & Vincoli Intoccabili**: La normalizzazione deve avvenire prima dello smart chunking, affinché le frasi espanse non vengano spezzate erroneamente a metà di un numero o di una valuta.

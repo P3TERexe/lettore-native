@@ -17,8 +17,7 @@ pub async fn set_settings(
     settings: State<'_, SettingsState>,
     patch: SettingsPatch,
 ) -> Result<Settings, String> {
-    let old_hotkey = settings.get_all().hotkey;
-    let old_secondary = settings.get_all().hotkey_secondary;
+    let old = settings.get_all();
 
     let updated = settings.apply_patch(patch.clone());
 
@@ -28,10 +27,19 @@ pub async fn set_settings(
         }
     }
 
-    if (patch.hotkey.is_some() && patch.hotkey.as_ref() != Some(&old_hotkey))
+    let hotkey_changed = (patch.hotkey.is_some() && patch.hotkey.as_ref() != Some(&old.hotkey))
         || (patch.hotkey_secondary.is_some()
-            && patch.hotkey_secondary.as_ref() != Some(&old_secondary))
-    {
+            && patch.hotkey_secondary.as_ref() != Some(&old.hotkey_secondary))
+        || (patch.hotkey_play.is_some()
+            && patch.hotkey_play.as_ref() != Some(&old.hotkey_play))
+        || (patch.hotkey_pause.is_some()
+            && patch.hotkey_pause.as_ref() != Some(&old.hotkey_pause))
+        || (patch.hotkey_stop.is_some()
+            && patch.hotkey_stop.as_ref() != Some(&old.hotkey_stop))
+        || (patch.hotkey_read_from_cursor.is_some()
+            && patch.hotkey_read_from_cursor.as_ref() != Some(&old.hotkey_read_from_cursor));
+
+    if hotkey_changed {
         let _ = shortcuts::register_all(&app);
     }
 
@@ -169,6 +177,158 @@ pub async fn capture_selection(
     }
 }
 
+pub async fn capture_from_cursor_internal(
+    app: &AppHandle,
+    auto_copy: bool,
+) -> Result<serde_json::Value, String> {
+    let initial_clip = app.clipboard().read_text().unwrap_or_default();
+
+    if let Some(target_pid) = accessibility::get_target_pid() {
+        // 1. Rileva se l'utente ha già una porzione evidenziata via AX
+        let mut initial_selection = accessibility::read_selection_from_pid(target_pid).ok().flatten();
+
+        // Se AX non riporta una selezione diretta (es. in browser Chromium/Safari dove il nodo focused
+        // è l'AXWebArea e non il singolo testo), ma auto_copy è abilitato,
+        // tentiamo una rapida copia (Cmd+C) dell'eventuale testo evidenziato dall'utente
+        if initial_selection.is_none() && auto_copy {
+            let _ = app.clipboard().write_text("");
+            tokio::time::sleep(Duration::from_millis(25)).await;
+
+            accessibility::activate_app(target_pid);
+            tokio::time::sleep(Duration::from_millis(45)).await;
+
+            if accessibility::post_copy() {
+                for _ in 0..8 {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                    if let Ok(c) = app.clipboard().read_text() {
+                        if !c.trim().is_empty() {
+                            initial_selection = Some(c.trim().to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Interroga l'albero di Accessibilità:
+        //    - Su Web (Brave, Chrome, Safari, Edge, Arc): estrae tramite AXTextMarker da inizio selezione a fine pagina
+        //    - Su Editor nativi (TextEdit, Notes, Pages, Word, NSTextView): estrae da AXValue da cursore/selezione a fine documento
+        if let Ok(Some(text)) = accessibility::read_from_cursor_from_pid(target_pid, initial_selection.as_deref()) {
+            let trimmed = text.trim();
+            // Il risultato è valido se estende oltre la sola selezione isolata (o se non c'era selezione)
+            let extends_beyond = match &initial_selection {
+                Some(sel) => trimmed.len() > sel.trim().len(),
+                None => !trimmed.is_empty(),
+            };
+
+            if extends_beyond && !trimmed.is_empty() {
+                // Ripristina gli appunti dell'utente se li avevamo sovrascritti
+                if !initial_clip.is_empty() {
+                    let _ = app.clipboard().write_text(&initial_clip);
+                }
+                accessibility::activate_app(std::process::id() as i32);
+                return Ok(serde_json::json!({
+                    "text": trimmed,
+                    "source": "accessibility_cursor"
+                }));
+            }
+        }
+
+        // 3. Fallback per editor di testo e app che non supportano l'albero AX completo fino alla fine:
+        //    Estende la selezione via tastiera con Shift + Command + Freccia Giù e copia
+        if auto_copy {
+            let _ = app.clipboard().write_text("");
+            tokio::time::sleep(Duration::from_millis(25)).await;
+
+            accessibility::activate_app(target_pid);
+            tokio::time::sleep(Duration::from_millis(45)).await;
+
+            let selected = accessibility::post_select_from_cursor();
+            if selected {
+                tokio::time::sleep(Duration::from_millis(60)).await;
+                let copied = accessibility::post_copy();
+                if copied {
+                    let mut clip_text = String::new();
+                    for _ in 0..10 {
+                        tokio::time::sleep(Duration::from_millis(25)).await;
+                        if let Ok(c) = app.clipboard().read_text() {
+                            if !c.trim().is_empty() {
+                                clip_text = c.trim().to_string();
+                                break;
+                            }
+                        }
+                    }
+
+                    if !clip_text.is_empty() {
+                        let extends_beyond = match &initial_selection {
+                            Some(sel) => clip_text.len() > sel.trim().len(),
+                            None => true,
+                        };
+
+                        if extends_beyond {
+                            accessibility::activate_app(std::process::id() as i32);
+                            return Ok(serde_json::json!({
+                                "text": clip_text,
+                                "source": "cursor_clipboard"
+                            }));
+                        }
+                    }
+                }
+            }
+
+            // Se l'estensione non ha allungato la selezione ma avevamo initial_selection,
+            // restituiamo almeno la selezione iniziale
+            if let Some(sel) = initial_selection {
+                if !sel.trim().is_empty() {
+                    accessibility::activate_app(std::process::id() as i32);
+                    return Ok(serde_json::json!({
+                        "text": sel.trim(),
+                        "source": "selection_fallback"
+                    }));
+                }
+            }
+
+            if !initial_clip.is_empty() {
+                let _ = app.clipboard().write_text(&initial_clip);
+            }
+            accessibility::activate_app(std::process::id() as i32);
+        }
+    }
+
+    // 3. Fallback clipboard
+    if let Ok(clip) = app.clipboard().read_text() {
+        if clip != initial_clip && !clip.trim().is_empty() {
+            return Ok(serde_json::json!({
+                "text": clip.trim(),
+                "source": "clipboard"
+            }));
+        }
+    }
+
+    if !accessibility::is_trusted() {
+        Ok(serde_json::json!({
+            "text": "",
+            "source": "accessibility",
+            "error": "accessibility_permission"
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "text": "",
+            "source": "none",
+            "error": "no_selection"
+        }))
+    }
+}
+
+#[tauri::command]
+pub async fn capture_from_cursor(
+    app: AppHandle,
+    _sidecar: State<'_, SidecarState>,
+    auto_copy: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    capture_from_cursor_internal(&app, auto_copy.unwrap_or(true)).await
+}
+
 #[tauri::command]
 pub async fn open_accessibility_settings() -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -241,7 +401,7 @@ pub async fn set_window_mode(
 ) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("main") {
         let (width, height) = match mode.as_str() {
-            "compact" => (420.0, 60.0),
+            "compact" => (380.0, 48.0),
             "full" => (900.0, 600.0),
             _ => (550.0, 380.0), // standard
         };

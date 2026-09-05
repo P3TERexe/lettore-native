@@ -88,3 +88,34 @@ Il job in coda viene sintetizzato e riprodotto.
 - Coda attualmente vuota: il job fallito non è più ispezionabile.
 - Sospetto: job accodato con parametri vecchi (voce/lang salvati all'enqueue) non più validi, o ValueError del motore su quel testo specifico.
 - Da fare al prossimo verificarsi: loggare il `detail` JSON della risposta 400 (oggi il toast lo scarta) e ispezionare il job prima che venga rimosso.
+
+---
+
+# Bug Report 6
+
+## Description
+La funzione "Leggi da qui" (cattura da cursore / selezione) cattura solo la singola parola evidenziata o solo il paragrafo corrente anziché tutto il testo successivo fino al termine del documento.
+
+## Steps to Reproduce
+1. Aprire un'applicazione esterna (es. Safari, Chrome, TextEdit, Notes).
+2. Evidenziare una parola/frase o posizionare il cursore in un punto intermedio del testo.
+3. Premere la scorciatoia globale `Shift+Command+C` o cliccare "Leggi da Cursore" dal menu di sistema o popover.
+
+## Expected Behavior
+La lettura sintetizza il testo a partire dalla parola o punto del cursore fino alla fine del documento o della pagina web attiva.
+
+## Actual Behavior
+Veniva letta solo la parola/frase evidenziata, oppure la selezione si fermava al termine del paragrafo corrente ignorando il resto del testo.
+
+## Diagnosi e Risoluzione (2026-09-04)
+1. **Prioritizzazione scorretta di `AXSelectedText` e mancata estrazione Web**:
+   - `read_from_cursor_from_pid` in `macos.rs` restituiva prematuramente la singola parola/selezione di `AXSelectedText`, leggendo solo il frammento evidenziato.
+   - Nei browser web (Chromium/Brave/Chrome/Safari), `Shift+Cmd+Down` viene ignorato o catturato per lo scrolling del viewport, impedendo l'estensione della selezione da tastiera e lasciando solo la parola iniziale evidenziata. Inoltre, le pagine web non espongono l'intero testo in `AXValue`.
+2. **Implementazione runtime nativa Web AX TextMarker**:
+   - Aggiunte le chiamate alle API C native macOS Accessibility: `AXTextMarkerRangeCopyStartMarker`, `AXUIElementCopyParameterizedAttributeValue` e `CFArrayCreate`.
+   - Implementato `extract_web_selection_to_end`: interroga `AXSelectedTextMarkerRange` sull'elemento web, estrae lo start marker con `AXTextMarkerRangeCopyStartMarker`, lo abbina ad `AXEndTextMarker` tramite `AXTextMarkerRangeForUnorderedTextMarkers`, ed estrae nativamente tutto il testo da quel punto esatto fino alla fine della pagina (`AXStringForTextMarkerRange`).
+   - Implementato `extract_web_full_text` e `find_in_full_text` con tolleranza (esatta, case-insensitive, prefisso e parole chiave) per allineare qualsiasi selezione parziale iniziale all'intero corpo della pagina web.
+3. **Flusso unificato in `capture_from_cursor_internal` e Focus UI**:
+   - La funzione cattura la porzione iniziale evidenziata dall'utente e la passa come àncora a `read_from_cursor_from_pid`.
+   - `handleCursorRead` in `app.js` ora dà priorità alla textarea locale solo se ha il focus attivo (`document.activeElement === input`), prevenendo letture spurie di testo residuo quando l'utente attiva la funzione da applicazioni esterne.
+   - Tutti i test Rust e Python passano al 100%.

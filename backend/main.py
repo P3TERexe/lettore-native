@@ -42,7 +42,11 @@ def create_app(config: BackendConfig | None = None) -> FastAPI:
     )
 
     app.state.config = config
-    app.state.tts = TTSManager(model=config.model, auto_download=config.auto_download)
+    app.state.tts = TTSManager(
+        model=config.model,
+        auto_download=config.auto_download,
+        engine=config.engine,
+    )
     app.state.queue = QueueManager()
     app.state.voices = VoiceRegistry(config.config_dir)
     app.state.runtime_config = AppConfig()

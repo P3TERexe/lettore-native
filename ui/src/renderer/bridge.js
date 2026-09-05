@@ -15,7 +15,8 @@ export const api = {
   captureSelection: (opts) =>
     invoke("capture_selection", { autoCopy: Boolean(opts?.autoCopy) }),
   openAccessibilitySettings: () => invoke("open_accessibility_settings"),
-
+  captureFromCursor: (opts) =>
+    invoke("capture_from_cursor", { autoCopy: opts?.autoCopy ?? true }),
   exportWav: async ({ wavBase64, defaultName }) => {
     try {
       const filePath = await save({
@@ -37,6 +38,9 @@ export const api = {
 
   // Eventi da Rust a Webview
   onHotkeyCapture: (cb) => listen("hotkey-capture", (e) => cb(e.payload)),
+  onHotkeyCaptureFromCursor: (cb) =>
+    listen("hotkey-capture-from-cursor", (e) => cb(e.payload)),
+  onShortcutAction: (cb) => listen("shortcut-action", (e) => cb(e.payload)),
   onTrayAction: (cb) => listen("tray-action", (e) => cb(e.payload)),
   onBackendStatus: (cb) => listen("backend-status", (e) => cb(e.payload)),
   onHotkeyStatus: (cb) => listen("hotkey-status", (e) => cb(e.payload)),

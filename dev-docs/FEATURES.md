@@ -15,19 +15,32 @@
   - Implementata in Rust (`src-tauri/src/plugins/accessibility/macos.rs`).
   - Cattura la selezione del testo dall'applicazione in primo piano.
   - Fallback automatico via simulazione Cmd+C e clipboard se l'app non espone `kAXSelectedTextAttribute`.
-- [x] **Scorciatoie globali di sistema**:
-  - Registrazione scorciatoia globale di cattura e lettura (default configurabile, es. `CmdOrCtrl+Shift+Space`) gestita in Rust con `shortcuts.rs`.
+- [x] **"Leggi da qui" (Cattura da cursore e selezione)**:
+  - **Nella box di testo locale**: rileva la posizione del cursore o della parola/frase evidenziata, espande l'offset all'inizio della parola corrente per non spezzarla e sintetizza fluidamente da quel punto fino al termine del testo presente nella box (`extractTextFromCursorOffset`).
+  - **Nelle applicazioni esterne**: estrazione via `src-tauri/src/plugins/accessibility/macos.rs` (`read_from_cursor_from_pid`) interrogando `kAXSelectedTextRangeAttribute` e `kAXValueAttribute`, con fallback automatico a simulazione tastiera (`Shift + Option + Down` / `Shift + Cmd + Down` + `Cmd + C`).
+  - Comando Tauri dedicato `capture_from_cursor`, scorciatoia globale dedicata (default `CommandOrControl+Shift+C`) e pulsante "📍 Leggi da qui" nella toolbar di cattura.
 - [x] **Fallback Cross-Platform (Stato attuale)**:
   - Windows: fallback clipboard implementato (`src-tauri/src/plugins/accessibility/windows.rs`).
   - Linux: fallback clipboard implementato (`src-tauri/src/plugins/accessibility/linux.rs`).
-
 ### Backend & API (FastAPI + Sidecar)
 - [x] **Lifecycle Sidecar & Auto-Recovery**:
   - Rust gestisce il processo Python FastAPI (prima cerca il binario sidecar PyInstaller, poi fallback a `.venv`). Polling `/v1/status` fino a 60s all'avvio.
+- [x] **Modularità Motore Vocale (Plug-and-Play TTS)**:
+  - Astrazione `BaseTTSEngine` in `backend/engines/base.py` con metodi astratti per sample rate, nomi voci, lingue, caricamento e sintesi.
+  - Driver `SupertonicONNXEngine` in `backend/engines/onnx_engine.py` che incapsula il runtime ONNX e l'accelerazione CoreML (ADR-004).
+  - Factory dinamico `create_engine` in `backend/engines/factory.py` e configurazione tramite campo `engine` in `BackendConfig` (`LETTORE_ENGINE`).
+  - `TTSManager` in `backend/tts_manager.py` completamente disaccoppiato dal runtime ONNX specifico.
 - [x] **TTS Engine Singleton & Thread-safety**:
-  - `TTSManager` carica il modello in background all'avvio e serializza l'inferenza CPU/CoreML con lock thread-safe.
+  - `TTSManager` carica il modello in background all'avvio e serializza l'inferenza CPU/CoreML con lock thread-safe (ADR-002).
 - [x] **Accelerazione Hardware macOS (CoreML)**:
-  - Patch dinamica in `backend/tts_manager.py` con sottoclasse di `ort.InferenceSession` per agganciare automaticamente `CoreMLExecutionProvider` prima del fallback CPU.
+  - Patch dinamica in `backend/engines/onnx_engine.py` con sottoclasse di `ort.InferenceSession` per agganciare automaticamente `CoreMLExecutionProvider` prima del fallback CPU.
+- [x] **Normalizzatore Testo Italiano & Filtro Esclusioni**:
+  - Modulo `TextNormalizer` in `backend/textnorm/normalizer.py` con 30 regole ad alta frequenza per la lingua italiana (abbreviazioni professionali/documentali, importi monetari in euro/dollari/sterline, URL/email, orari, ordinali, percentuali, unità di misura metriche).
+  - Filtro esclusioni per eliminare stringhe blacklistate (disclaimer di riservatezza, firme email, "Inviato da iPhone") ripulendo la punteggiatura residua.
+  - Applicazione trasparente su `/v1/queue` e `/v1/tts`.
+- [x] **Anteprima Voce Istantanea (Voice Preview)**:
+  - Endpoint `GET /v1/tts/preview?voice=...&lang=...` con frase fissa breve e `steps=5` per latenza minima (<150ms).
+  - Pulsante anteprima ▶️ nel selettore voci e su ogni riga del gestore voci.
 - [x] **Smart Chunking del Testo**:
   - Segmentazione basata su punteggiatura e limiti di caratteri (min 80, max 240 char) in `backend/chunking.py`.
 - [x] **Rilevamento Automatico della Lingua**:
@@ -38,20 +51,32 @@
   - Coda FIFO asincrona in `backend/queue_manager.py` con stati (`pending`, `synthesizing`, `synthesized`, `playing`, `done`, `error`) ed endpoint REST per enqueue, pop, status e clear.
 - [x] **Registro Voci (`VoiceRegistry`)**:
   - Persistenza in `voices.json` (`~/.config/lettore/voices.json`), mapping nomi amichevoli italiani (es. M1 → Marco, F1 → Giulia) e filtro lingue compatibili.
-
 ### Interfaccia Utente & Audio Player (Vite + Vanilla ES Modules)
 - [x] **Player Web Audio API Low-Latency**:
   - Decodifica chunk audio WAV su `AudioContext` nativo del browser webview (`ui/src/renderer/player.js`).
   - Pipeline di riproduzione continua (pre-fetching del chunk successivo mentre il chunk corrente è in esecuzione).
   - Gestione anti-gara su `source.stop()`, `onended` e `disconnect()` nodi audio.
+- [x] **Player Minimale a Barra Singola (Floating Pill con Dissolvenza)**:
+  - Modalità compatta a barra singola fluttuante (380x48 px logici) con geometria arrotondata (border-radius 24px) e glassmorphism scuro (`backdrop-filter: blur(16px)`).
+  - Onde vocali animate `#audio-wave` reattive alla riproduzione.
+  - Effetto dissolvenza trasparente automatica (`.pill-fade`, opacity 0.28) dopo 2.5s di inattività allo stop o fine riproduzione, con ripristino immediato a opacità 1.0 al passaggio del mouse o click.
+- [x] **Megafono Widget & Control Hub Illustrato (Titlebar & System Tray)**:
+  - Silhouette vettoriale autentica a megafono (cono, impugnatura, onde audio anteriori) posizionata in `.brand-area` indipendente dall'area di drag (`-webkit-app-region: no-drag; pointer-events: auto !important`).
+  - Popover rapido `#megaphone-popover` completamente ridisegnato a Command Hub illustrato: header con live status indicator ("Pronto", "In Lettura", "In Pausa"), tessere interattive ricche con icone bicolore (Play/Pausa con chip scorciatoia, Leggi da Cursore, Peaker a Riquadri, Modalità Pillola) e footer con tasto Stop dedicato.
+  - Voci dedicate nel menu System Tray ("Pillola Fluttuante", "Leggi da qui (Cursore)", "Play / Pausa", "Stop").
+- [x] **Identificazione Testo a Riquadri (Visual Block Peaker)**:
+  - Modalità overlay assistita `#text-peaker-overlay` attivabile dal widget megafono o dal pulsante "Riquadri" nella toolbar.
+  - Analizza e scansiona il testo (dall'editor o dagli appunti di sistema) suddividendolo in blocchi/paragrafi logici.
+  - Visualizza ogni blocco all'interno di un rettangolo semi-trasparente interattivo con bordo luminoso dashed, badge identificativo del blocco e conteggio parole.
+  - Al passaggio del mouse, il riquadro si illumina con overlay dinamico "▶ Ascolta questo riquadro".
+  - Al click sul rettangolo prescelto, il blocco di testo viene caricato all'istante ed inviato al motore TTS con avvio immediato della sintesi vocale.
 - [x] **Finestra Desktop Frameless Always-on-Top**:
-  - Finestra compatta configurata con `alwaysOnTop: true`, trasparenze e drag region nativo (`data-tauri-drag-region`).
-- [x] **System Tray / Menubar**:
-  - Icona tray di sistema con menu di stato, controlli di visibilità finestra ed uscita.
+  - Finestra configurata con `alwaysOnTop: true`, trasparenze e drag region nativo (`data-tauri-drag-region`).
 - [x] **Pannello Impostazioni & Persistenza**:
   - Selezione voce, regolazione velocità (`speed`), regolazione passi di qualità (`steps`), volume e scelta lingua (o Auto).
-  - Persistenza impostazioni sia su file JSON nel backend che su `localStorage` nel frontend.
-
+  - Toggle normalizzazione testo e configurazione stringhe escluse.
+  - Rimappatura delle scorciatoie globali da tastiera (cattura, cursore, play, pausa, stop).
+  - Persistenza impostazioni su file JSON (`settings.json`) nel backend/host Tauri e sincronizzazione automatica su `/v1/config`.
 ---
 
 ## 2. Feature Native di Supertonic 3 (Sfruttabili dalla Libreria in Uso)

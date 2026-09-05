@@ -30,3 +30,5 @@ backend/*.log
 *.swp
 .idea/
 .vscode/
+.cache/
+*.ses

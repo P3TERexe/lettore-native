@@ -9,6 +9,7 @@ from pathlib import Path
 class BackendConfig:
     host: str = "127.0.0.1"
     port: int = 7788
+    engine: str = "supertonic"
     model: str = "supertonic-3"
     auto_download: bool = True
     config_dir: Path = field(
@@ -21,6 +22,7 @@ class BackendConfig:
     def from_env(cls) -> "BackendConfig":
         port = int(os.getenv("LETTORE_PORT", "7788"))
         host = os.getenv("LETTORE_HOST", "127.0.0.1")
+        engine = os.getenv("LETTORE_ENGINE", "supertonic")
         model = os.getenv("LETTORE_MODEL", "supertonic-3")
         auto_download = os.getenv("LETTORE_AUTO_DOWNLOAD", "1") not in ("0", "false", "no")
-        return cls(host=host, port=port, model=model, auto_download=auto_download)
+        return cls(host=host, port=port, engine=engine, model=model, auto_download=auto_download)

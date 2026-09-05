@@ -8,15 +8,21 @@ export class SettingsController {
       theme: document.getElementById("set-theme"),
       a11y: document.getElementById("set-a11y"),
       voice: document.getElementById("set-voice"),
+      previewVoice: document.getElementById("btn-preview-voice"),
       lang: document.getElementById("set-lang"),
       steps: document.getElementById("set-steps"),
       hotkey: document.getElementById("set-hotkey"),
+      hotkeyCursor: document.getElementById("set-hotkey-cursor"),
+      hotkeyPlay: document.getElementById("set-hotkey-play"),
+      hotkeyStop: document.getElementById("set-hotkey-stop"),
+      normalizeText: document.getElementById("set-normalize-text"),
+      textExclusions: document.getElementById("set-text-exclusions"),
       pin: document.getElementById("set-pin"),
       hotkeyStatus: document.getElementById("hotkey-status"),
-      textSize: document.getElementById("set-text-size")
+      textSize: document.getElementById("set-text-size"),
     };
     this.manager = document.getElementById("voice-manager");
-    this._syncKeys = ["voice", "lang", "speed", "steps"];
+    this._syncKeys = ["voice", "lang", "speed", "steps", "normalizeText", "textExclusions"];
     this.settings = null;
   }
 
@@ -38,62 +44,65 @@ export class SettingsController {
   async refreshCatalog() {
     try {
       const res = await fetch(`${this.base}/v1/voices`);
+      if (!res.ok) return;
       this.catalog = await res.json();
     } catch {
-      this.catalog = { builtin: [], custom: [] };
+      // Backend offline o non pronto
     }
-    this.applyVoiceFilter();
-    this.buildVoiceManager();
   }
 
   async populateLanguages() {
+    if (!this.el.lang) return;
     try {
-      const langs = await (await fetch(`${this.base}/v1/languages`)).json();
+      const res = await fetch(`${this.base}/v1/languages`);
+      if (!res.ok) return;
+      const langs = await res.json();
       this.el.lang.innerHTML = "";
-      const auto = document.createElement("option");
-      auto.value = "auto";
-      auto.textContent = "Auto (rileva lingua)";
-      this.el.lang.appendChild(auto);
-      for (const l of langs) {
+      for (const item of langs) {
         const opt = document.createElement("option");
-        opt.value = l.code;
-        opt.textContent = `${l.label} (${l.code})`;
+        opt.value = item.code;
+        opt.textContent = `${item.label} (${item.code})`;
         this.el.lang.appendChild(opt);
       }
-    } catch { /* backend offline */ }
+    } catch {
+      // Fallback
+    }
   }
 
   applyVoiceFilter() {
     if (!this.el.voice) return;
-    const lang = this.getLang();
-    const all = [...this.catalog.builtin, ...this.catalog.custom];
-    const visible =
-      lang === "auto" || lang === "na"
-        ? [...all]
-        : all.filter((e) => e.langs.length === 0 || e.langs.includes(lang));
-    const current = this.el.voice.value;
-    if (current && !visible.some((e) => e.id === current)) {
-      const cur = all.find((e) => e.id === current);
-      if (cur) visible.unshift(cur);
-    }
+    const selectedLang = this.el.lang?.value || "auto";
+    const currentVoice = this.settings?.voice || "M1";
     this.el.voice.innerHTML = "";
-    const groups = [
-      { label: "Voci multilingue", items: visible.filter((e) => e.group === "builtin") },
-      { label: "Personalizzate", items: visible.filter((e) => e.group === "custom") },
-    ];
-    for (const g of groups) {
-      if (!g.items.length) continue;
-      const og = document.createElement("optgroup");
-      og.label = g.label;
-      for (const e of g.items) {
+
+    const matches = (v) => {
+      if (!v.langs || v.langs.length === 0) return true;
+      if (selectedLang === "auto" || selectedLang === "na") return true;
+      return v.langs.includes(selectedLang);
+    };
+
+    const addGroup = (label, list) => {
+      const filtered = list.filter(matches);
+      if (!filtered.length) return;
+      const grp = document.createElement("optgroup");
+      grp.label = label;
+      for (const v of filtered) {
         const opt = document.createElement("option");
-        opt.value = e.id;
-        opt.textContent = e.langs.length ? `${e.name} [${e.langs.join(", ")}]` : e.name;
-        og.appendChild(opt);
+        opt.value = v.id;
+        opt.textContent = `${v.name} (${v.id})`;
+        if (v.id === currentVoice) opt.selected = true;
+        grp.appendChild(opt);
       }
-      this.el.voice.appendChild(og);
+      this.el.voice.appendChild(grp);
+    };
+
+    addGroup("Voci integrate", this.catalog.builtin || []);
+    addGroup("Voci personalizzate", this.catalog.custom || []);
+
+    if (!this.el.voice.value && this.el.voice.options.length) {
+      this.el.voice.selectedIndex = 0;
+      this.save({ voice: this.el.voice.value });
     }
-    this.el.voice.value = current;
   }
 
   buildVoiceManager() {
@@ -115,6 +124,21 @@ export class SettingsController {
       langsInput.value = e.langs.join(", ");
       langsInput.placeholder = "it, en (vuoto = tutte)";
       langsInput.title = "Lingue (codici ISO separati da virgola, vuoto = tutte)";
+
+      const previewBtn = document.createElement("button");
+      previewBtn.type = "button";
+      previewBtn.className = "btn btn-xs btn-secondary";
+      previewBtn.textContent = "▶";
+      previewBtn.title = "Ascolta anteprima voce";
+      previewBtn.addEventListener("click", () => {
+        try {
+          const audio = new Audio(`${this.base}/v1/tts/preview?voice=${encodeURIComponent(e.id)}&lang=it`);
+          audio.play();
+        } catch (err) {
+          console.error("Errore anteprima voce:", err);
+        }
+      });
+
       const save = async () => {
         const langs = langsInput.value
           .split(",")
@@ -130,11 +154,13 @@ export class SettingsController {
             await this.refreshCatalog();
             nameInput.value = this.voiceName(e.id);
           }
-        } catch { /* backend offline */ }
+        } catch {
+          /* backend offline */
+        }
       };
       nameInput.addEventListener("change", save);
       langsInput.addEventListener("change", save);
-      row.append(idSpan, nameInput, langsInput);
+      row.append(idSpan, nameInput, langsInput, previewBtn);
       this.manager.appendChild(row);
     }
   }
@@ -144,8 +170,13 @@ export class SettingsController {
     if (this.el.lang) this.el.lang.value = s.lang || "auto";
     if (this.el.steps) this.el.steps.value = String(s.steps || 8);
     if (this.el.hotkey) this.el.hotkey.value = s.hotkey || "CommandOrControl+Shift+S";
+    if (this.el.hotkeyCursor) this.el.hotkeyCursor.value = s.hotkeyReadFromCursor || "CommandOrControl+Shift+C";
+    if (this.el.hotkeyPlay) this.el.hotkeyPlay.value = s.hotkeyPlay || "Alt+KeyP";
+    if (this.el.hotkeyStop) this.el.hotkeyStop.value = s.hotkeyStop || "Alt+KeyK";
+    if (this.el.normalizeText) this.el.normalizeText.checked = s.normalizeText !== false;
+    if (this.el.textExclusions) this.el.textExclusions.value = (s.textExclusions || []).join("\n");
     if (this.el.pin) this.el.pin.checked = Boolean(s.alwaysOnTop);
-    
+
     if (this.el.textSize) this.el.textSize.value = s.textSize || "md";
     if (this.el.theme) this.el.theme.value = s.theme || "dark";
     if (this.el.a11y) this.el.a11y.value = s.a11yProfile || "standard";
@@ -159,17 +190,62 @@ export class SettingsController {
   }
 
   bind() {
-    this.el.voice.addEventListener("change", () => this.save({ voice: this.el.voice.value }));
-    this.el.lang.addEventListener("change", () => {
+    this.el.voice?.addEventListener("change", () => this.save({ voice: this.el.voice.value }));
+    this.el.lang?.addEventListener("change", () => {
       this.save({ lang: this.el.lang.value });
       this.applyVoiceFilter();
     });
-    this.el.steps.addEventListener("change", () => this.save({ steps: Number(this.el.steps.value) }));
-    this.el.pin.addEventListener("change", () => this.save({ alwaysOnTop: this.el.pin.checked }));
-    this.el.hotkey.addEventListener("change", () => {
+    this.el.steps?.addEventListener("change", () =>
+      this.save({ steps: Number(this.el.steps.value) })
+    );
+    this.el.pin?.addEventListener("change", () =>
+      this.save({ alwaysOnTop: this.el.pin.checked })
+    );
+
+    this.el.previewVoice?.addEventListener("click", () => {
+      const voice = this.el.voice?.value || "M1";
+      try {
+        const audio = new Audio(`${this.base}/v1/tts/preview?voice=${encodeURIComponent(voice)}&lang=it`);
+        audio.play();
+      } catch (err) {
+        console.error("Errore anteprima voce:", err);
+      }
+    });
+
+    this.el.hotkey?.addEventListener("change", () => {
       const value = this.el.hotkey.value.trim() || "CommandOrControl+Shift+S";
       this.el.hotkey.value = value;
       this.save({ hotkey: value });
+    });
+
+    this.el.hotkeyCursor?.addEventListener("change", () => {
+      const value = this.el.hotkeyCursor.value.trim() || "CommandOrControl+Shift+C";
+      this.el.hotkeyCursor.value = value;
+      this.save({ hotkeyReadFromCursor: value });
+    });
+
+    this.el.hotkeyPlay?.addEventListener("change", () => {
+      const value = this.el.hotkeyPlay.value.trim() || "Alt+KeyP";
+      this.el.hotkeyPlay.value = value;
+      this.save({ hotkeyPlay: value });
+    });
+
+    this.el.hotkeyStop?.addEventListener("change", () => {
+      const value = this.el.hotkeyStop.value.trim() || "Alt+KeyK";
+      this.el.hotkeyStop.value = value;
+      this.save({ hotkeyStop: value });
+    });
+
+    this.el.normalizeText?.addEventListener("change", () => {
+      this.save({ normalizeText: this.el.normalizeText.checked });
+    });
+
+    this.el.textExclusions?.addEventListener("change", () => {
+      const lines = this.el.textExclusions.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      this.save({ textExclusions: lines });
     });
 
     if (this.el.textSize) {
@@ -187,7 +263,7 @@ export class SettingsController {
         this.save({ theme });
       });
     }
-    
+
     if (this.el.a11y) {
       this.el.a11y.addEventListener("change", () => {
         const a11yProfile = this.el.a11y.value;
@@ -206,6 +282,7 @@ export class SettingsController {
   }
 
   save(patch) {
+    this.settings = { ...this.settings, ...patch };
     this.onSave(patch);
     if (this._syncKeys.some((k) => k in patch)) this.syncRuntimeConfig(patch);
   }
@@ -216,6 +293,8 @@ export class SettingsController {
       lang: patch.lang ?? this.getLang(),
       speed: patch.speed ?? this.settings?.speed ?? 1.05,
       steps: patch.steps ?? this.settings?.steps ?? 8,
+      normalize_text: patch.normalizeText ?? this.settings?.normalizeText ?? true,
+      text_exclusions: patch.textExclusions ?? this.settings?.textExclusions ?? [],
     };
     try {
       await fetch(`${this.base}/v1/config`, {
@@ -223,10 +302,14 @@ export class SettingsController {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(s),
       });
-    } catch { /* backend offline */ }
+    } catch {
+      /* backend offline */
+    }
   }
 
   setHotkeyStatus(ok) {
-    this.el.hotkeyStatus.textContent = ok ? "registrata" : "conflitto!";
+    if (this.el.hotkeyStatus) {
+      this.el.hotkeyStatus.textContent = ok ? "registrata" : "conflitto!";
+    }
   }
 }

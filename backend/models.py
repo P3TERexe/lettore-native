@@ -11,6 +11,8 @@ class TTSRequest(BaseModel):
     voice: str = "M1"
     steps: int = Field(default=8, ge=5, le=12)
     speed: float = Field(default=1.05, ge=0.7, le=2.0)
+    normalize_text: bool = True
+    text_exclusions: list[str] = Field(default_factory=list)
 
 
 class ExportRequest(BaseModel):
@@ -39,6 +41,8 @@ class QueueAddRequest(BaseModel):
     steps: int = Field(default=8, ge=5, le=12)
     speed: float = Field(default=1.05, ge=0.7, le=2.0)
     split_paragraphs: bool = False
+    normalize_text: bool = True
+    text_exclusions: list[str] = Field(default_factory=list)
 
 
 class QueueAddResponse(BaseModel):
@@ -87,3 +91,5 @@ class AppConfig(BaseModel):
     lang: str = "auto"
     speed: float = Field(default=1.05, ge=0.7, le=2.0)
     steps: int = Field(default=8, ge=5, le=12)
+    normalize_text: bool = True
+    text_exclusions: list[str] = Field(default_factory=list)

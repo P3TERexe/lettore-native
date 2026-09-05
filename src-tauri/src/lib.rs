@@ -33,6 +33,7 @@ pub fn run() {
             commands::backend_start,
             commands::read_clipboard,
             commands::capture_selection,
+            commands::capture_from_cursor,
             commands::open_accessibility_settings,
             commands::export_wav,
             commands::start_dragging,

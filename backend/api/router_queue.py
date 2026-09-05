@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..models import QueueAddRequest, QueueAddResponse, QueueState
+from ..models import AppConfig, QueueAddRequest, QueueAddResponse, QueueState
+from ..textnorm import TextNormalizer
 
 if TYPE_CHECKING:
     from ..queue_manager import QueueManager
@@ -18,8 +19,29 @@ def _queue(request: Request) -> QueueManager:
 
 @router.post("", response_model=QueueAddResponse)
 def enqueue(req: QueueAddRequest, request: Request):
-    ids = _queue(request).add(
+    runtime_cfg: AppConfig | None = getattr(request.app.state, "runtime_config", None)
+    exclusions = (
+        req.text_exclusions
+        if req.text_exclusions
+        else (runtime_cfg.text_exclusions if runtime_cfg else [])
+    )
+    normalize_enabled = (
+        req.normalize_text
+        if req.normalize_text is not None
+        else (runtime_cfg.normalize_text if runtime_cfg else True)
+    )
+
+    clean_text = TextNormalizer.normalize(
         text=req.text,
+        lang=req.lang,
+        enabled=normalize_enabled,
+        exclusions=exclusions,
+    )
+    if not clean_text:
+        raise HTTPException(status_code=422, detail="testo vuoto dopo il parsing o le esclusioni")
+
+    ids = _queue(request).add(
+        text=clean_text,
         lang=req.lang,
         voice=req.voice,
         steps=req.steps,
