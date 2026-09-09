@@ -1,84 +1,73 @@
-# Lettore Native — Finestra Flottante TTS Supertonic (Tauri 2 + Rust)
+# Lettore Native 🎙️🍏
 
-Lettore è un'applicazione desktop nativa e ultraleggera (costruita con **Tauri 2** e **Rust**) per la sintesi vocale locale ad alta fedeltà con **Supertonic 3** (ONNX Runtime, 31 lingue, 100% on-device).
+> **Lettore Native** è un'applicazione macOS nativa progettata per l'accessibilità e l'inclusione. Legge ad alta voce i tuoi testi selezionati ovunque nel sistema usando il motore vocale neurale Supertonic 3 (basato su ONNX Runtime).
 
-Seleziona un testo in qualsiasi applicazione e ascoltalo istantaneamente con controlli player flottanti, evidenziazione parola-per-parola, supporto multi-voce e lettura continua.
+![macOS Support](https://img.shields.io/badge/macOS-14.0%2B-silver?style=flat-square&logo=apple)
+![Swift Version](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)
+![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 
----
+## 🚀 Funzionalità Chiave
 
-## 🚀 Architettura Nativa
+*   **100% Nativa SwiftUI/AppKit**: Leggerissima sulla memoria (<80 MB) con tempi di avvio istantanei. Zero Electron, zero WebKit.
+*   **Accessibilità Integrata (AX)**: Si aggancia nativamente a macOS tramite le Accessibility API per leggere il testo selezionato in qualsiasi applicazione attiva (Browser, PDF Reader, Word).
+*   **Motore Audio Gapless**: Architettura `AVAudioPlayer` ad altissime prestazioni per una riproduzione senza interruzioni e un *waveform tap* real-time fluido e leggero.
+*   **Normalizzazione Intelligente**: Espande automaticamente abbreviazioni italiane ("Dott.", "Sig.ra"), date, valute e URL *prima* della sintesi vocale.
+*   **Interfaccia Minimalista e Accessibile**: Include un *Floating Pill* stile Dynamic Island, widget per la Menubar, e un profilo WCAG AAA per la lettura immersiva (High Contrast, font OpenDyslexic).
 
+## 🏗️ Architettura Ibrida (Fase 3.0)
+
+Attualmente il progetto si trova nella **Fase 3.0** (Transizione al Nativo). 
+L'interfaccia utente, la gestione audio, la cattura del testo e la logica di normalizzazione sono **100% in Swift**.
+Il motore neurale di sintesi vocale (Supertonic) risiede ancora in un backend locale in Python (`backend/`) gestito come sidecar.
+
+*Roadmap futura (M4):* Integrazione del modello ONNX direttamente in Swift tramite C-API per eliminare definitivamente il processo Python.
+
+## 🛠️ Requisiti di Sistema
+
+*   **OS**: macOS 14.0 (Sonoma) o superiore.
+*   **Sviluppo**: Xcode 16.0+ o Swift 6.0 Toolchain.
+*   **Python**: Python 3.10+ (necessario solo per eseguire il backend TTS in modalità sviluppo).
+
+## 💻 Compilazione ed Esecuzione (Sviluppo)
+
+Per sviluppare Lettore Native, devi avviare sia il backend Python che l'applicazione Swift.
+
+### 1. Avvia il Motore Vocale (Backend Python)
+```bash
+# Entra nella cartella backend e crea un virtual environment
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Avvia il server locale su 127.0.0.1:7788
+python main.py
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Tauri 2 (Rust Host Core)                                    │
-│  ├── Window Manager (Frameless, Always-On-Top, Resizable)   │
-│  ├── System Tray & Context Menus                            │
-│  ├── Global Hotkeys (Cmd+Shift+S / Cmd+Shift+L)             │
-│  ├── Native Accessibility Plugin (macOS AX, Windows UIA)    │
-│  └── Sidecar Process Manager (FastAPI + Supertonic 3)       │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ Local Webview (WebKit / WebView2)
-┌──────────────────────▼──────────────────────────────────────┐
-│ Frontend UI (HTML5 / Vanilla CSS / ES Modules)              │
-│  ├── Dynamic Floating Player (Play, Pause, Stop, Speed)     │
-│  ├── Multi-paragraph Queue Management                      │
-│  ├── Word-by-word Reading Synchronizer                      │
-│  └── Accessible Themes (Dark, Light, Contrast, Dyslexia)    │
-└─────────────────────────────────────────────────────────────┘
+
+### 2. Avvia l'Applicazione macOS (Swift)
+Apri una nuova finestra del terminale:
+```bash
+# Dalla root della repository
+swift run LettoreApp
 ```
+In alternativa, puoi aprire il file `Package.swift` direttamente con **Xcode** e premere `Cmd+R`.
 
-### Vantaggi rispetto alla versione Electron:
-* ⚡ **Footprint RAM**: ~50–70 MB (vs ~300 MB)
-* 📦 **Dimensione pacchetto**: ~15–25 MB (vs ~200 MB)
-* ⏱️ **Tempo di avvio**: < 200 ms (istantaneo)
-* 🔒 **Sicurezza**: Architettura a permessi granulari (Tauri Capabilities)
+## 📦 Struttura del Progetto
 
----
+*   `Package.swift`: Configurazione del Swift Package Manager.
+*   `Sources/LettoreApp/`: Entry point dell'applicazione SwiftUI e ciclo di vita.
+*   `Sources/LettoreUI/`: Componenti dell'interfaccia utente (Pillola, HUD, Viste accessibili).
+*   `Sources/LettoreEngine/`: Pipeline audio, Playback Coordinator e chiamate TTS.
+*   `Sources/LettoreCore/`: Modelli di stato, Sentence Chunker, e Text Normalizer.
+*   `Sources/LettoreSystem/`: Integrazione con macOS Accessibility (AX) e Vision OCR.
+*   `Tests/`: Unit test in XCTest per la logica di dominio.
+*   `backend/`: Il motore TTS neurale in Python (sidecar).
+*   `backend_tests/`: I test originali per la parte Python.
 
-## 🛠️ Prerequisiti
+## 🤝 Contribuire
 
-* **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-* **Node.js**: ≥ 20 (LTS)
-* **Python**: ≥ 3.10 (consigliato 3.11)
-
----
-
-## 📦 Setup e Sviluppo Locale
-
-1. **Installazione dipendenze**:
-   ```bash
-   # Crea .venv, installa requirements (+ quelli del SO) e le dipendenze UI
-   bash scripts/setup.sh
-   ```
-
-2. **Avvio in modalità sviluppo**:
-   ```bash
-   npm run dev
-   ```
-   Tauri avvia Vite (porta 1420) e il backend Python: se non trova il sidecar
-   compilato usa `.venv/bin/python -m uvicorn backend.main:app`.
-
-3. **Compilazione pacchetto di produzione**:
-   ```bash
-   npm run build   # equivale a: bash scripts/build.sh
-   ```
-   Pipeline: build UI → sidecar PyInstaller (`scripts/build_sidecar.py`) → `cargo build --release`.
-   Binario finale: `src-tauri/target/release/lettore`.
-
----
-
-## ⌨️ Controlli e Hotkey
-
-| Azione | Tasto / Controllo | Note |
-|---|---|---|
-| **Cattura e Leggi selezione** | `Cmd+Shift+S` (o `Cmd+Shift+L`) | Legge clipboard o cattura via Accessibility API |
-| **Play / Pausa** | `Spazio` (nella finestra) / Tray | Controllo player immediato |
-| **Stop** | `Esc` / Tray | Ferma la riproduzione e resetta |
-| **Cambio Modalità Finestra** | Tasto vista laterale | Compatta (Player), Standard, Estesa (Coda + Impostazioni) |
-| **Esporta Audio** | Bottone "WAV" | Salva l'audio sintetizzato tramite dialog nativo |
-
----
+Le Pull Request sono benvenute! Assicurati di eseguire `swift test` prima di proporre modifiche alla logica core, e di testare a fondo il comportamento dell'audio su diverse frequenze di campionamento.
 
 ## 📄 Licenza
 
-Proprietario / Private Repository.
+Questo progetto è distribuito con licenza MIT. Vedi il file `LICENSE` per ulteriori dettagli.

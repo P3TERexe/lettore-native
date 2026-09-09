@@ -1,34 +1,33 @@
-# Rust / Tauri
-src-tauri/target/
-src-tauri/binaries/lettore-backend-*
-!src-tauri/binaries/.gitkeep
+# Xcode / Swift Package Manager
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcframework
+DerivedData/
 
 # Python
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
-*.egg-info/
-/dist/
-/build/
-!src-tauri/build/entitlements.mac.plist
-*.spec
+env/
+.env
 
-# Node
-node_modules/
-ui/node_modules/
-ui/dist/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
 
-# Audio / runtime data
+# Lettore Artifacts
 *.wav
 *.mp3
-*.log
-backend/*.log
+tests/test_output/
+backend_tests/test_output/
 
-# OS / Editor
-.DS_Store
-*.swp
-.idea/
+# IDE
 .vscode/
-.cache/
-*.ses
+.idea/
