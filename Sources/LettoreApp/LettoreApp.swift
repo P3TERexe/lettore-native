@@ -27,6 +27,7 @@ struct LettoreApp: App {
     @State private var appState: AppState
     private let audioEngine = AudioEngineService()
     private let axCapture = AXCaptureService()
+    private let shortcutManager = GlobalShortcutManager()
     private let coordinator: PlaybackCoordinator
     
     init() {
@@ -38,6 +39,47 @@ struct LettoreApp: App {
         _appState = State(initialValue: state)
         
         self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
+        
+        setupCaptureLogic(state: state)
+    }
+    
+    private func setupCaptureLogic(state: AppState) {
+        let captureAction: @Sendable () -> Void = { [axCapture] in
+            Task {
+                if let result = await axCapture.captureSelectedText() {
+                    let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty else { return }
+                    
+                    await MainActor.run {
+                        let normalizer = TextNormalizer()
+                        let normalized = normalizer.normalize(text: text)
+                        let chunker = SentenceChunker()
+                        let chunks = chunker.chunk(text: normalized)
+                        
+                        state.setQueue(chunks)
+                        if state.playbackState != .playing {
+                            self.coordinator.playCurrentChunk()
+                        }
+                    }
+                }
+            }
+        }
+        
+        shortcutManager.onTogglePlaybackRequested = { [weak coordinator] in
+            if state.playbackState == .playing {
+                coordinator?.stop()
+            } else {
+                coordinator?.playCurrentChunk()
+            }
+        }
+        
+        shortcutManager.onCaptureRequested = captureAction
+        shortcutManager.startMonitoring()
+        
+        // Ascolta richieste di cattura provenienti dalla UI (es. Pillola)
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("CaptureAXText"), object: nil, queue: .main) { _ in
+            captureAction()
+        }
     }
     
     var body: some Scene {

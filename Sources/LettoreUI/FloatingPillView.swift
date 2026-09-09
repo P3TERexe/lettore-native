@@ -122,15 +122,21 @@ public struct FloatingPillView: View {
                     .frame(width: 32, height: 32)
                 
                 Button(action: {
-                    if let coordinator = coordinator {
-                        coordinator.togglePlayPause()
+                    // Se la coda è vuota o abbiamo finito le frasi, cattura nuovo testo (come Cmd+Shift+C)
+                    if appState.readingQueue.isEmpty || appState.currentChunk == nil {
+                        NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
                     } else {
-                        if appState.playbackState == .playing {
-                            audioEngine.pause()
-                            appState.playbackState = .paused
+                        // Altrimenti si comporta come un normale Play/Pausa
+                        if let coordinator = coordinator {
+                            coordinator.togglePlayPause()
                         } else {
-                            audioEngine.play()
-                            appState.playbackState = .playing
+                            if appState.playbackState == .playing {
+                                audioEngine.pause()
+                                appState.playbackState = .paused
+                            } else {
+                                audioEngine.play()
+                                appState.playbackState = .playing
+                            }
                         }
                     }
                 }) {
