@@ -43,13 +43,16 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        // L'ID della voce nel frontend è "IT-M1", "EN-F2", ecc. 
+        // Il backend Python si aspetta solo "M1", "F1", "M2", "F2".
+        let baseVoiceId = voice.id.split(separator: "-").last.map(String.init) ?? "M1"
         let validVoices: Set<String> = ["M1", "F1", "M2", "F2"]
-        let supertonicVoiceId = validVoices.contains(voice.id) ? voice.id : "M1"
+        let supertonicVoiceId = validVoices.contains(baseVoiceId) ? baseVoiceId : "M1"
         
         let body: [String: Any] = [
             "text": text,
             "voice": supertonicVoiceId,
-            "lang": "it",
+            "lang": voice.language,
             "speed": Double(speed),
             "steps": 8
         ]

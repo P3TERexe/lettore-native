@@ -290,17 +290,28 @@ public struct LettoreStudioView: View {
     
     private var sidebarControls: some View {
         VStack(alignment: .leading, spacing: 22) {
-            // Sezione Voci Neurali
+            // Sezione Lingua & Voci Neurali
             VStack(alignment: .leading, spacing: 10) {
-                Text("VOCE NEURALE")
+                Text("LINGUA & VOCE")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.5))
                 
+                // Picker Lingua
+                Picker("", selection: $appState.selectedLanguage) {
+                    ForEach(VoiceProfile.supportedLanguages, id: \.code) { lang in
+                        Text(lang.name).tag(lang.code)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 4)
+                
+                // Lista Voci Filtrate
                 VStack(spacing: 8) {
-                    voiceRow(id: "M1", name: "Marco (Supertonic M1)", isSelected: appState.selectedVoice.id == "M1")
-                    voiceRow(id: "F1", name: "Giulia (Supertonic F1)", isSelected: appState.selectedVoice.id == "F1")
-                    voiceRow(id: "M2", name: "Luca (Supertonic M2)", isSelected: appState.selectedVoice.id == "M2")
-                    voiceRow(id: "F2", name: "Sofia (Supertonic F2)", isSelected: appState.selectedVoice.id == "F2")
+                    ForEach(appState.filteredVoices) { voice in
+                        voiceRow(id: voice.id, name: "\(voice.name)", isSelected: appState.selectedVoice.id == voice.id)
+                    }
                 }
             }
             
@@ -424,7 +435,9 @@ public struct LettoreStudioView: View {
     
     private func voiceRow(id: String, name: String, isSelected: Bool) -> some View {
         Button(action: {
-            appState.selectedVoice = VoiceProfile(id: id, name: name, language: "it", gender: id.contains("_f") ? "female" : "male")
+            if let found = VoiceProfile.standardVoices.first(where: { $0.id == id }) {
+                appState.selectedVoice = found
+            }
         }) {
             HStack {
                 Circle()

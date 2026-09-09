@@ -14,8 +14,21 @@ public final class AppState: @unchecked Sendable {
     // MARK: - Impostazioni Audio & Voce
     public var playbackSpeed: Float = 1.05
     public var volume: Float = 1.0
-    public var selectedVoice: VoiceProfile = VoiceProfile.standardVoices[0]
+    public var selectedLanguage: String = "it" {
+        didSet {
+            // Quando cambia la lingua, aggiorna automaticamente la voce selezionata
+            // alla prima voce disponibile in quella lingua.
+            if let firstVoice = filteredVoices.first {
+                selectedVoice = firstVoice
+            }
+        }
+    }
+    public var selectedVoice: VoiceProfile = VoiceProfile.standardVoices.first(where: { $0.id == "IT-M1" }) ?? VoiceProfile.standardVoices[0]
     public var availableVoices: [VoiceProfile] = VoiceProfile.standardVoices
+    
+    public var filteredVoices: [VoiceProfile] {
+        return availableVoices.filter { $0.language == selectedLanguage }
+    }
     
     // MARK: - Finestre & Modalità
     public var presentationMode: WindowPresentationMode = .floatingPill

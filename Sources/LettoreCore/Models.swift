@@ -117,10 +117,39 @@ public struct VoiceProfile: Identifiable, Hashable, Codable, Sendable {
         self.sampleRate = sampleRate
     }
     
+    public static let supportedLanguages: [(code: String, name: String)] = [
+        ("it", "Italiano"),
+        ("en", "English"),
+        ("es", "Español"),
+        ("fr", "Français"),
+        ("de", "Deutsch")
+    ]
+    
     public static let standardVoices: [VoiceProfile] = [
-        VoiceProfile(id: "M1", name: "Marco", language: "it", gender: "male"),
-        VoiceProfile(id: "F1", name: "Giulia", language: "it", gender: "female"),
-        VoiceProfile(id: "M2", name: "Luca", language: "it", gender: "male"),
-        VoiceProfile(id: "F2", name: "Sofia", language: "it", gender: "female")
+        // Italiano
+        VoiceProfile(id: "IT-M1", name: "Marco", language: "it", gender: "male"),
+        VoiceProfile(id: "IT-F1", name: "Giulia", language: "it", gender: "female"),
+        VoiceProfile(id: "IT-M2", name: "Luca", language: "it", gender: "male"),
+        VoiceProfile(id: "IT-F2", name: "Sofia", language: "it", gender: "female"),
+        // Inglese
+        VoiceProfile(id: "EN-M1", name: "John", language: "en", gender: "male"),
+        VoiceProfile(id: "EN-F1", name: "Emma", language: "en", gender: "female"),
+        VoiceProfile(id: "EN-M2", name: "Michael", language: "en", gender: "male"),
+        VoiceProfile(id: "EN-F2", name: "Sarah", language: "en", gender: "female"),
+        // Spagnolo
+        VoiceProfile(id: "ES-M1", name: "Carlos", language: "es", gender: "male"),
+        VoiceProfile(id: "ES-F1", name: "Lucia", language: "es", gender: "female"),
+        VoiceProfile(id: "ES-M2", name: "Miguel", language: "es", gender: "male"),
+        VoiceProfile(id: "ES-F2", name: "Maria", language: "es", gender: "female"),
+        // Francese
+        VoiceProfile(id: "FR-M1", name: "Pierre", language: "fr", gender: "male"),
+        VoiceProfile(id: "FR-F1", name: "Camille", language: "fr", gender: "female"),
+        VoiceProfile(id: "FR-M2", name: "Lucas", language: "fr", gender: "male"),
+        VoiceProfile(id: "FR-F2", name: "Chloe", language: "fr", gender: "female"),
+        // Tedesco
+        VoiceProfile(id: "DE-M1", name: "Klaus", language: "de", gender: "male"),
+        VoiceProfile(id: "DE-F1", name: "Anna", language: "de", gender: "female"),
+        VoiceProfile(id: "DE-M2", name: "Hans", language: "de", gender: "male"),
+        VoiceProfile(id: "DE-F2", name: "Julia", language: "de", gender: "female")
     ]
 }
