@@ -31,6 +31,7 @@ struct LettoreApp: App {
     private let axCapture = AXCaptureService()
     private let shortcutManager = GlobalShortcutManager()
     private let coordinator: PlaybackCoordinator
+    @State private var isCaptureLogicSetup = false
     
     init() {
         let chunker = SentenceChunker()
@@ -41,11 +42,12 @@ struct LettoreApp: App {
         _appState = State(initialValue: state)
         
         self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
-        
-        setupCaptureLogic(state: state)
     }
     
     private func setupCaptureLogic(state: AppState) {
+        guard !isCaptureLogicSetup else { return }
+        isCaptureLogicSetup = true
+        
         let captureAction: @Sendable () -> Void = { [axCapture] in
             Task {
                 if let result = await axCapture.captureSelectedText() {
@@ -90,6 +92,7 @@ struct LettoreApp: App {
             if appState.accessibilityProfile == .lowVision {
                 SuperAccessibleView(appState: appState, audioEngine: audioEngine)
                     .frame(minWidth: 960, minHeight: 640)
+                    .task { setupCaptureLogic(state: appState) }
             } else {
                 LettoreStudioView(
                     appState: appState,
@@ -98,6 +101,7 @@ struct LettoreApp: App {
                     axCapture: axCapture
                 )
                 .frame(minWidth: 960, minHeight: 640)
+                .task { setupCaptureLogic(state: appState) }
             }
         }
         .windowToolbarStyle(.unified)
