@@ -39,11 +39,7 @@ struct LettoreApp: App {
     @State private var isCaptureLogicSetup = false
     
     init() {
-        let chunker = SentenceChunker()
-        let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida. Passa il cursore sulla pillola per espandere i controlli audio stile Dynamic Island."
-        let chunks = chunker.chunk(text: sample)
         let state = AppState()
-        state.setQueue(chunks)
         _appState = State(initialValue: state)
         
         self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
