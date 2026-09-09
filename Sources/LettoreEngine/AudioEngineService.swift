@@ -15,6 +15,9 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     /// Callback per aggiornare i livelli audio dell'onda visiva (7 barre normalizzate 0.0 - 1.0)
     public var onAudioLevelsUpdate: (([Float]) -> Void)?
     
+    /// Callback per aggiornare il progresso di riproduzione della frase corrente (0.0 - 1.0)
+    public var onProgressUpdate: ((Double) -> Void)?
+    
     /// Formato nominale (per compatibilità API)
     public let standardFormat: AVAudioFormat
     
@@ -99,6 +102,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         onPlaybackComplete = nil
         self.player = nil
         DispatchQueue.main.async {
+            self.onProgressUpdate?(1.0)
             completion?()
         }
     }
@@ -137,8 +141,11 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
                 normalized * Float(0.35 + 0.10 * cos(t * 5.1))
             ]
             
+            let chunkProgress = player.duration > 0 ? max(0.0, min(1.0, player.currentTime / player.duration)) : 0.0
+            
             DispatchQueue.main.async {
                 self.onAudioLevelsUpdate?(levels)
+                self.onProgressUpdate?(chunkProgress)
             }
         }
     }

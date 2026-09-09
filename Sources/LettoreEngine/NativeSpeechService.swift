@@ -15,6 +15,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     public var onFinish: (() -> Void)?
     public var onWordHighlight: ((NSRange) -> Void)?
     public var onLevelsUpdate: (([Float]) -> Void)?
+    public var onProgressUpdate: ((Double) -> Void)?
     
     public private(set) var isSpeaking: Bool = false
     public private(set) var isPaused: Bool = false
@@ -96,6 +97,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
             self.isSpeaking = false
             self.isPaused = false
             self.stopWaveformAnimation()
+            self.onProgressUpdate?(1.0)
             self.onFinish?()
         }
     }
@@ -113,8 +115,13 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
+        let totalChars = utterance.speechString.count
         Task { @MainActor in
             self.onWordHighlight?(characterRange)
+            if totalChars > 0 {
+                let progress = min(1.0, max(0.0, Double(characterRange.location + characterRange.length) / Double(totalChars)))
+                self.onProgressUpdate?(progress)
+            }
         }
     }
     

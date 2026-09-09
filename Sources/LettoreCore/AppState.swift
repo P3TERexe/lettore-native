@@ -10,6 +10,8 @@ public final class AppState: @unchecked Sendable {
     public var currentChunk: ReadingChunk? = nil
     public var readingQueue: [ReadingChunk] = []
     public var currentWordIndex: Int? = nil
+    /// Progresso complessivo della riproduzione nella coda (0.0 ... 1.0)
+    public var playbackProgress: Double = 0.0
     
     // MARK: - Impostazioni Audio & Voce
     public var playbackSpeed: Float = 1.05
@@ -51,6 +53,7 @@ public final class AppState: @unchecked Sendable {
     public func setQueue(_ chunks: [ReadingChunk]) {
         self.readingQueue = chunks
         self.currentChunk = chunks.first
+        self.playbackProgress = 0.0
     }
     
     public func advanceChunk() -> ReadingChunk? {
@@ -63,10 +66,12 @@ public final class AppState: @unchecked Sendable {
         if nextIndex < readingQueue.count {
             let next = readingQueue[nextIndex]
             self.currentChunk = next
+            self.playbackProgress = Double(nextIndex) / Double(readingQueue.count)
             return next
         } else {
             self.playbackState = .idle
             self.currentChunk = nil
+            self.playbackProgress = 1.0
             return nil
         }
     }
@@ -80,6 +85,7 @@ public final class AppState: @unchecked Sendable {
         let prevIndex = max(0, currentIndex - 1)
         let prev = readingQueue[prevIndex]
         self.currentChunk = prev
+        self.playbackProgress = Double(prevIndex) / Double(readingQueue.count)
         return prev
     }
     

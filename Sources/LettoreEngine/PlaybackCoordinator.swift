@@ -34,8 +34,32 @@ public final class PlaybackCoordinator {
             appState?.liveWaveformLevels = levels
         }
         
+        audioEngine.onProgressUpdate = { [weak appState] chunkProgress in
+            guard let appState = appState else { return }
+            let total = Double(appState.readingQueue.count)
+            guard total > 0 else {
+                appState.playbackProgress = 0.0
+                return
+            }
+            let currentIdx = Double(appState.currentChunk?.index ?? 0)
+            let overall = (currentIdx + chunkProgress) / total
+            appState.playbackProgress = min(1.0, max(0.0, overall))
+        }
+        
         speechFallback.onLevelsUpdate = { [weak appState] levels in
             appState?.liveWaveformLevels = levels
+        }
+        
+        speechFallback.onProgressUpdate = { [weak appState] chunkProgress in
+            guard let appState = appState else { return }
+            let total = Double(appState.readingQueue.count)
+            guard total > 0 else {
+                appState.playbackProgress = 0.0
+                return
+            }
+            let currentIdx = Double(appState.currentChunk?.index ?? 0)
+            let overall = (currentIdx + chunkProgress) / total
+            appState.playbackProgress = min(1.0, max(0.0, overall))
         }
         
         speechFallback.onFinish = { [weak self] in
@@ -87,6 +111,9 @@ public final class PlaybackCoordinator {
         audioEngine.stop()
         speechFallback.stop()
         appState.playbackState = .idle
+        if appState.currentChunk == nil {
+            appState.playbackProgress = 0.0
+        }
     }
     
     private func preloadNextChunk() {
@@ -219,6 +246,10 @@ public final class PlaybackCoordinator {
     public func jumpToChunk(_ chunk: ReadingChunk) {
         stop()
         appState.currentChunk = chunk
+        let total = Double(appState.readingQueue.count)
+        if total > 0 {
+            appState.playbackProgress = Double(chunk.index) / total
+        }
         playCurrentChunk()
     }
 }

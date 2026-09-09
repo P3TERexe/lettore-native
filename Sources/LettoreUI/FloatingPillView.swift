@@ -40,7 +40,7 @@ public struct FloatingPillView: View {
             }
         }
         .frame(height: 44)
-        .frame(width: isHovered || appState.isPillExpanded ? 440 : 120, alignment: .leading)
+        .frame(width: isHovered || appState.isPillExpanded ? 356 : 120, alignment: .leading)
         .background {
             Capsule()
                 .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.92))
@@ -58,39 +58,47 @@ public struct FloatingPillView: View {
                 )
         }
         .overlay(alignment: .bottom) {
-            // Progress bar sottile nel bordo inferiore della pillola
+            // Progress bar elegante ad alta precisione integrata nel bordo inferiore
             if !appState.readingQueue.isEmpty {
                 GeometryReader { geo in
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    let trackWidth = max(0, geo.size.width - 44)
+                    let progress = max(0.0, min(1.0, appState.playbackProgress))
+                    let fillWidth = max(0, trackWidth * CGFloat(progress))
+                    
+                    ZStack(alignment: .leading) {
+                        // Scanalatura / traccia di sfondo
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: trackWidth, height: 2.5)
+                        
+                        // Riempimento continuo con gradient cyan-verde e glow
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.0, green: 0.9, blue: 1.0),
+                                        Color(red: 0.2, green: 0.95, blue: 0.5)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * progressFraction, height: 3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .animation(.easeInOut(duration: 0.3), value: progressFraction)
+                            .frame(width: fillWidth, height: 2.5)
+                            .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.5), radius: 2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .frame(height: 3)
-                .clipShape(Capsule())
-                .padding(.horizontal, 1)
-                .padding(.bottom, 1)
+                .frame(height: 2.5)
+                .padding(.bottom, 2.5)
             }
         }
+        .clipShape(Capsule())
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isHovered)
         .onHover { hovering in
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 self.isHovered = hovering
             }
         }
-    }
-    
-    private var progressFraction: CGFloat {
-        guard !appState.readingQueue.isEmpty else { return 0 }
-        let currentIndex = appState.currentChunk?.index ?? 0
-        return CGFloat(currentIndex + 1) / CGFloat(appState.readingQueue.count)
     }
     
     // MARK: - Subviews
@@ -115,7 +123,7 @@ public struct FloatingPillView: View {
     }
     
     private var controlsSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Salto indietro 5s
             Button(action: {
                 if let coordinator = coordinator {
@@ -134,49 +142,39 @@ public struct FloatingPillView: View {
             }
             .buttonStyle(.plain)
             
-            // Play / Pausa con Anello di Avanzamento Circolare
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.15), lineWidth: 2.5)
-                    .frame(width: 32, height: 32)
-                
-                Circle()
-                    .trim(from: 0.0, to: appState.playbackState == .playing ? 0.85 : 0.25)
-                    .stroke(
-                        Color(red: 0.2, green: 0.95, blue: 0.5),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 32, height: 32)
-                
-                Button(action: {
-                    // Se la coda è vuota o abbiamo finito le frasi, cattura nuovo testo (come Cmd+Shift+C)
-                    if appState.readingQueue.isEmpty || appState.currentChunk == nil {
-                        NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
+            // Play / Pausa
+            Button(action: {
+                // Se la coda è vuota o abbiamo finito le frasi, cattura nuovo testo (come Cmd+Shift+C)
+                if appState.readingQueue.isEmpty || appState.currentChunk == nil {
+                    NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
+                } else {
+                    // Altrimenti si comporta come un normale Play/Pausa
+                    if let coordinator = coordinator {
+                        coordinator.togglePlayPause()
                     } else {
-                        // Altrimenti si comporta come un normale Play/Pausa
-                        if let coordinator = coordinator {
-                            coordinator.togglePlayPause()
+                        if appState.playbackState == .playing {
+                            audioEngine.pause()
+                            appState.playbackState = .paused
                         } else {
-                            if appState.playbackState == .playing {
-                                audioEngine.pause()
-                                appState.playbackState = .paused
-                            } else {
-                                audioEngine.play()
-                                appState.playbackState = .playing
-                            }
+                            audioEngine.play()
+                            appState.playbackState = .playing
                         }
                     }
-                }) {
+                }
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 28, height: 28)
+                        .shadow(color: Color.white.opacity(0.3), radius: 4)
+                    
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.black)
-                        .frame(width: 24, height: 24)
-                        .background(Color.white)
-                        .clipShape(Circle())
+                        .offset(x: appState.playbackState == .playing ? 0 : 1)
                 }
-                .buttonStyle(.plain)
             }
+            .buttonStyle(.plain)
             
             // Salto avanti 15s
             Button(action: {
@@ -217,17 +215,29 @@ public struct FloatingPillView: View {
             
             // Navigazione Paragrafi
             HStack(spacing: 4) {
-                Button(action: { _ = appState.rewindChunk() }) {
+                Button(action: {
+                    if let coordinator = coordinator {
+                        coordinator.skipBackward()
+                    } else {
+                        _ = appState.rewindChunk()
+                    }
+                }) {
                     Image(systemName: "backward.end.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
                 .buttonStyle(.plain)
                 
-                Button(action: { _ = appState.advanceChunk() }) {
+                Button(action: {
+                    if let coordinator = coordinator {
+                        coordinator.skipForward()
+                    } else {
+                        _ = appState.advanceChunk()
+                    }
+                }) {
                     Image(systemName: "forward.end.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
                 .buttonStyle(.plain)
             }

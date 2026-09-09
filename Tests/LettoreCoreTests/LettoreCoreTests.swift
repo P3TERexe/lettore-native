@@ -78,14 +78,17 @@ final class LettoreCoreTests: XCTestCase {
         
         state.setQueue([chunk1, chunk2])
         XCTAssertEqual(state.currentChunk?.id, chunk1.id)
+        XCTAssertEqual(state.playbackProgress, 0.0)
         
         let advanced = state.advanceChunk()
         XCTAssertEqual(advanced?.id, chunk2.id)
         XCTAssertEqual(state.currentChunk?.id, chunk2.id)
+        XCTAssertEqual(state.playbackProgress, 0.5)
         
         let finished = state.advanceChunk()
         XCTAssertNil(finished)
         XCTAssertEqual(state.playbackState, .idle)
+        XCTAssertEqual(state.playbackProgress, 1.0)
     }
     
     // MARK: - Test LettoreEngine (MockTTSPipeline)
