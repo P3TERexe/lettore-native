@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for window in NSApp.windows where window.canBecomeKey && !(window is NSPanel) {
+            for window in NSApp.windows where !(window is NSPanel) {
                 window.makeKeyAndOrderFront(nil)
                 window.orderFrontRegardless()
             }
@@ -28,7 +28,6 @@ struct LettoreApp: App {
     private let audioEngine = AudioEngineService()
     private let axCapture = AXCaptureService()
     private let coordinator: PlaybackCoordinator
-    private let shortcutManager = GlobalShortcutManager()
     
     init() {
         let chunker = SentenceChunker()
@@ -39,41 +38,6 @@ struct LettoreApp: App {
         _appState = State(initialValue: state)
         
         self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
-        
-        setupShortcuts(state: state)
-    }
-    
-    private func setupShortcuts(state: AppState) {
-        shortcutManager.onTogglePlaybackRequested = { [weak coordinator] in
-            if state.playbackState == .playing {
-                coordinator?.stop()
-            } else {
-                coordinator?.playCurrentChunk()
-            }
-        }
-        
-        shortcutManager.onCaptureRequested = { [axCapture] in
-            Task {
-                if let result = await axCapture.captureSelectedText() {
-                    let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    
-                    await MainActor.run {
-                        let normalizer = TextNormalizer()
-                        let normalized = normalizer.normalize(text: text)
-                        let chunker = SentenceChunker()
-                        let chunks = chunker.chunk(text: normalized)
-                        
-                        state.setQueue(chunks)
-                        if state.playbackState != .playing {
-                            self.coordinator.playCurrentChunk()
-                        }
-                    }
-                }
-            }
-        }
-        
-        shortcutManager.startMonitoring()
     }
     
     var body: some Scene {

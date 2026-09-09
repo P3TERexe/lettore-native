@@ -3,10 +3,11 @@ import AppKit
 import LettoreCore
 
 /// Gestore delle scorciatoie da tastiera globali (Global Shortcuts) per intercettare gli input anche quando LettoreApp è in background.
+/// Usa solo il monitor GLOBALE (NSEvent.addGlobalMonitorForEvents) per non interferire con la catena eventi interna di SwiftUI.
 @MainActor
 public final class GlobalShortcutManager {
     
-    private var globalEventMonitor: Any?
+    private var globalMonitor: Any?
     
     /// Azione da eseguire quando l'utente preme Cmd+Shift+C
     public var onCaptureRequested: (() -> Void)?
@@ -16,51 +17,35 @@ public final class GlobalShortcutManager {
     
     public init() {}
     
-    /// Registra i monitor degli eventi di sistema.
-    /// Richiede che l'applicazione abbia i permessi di Accessibilità concessi in Impostazioni di Sistema.
+    /// Registra il monitor globale degli eventi di sistema.
+    /// Funziona SOLO quando l'app NON è in primo piano (il caso d'uso principale: l'utente è su Safari/Word).
+    /// Non registra un local monitor per evitare di interferire con la catena eventi di SwiftUI.
     public func startMonitoring() {
-        if globalEventMonitor != nil { return }
+        guard globalMonitor == nil else { return }
         
-        // Ascolta gli eventi keyDown globali (quando l'app NON è in primo piano)
-        globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handleKeyEvent(event)
-        }
-        
-        // Ascolta gli eventi keyDown locali (quando l'app È in primo piano)
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if self?.handleKeyEvent(event) == true {
-                return nil // L'evento è stato consumato
-            }
-            return event
         }
     }
     
     public func stopMonitoring() {
-        if let monitor = globalEventMonitor {
+        if let monitor = globalMonitor {
             NSEvent.removeMonitor(monitor)
-            globalEventMonitor = nil
+            globalMonitor = nil
         }
     }
     
-    /// Rileva e smista gli hotkey
-    /// - Returns: true se l'evento è stato consumato (per il local monitor)
-    @discardableResult
-    private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        let modifierFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let keyCode = event.keyCode
+    private func handleKeyEvent(_ event: NSEvent) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         
-        // KeyCode 8 = 'C', Modificatori = Cmd + Shift
-        if keyCode == 8 && modifierFlags.contains([.command, .shift]) {
+        // Cmd+Shift+C → Cattura testo dall'app in primo piano
+        if event.keyCode == 8 && flags.contains([.command, .shift]) {
             onCaptureRequested?()
-            return true
         }
         
-        // KeyCode 35 = 'P', Modificatori = Option (Alternate)
-        if keyCode == 35 && modifierFlags.contains(.option) {
+        // Option+P → Toggle Play/Pausa
+        if event.keyCode == 35 && flags.contains(.option) {
             onTogglePlaybackRequested?()
-            return true
         }
-        
-        return false
     }
 }
