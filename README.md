@@ -7,9 +7,13 @@
 ![macOS Only](https://img.shields.io/badge/platform-macOS%20only-lightgrey?style=flat-square&logo=apple)
 ![macOS Support](https://img.shields.io/badge/macOS-14.0%2B-silver?style=flat-square&logo=apple)
 ![Swift Version](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)
+[![Demo Interattiva](https://img.shields.io/badge/Demo_Web-Prova_la_Pillola_Online-10b981?style=flat-square&logo=apple)](https://p3terexe.github.io/lettore-native/)
 ![License](https://img.shields.io/badge/license-CC_BY--NC--SA_4.0-blue?style=flat-square)
 
-### 📥 [Scarica l'Ultima Versione (v3.0.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
+> 🚀 **Prova subito la simulazione nel browser:** [**p3terexe.github.io/lettore-native**](https://p3terexe.github.io/lettore-native/) (include la Floating Pill interattiva e la sintesi vocale di prova).
+
+### 🌐 [👉 Prova la Demo Interattiva nel Browser](https://p3terexe.github.io/lettore-native/)
+### 📥 [Scarica l'Ultima Versione per macOS (v3.0.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
 
 ## 🚀 Funzionalità Chiave
 
