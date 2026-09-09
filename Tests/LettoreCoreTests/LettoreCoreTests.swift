@@ -91,6 +91,20 @@ final class LettoreCoreTests: XCTestCase {
         XCTAssertEqual(state.playbackProgress, 1.0)
     }
     
+    func testPillOrientationState() {
+        let state = AppState()
+        XCTAssertEqual(state.pillOrientation, .horizontal)
+        XCTAssertEqual(state.pillDockSide, .center)
+        
+        state.pillOrientation = .vertical
+        state.pillDockSide = .left
+        XCTAssertEqual(state.pillOrientation, .vertical)
+        XCTAssertEqual(state.pillDockSide, .left)
+        
+        state.pillDockSide = .right
+        XCTAssertEqual(state.pillDockSide, .right)
+    }
+    
     // MARK: - Test LettoreEngine (MockTTSPipeline)
     
     func testMockTTSPipelineBufferGeneration() async throws {

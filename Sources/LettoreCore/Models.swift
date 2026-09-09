@@ -18,6 +18,19 @@ public enum WindowPresentationMode: String, Codable, Sendable {
     case superAccessible = "superAccessible"
 }
 
+/// Orientamento responsive della pillola fluttuante (orizzontale se al centro dello schermo, verticale se ai lati).
+public enum PillOrientation: String, Codable, Sendable {
+    case horizontal = "horizontal"
+    case vertical = "vertical"
+}
+
+/// Lato di ancoraggio della pillola sullo schermo.
+public enum PillDockSide: String, Codable, Sendable {
+    case left = "left"
+    case center = "center"
+    case right = "right"
+}
+
 /// Profilo di accessibilità visiva e cognitiva.
 public enum AccessibilityProfile: String, Codable, CaseIterable, Sendable {
     case standard = "standard"
