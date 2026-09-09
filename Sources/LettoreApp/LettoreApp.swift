@@ -12,6 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         
+        // Richiede esplicitamente a macOS di mostrare il popup per i permessi di Accessibilità se non concessi
+        let promptOption = "AXTrustedCheckOptionPrompt" as CFString
+        let options = [promptOption: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             for window in NSApp.windows {
                 if window.title == "Lettore Studio" {
