@@ -94,13 +94,13 @@ final class LettoreCoreTests: XCTestCase {
         let pipeline = MockTTSPipeline()
         let voice = VoiceProfile(id: "it_f1", name: "Chiara", language: "it", gender: "female")
         
-        let buffer = try await pipeline.synthesize(text: "Frase di prova per il buffer audio.", voice: voice, speed: 1.0)
+        let wavData = try await pipeline.synthesize(text: "Frase di prova per il buffer audio.", voice: voice, speed: 1.0)
         
         XCTAssertTrue(pipeline.isModelLoaded)
-        XCTAssertEqual(buffer.format.sampleRate, 24000.0)
-        XCTAssertEqual(buffer.format.channelCount, 1)
-        XCTAssertGreaterThan(buffer.frameLength, 0)
-        XCTAssertNotNil(buffer.floatChannelData)
+        XCTAssertGreaterThan(wavData.count, 44, "WAV deve avere almeno l'header di 44 bytes")
+        // Verifica magic bytes RIFF/WAVE
+        let header = String(data: wavData.prefix(4), encoding: .ascii)
+        XCTAssertEqual(header, "RIFF")
     }
     
     // MARK: - Test LettoreSystem (VisionOCRService)

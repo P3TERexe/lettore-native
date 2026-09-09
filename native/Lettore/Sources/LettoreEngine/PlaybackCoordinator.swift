@@ -4,7 +4,7 @@ import LettoreCore
 
 /// Coordinatore centrale della riproduzione vocale e avanzamento automatico della coda.
 /// Esegue la sintesi vocale tramite il motore neurale Supertonic 3 originale (M1 Marco, F1 Giulia, ecc.)
-/// con fallback su sintesi nativa, sincronizzando lo spettro audio a 60fps su AVAudioEngine.
+/// con fallback su sintesi nativa, sincronizzando lo spettro audio a 20fps su AVAudioPlayer.
 @MainActor
 public final class PlaybackCoordinator {
     public let appState: AppState
@@ -26,17 +26,14 @@ public final class PlaybackCoordinator {
         self.supertonicPipeline = supertonicPipeline
         self.speechFallback = speechFallback
         
-        // Sincronizza lo spettro audio a 60fps da AVAudioEngine all'appState
         audioEngine.onAudioLevelsUpdate = { [weak appState] levels in
             appState?.liveWaveformLevels = levels
         }
         
-        // Sincronizza livelli audio fallback
         speechFallback.onLevelsUpdate = { [weak appState] levels in
             appState?.liveWaveformLevels = levels
         }
         
-        // Callback avanzamento automatico per il fallback nativo
         speechFallback.onFinish = { [weak self] in
             guard let self = self else { return }
             if self.appState.advanceChunk() != nil {
@@ -91,7 +88,7 @@ public final class PlaybackCoordinator {
             return
         }
         guard !isSynthesizing else {
-            print("[PlaybackCoordinator] Sintesi già in corso, ignorata chiamata duplicata")
+            print("[PlaybackCoordinator] Sintesi già in corso, ignorata")
             return
         }
         
@@ -100,18 +97,18 @@ public final class PlaybackCoordinator {
         
         Task {
             do {
-                let buffer = try await supertonicPipeline.synthesize(
+                let wavData = try await supertonicPipeline.synthesize(
                     text: current.text,
                     voice: appState.selectedVoice,
                     speed: appState.playbackSpeed
                 )
                 
-                print("[PlaybackCoordinator] Supertonic OK — buffer: \(buffer.format), frames: \(buffer.frameLength)")
+                print("[PlaybackCoordinator] Supertonic OK — \(wavData.count) bytes WAV")
                 
                 await MainActor.run {
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = true
-                    self.audioEngine.scheduleBuffer(buffer) {
+                    self.audioEngine.playWAVData(wavData, speed: self.appState.playbackSpeed) {
                         Task { @MainActor in
                             if self.appState.advanceChunk() != nil {
                                 self.playCurrentChunk()
@@ -122,7 +119,7 @@ public final class PlaybackCoordinator {
                     }
                 }
             } catch {
-                print("[PlaybackCoordinator] Supertonic ERRORE: \(error.localizedDescription). Uso fallback vocale di sistema.")
+                print("[PlaybackCoordinator] Supertonic ERRORE: \(error.localizedDescription). Uso fallback.")
                 await MainActor.run {
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = false

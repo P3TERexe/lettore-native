@@ -3,9 +3,8 @@ import AVFoundation
 import LettoreCore
 
 /// Pipeline di sintesi vocale neurale Supertonic 3.
-/// Si interfaccia con il motore locale Supertonic (ONNX Runtime / CoreML)
-/// per ottenere l'esatta sintesi vocale di alta qualità presente nella versione originale (M1 Marco, F1 Giulia, ecc.),
-/// convertendo il flusso WAV in buffer audio PCM pronti per AVAudioEngine.
+/// Si interfaccia con il backend locale FastAPI (ONNX Runtime / CoreML)
+/// e restituisce i bytes WAV grezzi per la riproduzione con AVAudioPlayer.
 public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
     
     private let baseURL: URL
@@ -38,13 +37,12 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
         }
     }
     
-    public func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> AVAudioPCMBuffer {
+    public func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data {
         let ttsURL = baseURL.appendingPathComponent("v1/tts")
         var req = URLRequest(url: ttsURL)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // L'id della VoiceProfile standard è già M1, F1, M2, F2
         let validVoices: Set<String> = ["M1", "F1", "M2", "F2"]
         let supertonicVoiceId = validVoices.contains(voice.id) ? voice.id : "M1"
         
@@ -64,23 +62,8 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
             throw NSError(domain: "SupertonicTTSPipeline", code: 2, userInfo: [NSLocalizedDescriptionKey: "Errore sintesi Supertonic: \(errorText)"])
         }
         
-        // Decodifica il file WAV ricevuto in un AVAudioPCMBuffer
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("supertonic_\(UUID().uuidString).wav")
-        try data.write(to: tempURL)
-        defer {
-            try? FileManager.default.removeItem(at: tempURL)
-        }
-        
-        let audioFile = try AVAudioFile(forReading: tempURL)
-        let format = audioFile.processingFormat
-        let frameCount = AVAudioFrameCount(audioFile.length)
-        
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            throw NSError(domain: "SupertonicTTSPipeline", code: 3, userInfo: [NSLocalizedDescriptionKey: "Impossibile allocare AVAudioPCMBuffer per file WAV"])
-        }
-        
-        try audioFile.read(into: buffer)
+        print("[SupertonicTTS] Sintetizzati \(data.count) bytes WAV per: \"\(text.prefix(40))...\"")
         self.isModelLoaded = true
-        return buffer
+        return data
     }
 }

@@ -2,24 +2,21 @@ import Foundation
 import AVFoundation
 import LettoreCore
 
-/// Servizio audio nativo a bassissima latenza basato su AVAudioEngine.
-/// Gestisce la riproduzione continua a chunk, la modulazione della velocità
-/// senza alterazione del pitch e l'estrazione a 60fps dei livelli per il visualizzatore.
-public final class AudioEngineService: @unchecked Sendable {
+/// Servizio audio basato su AVAudioPlayer.
+/// Riproduce WAV data direttamente, senza bisogno di AVAudioEngine
+/// (che non funziona da processi swift run / CLI su macOS).
+public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
     
-    private let engine = AVAudioEngine()
-    private let playerNode = AVAudioPlayerNode()
-    private let timePitch = AVAudioUnitTimePitch()
-    
-    /// Formato standard audio TTS Supertonic: 44.100 Hz, Float32, Mono
-    public let standardFormat: AVAudioFormat
-    
-    private var isConfigured = false
-    private let lock = NSLock()
+    private var player: AVAudioPlayer?
+    private var onPlaybackComplete: (() -> Void)?
+    private var meteringTimer: Timer?
     private var lastLevelsUpdate: CFAbsoluteTime = 0
     
     /// Callback per aggiornare i livelli audio dell'onda visiva (7 barre normalizzate 0.0 - 1.0)
     public var onAudioLevelsUpdate: (([Float]) -> Void)?
+    
+    /// Formato nominale (per compatibilità API)
+    public let standardFormat: AVAudioFormat
     
     public init(sampleRate: Double = 44100.0) {
         guard let format = AVAudioFormat(
@@ -28,60 +25,116 @@ public final class AudioEngineService: @unchecked Sendable {
             channels: 1,
             interleaved: false
         ) else {
-            fatalError("Impossibile creare AVAudioFormat per 44.1kHz Float32 Mono")
+            fatalError("Impossibile creare AVAudioFormat")
         }
         self.standardFormat = format
-        setupEngine(withFormat: format)
+        super.init()
     }
     
     deinit {
         stop()
     }
     
-    private func setupEngine(withFormat format: AVAudioFormat) {
-        engine.attach(playerNode)
-        engine.attach(timePitch)
-        
-        engine.connect(playerNode, to: timePitch, format: format)
-        engine.connect(timePitch, to: engine.mainMixerNode, format: nil)
-        
-        installWaveformTap(withFormat: format)
+    // MARK: - Controlli Riproduzione
+    
+    public func setSpeed(_ speed: Float) {
+        guard let player = player else { return }
+        player.enableRate = true
+        player.rate = max(0.5, min(2.0, speed))
+    }
+    
+    public func play() {
+        player?.play()
+        startMetering()
+    }
+    
+    public func pause() {
+        player?.pause()
+        stopMetering()
+    }
+    
+    public func stop() {
+        player?.stop()
+        player = nil
+        onPlaybackComplete = nil
+        stopMetering()
+    }
+    
+    /// Riproduce dati WAV grezzi. Il callback onComplete scatta al termine della riproduzione.
+    public func playWAVData(_ data: Data, speed: Float = 1.0, onComplete: (() -> Void)? = nil) {
+        // Ferma la riproduzione corrente
+        player?.stop()
+        stopMetering()
         
         do {
-            try engine.start()
-            isConfigured = true
+            let newPlayer = try AVAudioPlayer(data: data)
+            newPlayer.delegate = self
+            newPlayer.enableRate = true
+            newPlayer.rate = max(0.5, min(2.0, speed))
+            newPlayer.isMeteringEnabled = true
+            newPlayer.prepareToPlay()
+            
+            self.player = newPlayer
+            self.onPlaybackComplete = onComplete
+            
+            if newPlayer.play() {
+                print("[AudioPlayer] In riproduzione — durata: \(String(format: "%.2f", newPlayer.duration))s, rate: \(newPlayer.rate)")
+                startMetering()
+            } else {
+                print("[AudioPlayer] ERRORE: play() ha restituito false")
+                onComplete?()
+            }
         } catch {
-            print("[AudioEngineService] Errore avvio AVAudioEngine: \(error)")
+            print("[AudioPlayer] ERRORE inizializzazione: \(error)")
+            onComplete?()
         }
     }
     
-    private func installWaveformTap(withFormat format: AVAudioFormat) {
-        timePitch.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            guard let self = self, let channelData = buffer.floatChannelData?[0] else { return }
-            let frameCount = Int(buffer.frameLength)
-            guard frameCount > 0 else { return }
+    // MARK: - AVAudioPlayerDelegate
+    
+    public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        print("[AudioPlayer] Riproduzione terminata (successo: \(flag))")
+        stopMetering()
+        let completion = onPlaybackComplete
+        onPlaybackComplete = nil
+        self.player = nil
+        DispatchQueue.main.async {
+            completion?()
+        }
+    }
+    
+    public func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        print("[AudioPlayer] ERRORE decodifica: \(error?.localizedDescription ?? "sconosciuto")")
+        stopMetering()
+        let completion = onPlaybackComplete
+        onPlaybackComplete = nil
+        self.player = nil
+        DispatchQueue.main.async {
+            completion?()
+        }
+    }
+    
+    // MARK: - Metering per Waveform
+    
+    private func startMetering() {
+        meteringTimer?.invalidate()
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            guard let self = self, let player = self.player, player.isPlaying else { return }
+            player.updateMeters()
+            let power = player.averagePower(forChannel: 0)
+            // power è in dB (-160 ... 0). Normalizziamo a 0.0 - 1.0
+            let normalized = max(0.0, min(1.0, (power + 50.0) / 50.0))
             
-            // Throttle: max ~20 aggiornamenti/sec per non ingolfare SwiftUI
-            let now = CFAbsoluteTimeGetCurrent()
-            guard now - self.lastLevelsUpdate > 0.05 else { return }
-            self.lastLevelsUpdate = now
-            
-            var sum: Float = 0
-            for i in 0..<frameCount {
-                let sample = channelData[i]
-                sum += sample * sample
-            }
-            let rms = sqrt(sum / Float(frameCount))
-            let normalized = min(1.0, rms * 4.5)
-            
+            // Aggiungi variazione organica per le 7 barre
+            let t = CFAbsoluteTimeGetCurrent()
             let levels: [Float] = [
-                normalized * 0.45,
-                normalized * 0.75,
-                normalized * 0.95,
+                normalized * Float(0.45 + 0.15 * sin(t * 3.1)),
+                normalized * Float(0.70 + 0.10 * cos(t * 2.7)),
+                normalized * Float(0.90 + 0.10 * sin(t * 4.3)),
                 normalized * 1.0,
-                normalized * 0.85,
-                normalized * 0.60,
-                normalized * 0.35
+                normalized * Float(0.85 + 0.10 * cos(t * 3.8)),
+                normalized * Float(0.60 + 0.15 * sin(t * 2.2)),
+                normalized * Float(0.35 + 0.10 * cos(t * 5.1))
             ]
             
             DispatchQueue.main.async {
@@ -90,69 +143,11 @@ public final class AudioEngineService: @unchecked Sendable {
         }
     }
     
-    // MARK: - Controlli Riproduzione
-    
-    /// Imposta la velocità di riproduzione preservando le formanti vocali (senza effetto chipmunk).
-    public func setSpeed(_ speed: Float) {
-        lock.lock()
-        defer { lock.unlock() }
-        let clamped = max(0.5, min(3.0, speed))
-        timePitch.rate = clamped
-    }
-    
-    /// Avvia o riprende la riproduzione audio.
-    public func play() {
-        lock.lock()
-        defer { lock.unlock() }
-        if !engine.isRunning {
-            try? engine.start()
-        }
-        playerNode.play()
-    }
-    
-    /// Mette in pausa la riproduzione corrente.
-    public func pause() {
-        lock.lock()
-        defer { lock.unlock() }
-        playerNode.pause()
-    }
-    
-    /// Ferma completamente la riproduzione e svuota la coda interna di nodi.
-    public func stop() {
-        lock.lock()
-        defer { lock.unlock() }
-        playerNode.stop()
-    }
-    
-    /// Accoda un buffer PCM float32 alla riproduzione gapless.
-    /// Il callback onComplete viene invocato solo dopo che l'audio è stato effettivamente riprodotto.
-    public func scheduleBuffer(_ buffer: AVAudioPCMBuffer, onComplete: (@Sendable () -> Void)? = nil) {
-        lock.lock()
-        defer { lock.unlock() }
-        
-        let currentFormat = playerNode.outputFormat(forBus: 0)
-        if currentFormat.sampleRate != buffer.format.sampleRate ||
-           currentFormat.channelCount != buffer.format.channelCount {
-            timePitch.removeTap(onBus: 0)
-            engine.disconnectNodeOutput(playerNode)
-            engine.disconnectNodeOutput(timePitch)
-            
-            engine.connect(playerNode, to: timePitch, format: buffer.format)
-            engine.connect(timePitch, to: engine.mainMixerNode, format: nil)
-            installWaveformTap(withFormat: buffer.format)
-        }
-        
-        if !engine.isRunning {
-            try? engine.start()
-        }
-        
-        // .dataPlayedBack: il callback scatta solo dopo la riproduzione effettiva,
-        // non appena il buffer è stato schedulato nel grafo audio.
-        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
-            onComplete?()
-        }
-        if !playerNode.isPlaying {
-            playerNode.play()
+    private func stopMetering() {
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.onAudioLevelsUpdate?([0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15])
         }
     }
 }

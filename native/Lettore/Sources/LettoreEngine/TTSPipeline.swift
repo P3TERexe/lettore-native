@@ -3,10 +3,11 @@ import AVFoundation
 import LettoreCore
 
 /// Protocollo per l'infrastruttura di sintesi vocale neurale.
+/// Restituisce i bytes WAV grezzi per la massima compatibilità di riproduzione.
 public protocol TTSPipelineProtocol: Sendable {
     var isModelLoaded: Bool { get }
     func loadModel() async throws
-    func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> AVAudioPCMBuffer
+    func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data
 }
 
 /// Pipeline di test e mock per eseguire unit tests e sviluppo UI offline senza dipendere dai pesi ONNX.
@@ -18,45 +19,54 @@ public final class MockTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
     public init() {}
     
     public func loadModel() async throws {
-        // Simula tempo di caricamento istantaneo in-memory
         try await Task.sleep(nanoseconds: 50_000_000) // 50ms
         self.isModelLoaded = true
     }
     
-    public func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> AVAudioPCMBuffer {
+    public func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data {
         if !isModelLoaded {
             try await loadModel()
         }
         
-        // Calcola durata approssimata in base ai caratteri (~15 caratteri per secondo)
         let durationSeconds = max(0.4, Double(text.count) / 15.0 / Double(speed))
-        let frameCount = AVAudioFrameCount(sampleRate * durationSeconds)
+        let frameCount = Int(sampleRate * durationSeconds)
         
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: false
-        ),
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            throw NSError(domain: "MockTTSPipeline", code: 1, userInfo: [NSLocalizedDescriptionKey: "Errore allocazione buffer"])
+        // Genera WAV PCM int16 mono
+        var samples = [Int16](repeating: 0, count: frameCount)
+        let frequency: Float = 220.0
+        for i in 0..<frameCount {
+            let time = Float(i) / Float(sampleRate)
+            let attack = min(1.0, Float(i) / 800.0)
+            let release = min(1.0, Float(frameCount - i) / 800.0)
+            let envelope = attack * release
+            let value = sin(2.0 * .pi * frequency * time) * 0.15 * envelope
+            samples[i] = Int16(clamping: Int(value * 32767))
         }
         
-        buffer.frameLength = frameCount
+        return buildWAV(samples: samples, sampleRate: Int(sampleRate), channels: 1)
+    }
+    
+    private func buildWAV(samples: [Int16], sampleRate: Int, channels: Int) -> Data {
+        let dataSize = samples.count * 2
+        let fileSize = 36 + dataSize
         
-        // Genera un tono sinusoidale morbido con inviluppo per simulare una voce di test
-        if let channelData = buffer.floatChannelData?[0] {
-            let frequency: Float = 220.0 // La (A3)
-            for i in 0..<Int(frameCount) {
-                let time = Float(i) / Float(sampleRate)
-                // Inviluppo morbido di attacco/rilascio
-                let attack = min(1.0, Float(i) / 800.0)
-                let release = min(1.0, Float(Int(frameCount) - i) / 800.0)
-                let envelope = attack * release
-                channelData[i] = sin(2.0 * .pi * frequency * time) * 0.15 * envelope
-            }
+        var wav = Data()
+        wav.append(contentsOf: "RIFF".utf8)
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(fileSize).littleEndian) { Array($0) })
+        wav.append(contentsOf: "WAVE".utf8)
+        wav.append(contentsOf: "fmt ".utf8)
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) })
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })      // PCM
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(channels).littleEndian) { Array($0) }) // channels
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Array($0) })
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate * channels * 2).littleEndian) { Array($0) }) // byte rate
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(channels * 2).littleEndian) { Array($0) }) // block align
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(16).littleEndian) { Array($0) })      // bits per sample
+        wav.append(contentsOf: "data".utf8)
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(dataSize).littleEndian) { Array($0) })
+        samples.withUnsafeBufferPointer { ptr in
+            wav.append(UnsafeBufferPointer(start: UnsafeRawPointer(ptr.baseAddress!).assumingMemoryBound(to: UInt8.self), count: dataSize))
         }
-        
-        return buffer
+        return wav
     }
 }
