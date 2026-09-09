@@ -57,12 +57,40 @@ public struct FloatingPillView: View {
                     radius: isHovered ? 20 : 8
                 )
         }
+        .overlay(alignment: .bottom) {
+            // Progress bar sottile nel bordo inferiore della pillola
+            if !appState.readingQueue.isEmpty {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * progressFraction, height: 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .animation(.easeInOut(duration: 0.3), value: progressFraction)
+                }
+                .frame(height: 3)
+                .clipShape(Capsule())
+                .padding(.horizontal, 1)
+                .padding(.bottom, 1)
+            }
+        }
         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isHovered)
         .onHover { hovering in
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 self.isHovered = hovering
             }
         }
+    }
+    
+    private var progressFraction: CGFloat {
+        guard !appState.readingQueue.isEmpty else { return 0 }
+        let currentIndex = appState.currentChunk?.index ?? 0
+        return CGFloat(currentIndex + 1) / CGFloat(appState.readingQueue.count)
     }
     
     // MARK: - Subviews
