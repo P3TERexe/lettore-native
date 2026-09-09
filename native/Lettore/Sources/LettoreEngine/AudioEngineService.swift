@@ -11,11 +11,12 @@ public final class AudioEngineService: @unchecked Sendable {
     private let playerNode = AVAudioPlayerNode()
     private let timePitch = AVAudioUnitTimePitch()
     
-    /// Formato standard audio TTS Supertonic: 24.000 Hz, Float32, Mono
+    /// Formato standard audio TTS Supertonic: 44.100 Hz, Float32, Mono
     public let standardFormat: AVAudioFormat
     
     private var isConfigured = false
     private let lock = NSLock()
+    private var lastLevelsUpdate: CFAbsoluteTime = 0
     
     /// Callback per aggiornare i livelli audio dell'onda visiva (7 barre normalizzate 0.0 - 1.0)
     public var onAudioLevelsUpdate: (([Float]) -> Void)?
@@ -59,6 +60,11 @@ public final class AudioEngineService: @unchecked Sendable {
             guard let self = self, let channelData = buffer.floatChannelData?[0] else { return }
             let frameCount = Int(buffer.frameLength)
             guard frameCount > 0 else { return }
+            
+            // Throttle: max ~20 aggiornamenti/sec per non ingolfare SwiftUI
+            let now = CFAbsoluteTimeGetCurrent()
+            guard now - self.lastLevelsUpdate > 0.05 else { return }
+            self.lastLevelsUpdate = now
             
             var sum: Float = 0
             for i in 0..<frameCount {
@@ -119,6 +125,7 @@ public final class AudioEngineService: @unchecked Sendable {
     }
     
     /// Accoda un buffer PCM float32 alla riproduzione gapless.
+    /// Il callback onComplete viene invocato solo dopo che l'audio è stato effettivamente riprodotto.
     public func scheduleBuffer(_ buffer: AVAudioPCMBuffer, onComplete: (@Sendable () -> Void)? = nil) {
         lock.lock()
         defer { lock.unlock() }
@@ -139,7 +146,11 @@ public final class AudioEngineService: @unchecked Sendable {
             try? engine.start()
         }
         
-        playerNode.scheduleBuffer(buffer, completionHandler: onComplete)
+        // .dataPlayedBack: il callback scatta solo dopo la riproduzione effettiva,
+        // non appena il buffer è stato schedulato nel grafo audio.
+        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
+            onComplete?()
+        }
         if !playerNode.isPlaying {
             playerNode.play()
         }

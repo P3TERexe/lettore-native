@@ -13,6 +13,7 @@ public final class PlaybackCoordinator {
     public let speechFallback: NativeSpeechService
     
     private var isPlayingSupertonic: Bool = true
+    private var isSynthesizing: Bool = false
     
     public init(
         appState: AppState,
@@ -78,6 +79,7 @@ public final class PlaybackCoordinator {
     }
     
     public func stop() {
+        isSynthesizing = false
         audioEngine.stop()
         speechFallback.stop()
         appState.playbackState = .idle
@@ -88,7 +90,13 @@ public final class PlaybackCoordinator {
             appState.playbackState = .idle
             return
         }
+        guard !isSynthesizing else {
+            print("[PlaybackCoordinator] Sintesi già in corso, ignorata chiamata duplicata")
+            return
+        }
+        
         appState.playbackState = .playing
+        isSynthesizing = true
         
         Task {
             do {
@@ -101,6 +109,7 @@ public final class PlaybackCoordinator {
                 print("[PlaybackCoordinator] Supertonic OK — buffer: \(buffer.format), frames: \(buffer.frameLength)")
                 
                 await MainActor.run {
+                    self.isSynthesizing = false
                     self.isPlayingSupertonic = true
                     self.audioEngine.scheduleBuffer(buffer) {
                         Task { @MainActor in
@@ -115,6 +124,7 @@ public final class PlaybackCoordinator {
             } catch {
                 print("[PlaybackCoordinator] Supertonic ERRORE: \(error.localizedDescription). Uso fallback vocale di sistema.")
                 await MainActor.run {
+                    self.isSynthesizing = false
                     self.isPlayingSupertonic = false
                     self.speechFallback.speak(
                         text: current.text,
