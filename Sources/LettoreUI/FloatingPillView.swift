@@ -248,12 +248,12 @@ public struct FloatingPillView: View {
         VStack(spacing: 8) {
             // Sezione Onde Vocali Verticale (in alto)
             verticalWaveformSection
-                .padding(.top, isHovered || appState.isPillExpanded ? 12 : 14)
+                .padding(.top, isHovered || appState.isPillExpanded ? 10 : 13)
             
             // Sezione Controlli Verticali a Comparsa (espansione verso il basso)
             if isHovered || appState.isPillExpanded {
                 verticalControlsSection
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 10)
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.85, anchor: .top)),
@@ -262,11 +262,11 @@ public struct FloatingPillView: View {
                     )
             }
         }
-        .frame(width: 52)
-        .frame(height: isHovered || appState.isPillExpanded ? 295 : 88, alignment: .top)
+        .frame(width: 56)
+        .frame(height: isHovered || appState.isPillExpanded ? 188 : 48, alignment: .top)
         .background {
             Capsule()
-                .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.92))
+                .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.94))
                 .overlay(
                     Capsule()
                         .strokeBorder(
@@ -274,23 +274,23 @@ public struct FloatingPillView: View {
                             lineWidth: 1
                         )
                 )
-                .shadow(color: Color.black.opacity(0.7), radius: isHovered ? 25 : 12, y: 10)
+                .shadow(color: Color.black.opacity(0.7), radius: isHovered ? 20 : 10, y: 8)
                 .shadow(
-                    color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isHovered ? 0.25 : 0.1),
-                    radius: isHovered ? 20 : 8
+                    color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isHovered ? 0.22 : 0.08),
+                    radius: isHovered ? 16 : 6
                 )
         }
         .overlay(alignment: appState.pillDockSide == .right ? .leading : .trailing) {
             // Progress bar verticale lungo il bordo rivolto verso lo schermo
             if !appState.readingQueue.isEmpty {
                 GeometryReader { geo in
-                    let trackHeight = max(0, geo.size.height - 52)
+                    let trackHeight = max(0, geo.size.height - 40)
                     let progress = max(0.0, min(1.0, appState.playbackProgress))
                     let fillHeight = max(0, trackHeight * CGFloat(progress))
                     
                     ZStack(alignment: .top) {
                         Capsule()
-                            .fill(Color.white.opacity(0.12))
+                            .fill(Color.white.opacity(0.15))
                             .frame(width: 2.5, height: trackHeight)
                         
                         Capsule()
@@ -302,7 +302,7 @@ public struct FloatingPillView: View {
                                 )
                             )
                             .frame(width: 2.5, height: fillHeight)
-                            .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.5), radius: 2)
+                            .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.6), radius: 2)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
                 }
@@ -314,33 +314,33 @@ public struct FloatingPillView: View {
     }
     
     private var verticalWaveformSection: some View {
-        VStack(spacing: 3) {
-            ForEach(0..<appState.liveWaveformLevels.count, id: \.self) { idx in
-                let level = CGFloat(appState.liveWaveformLevels[idx])
+        HStack(spacing: 2.5) {
+            ForEach(0..<5, id: \.self) { idx in
+                let level = CGFloat(appState.liveWaveformLevels[idx + 1])
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(
                         LinearGradient(
                             colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
                     )
-                    .frame(width: max(8, level * 28), height: 2.5)
+                    .frame(width: 3, height: max(5, level * 18))
                     .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4), radius: 2)
             }
         }
-        .frame(width: 32, height: 48, alignment: .center)
+        .frame(width: 28, height: 20, alignment: .center)
     }
     
     private var verticalControlsSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             // Play / Pausa
             Button(action: handlePlayPause) {
                 ZStack {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 28, height: 28)
-                        .shadow(color: Color.white.opacity(0.3), radius: 4)
+                        .shadow(color: Color.white.opacity(0.35), radius: 3)
                     
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
                         .font(.system(size: 11, weight: .bold))
@@ -361,8 +361,7 @@ public struct FloatingPillView: View {
                 Text("↺5s")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .frame(width: 38, height: 20)
                     .background(Color.white.opacity(0.1))
                     .clipShape(Capsule())
             }
@@ -379,8 +378,7 @@ public struct FloatingPillView: View {
                 Text("15s↻")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .frame(width: 38, height: 20)
                     .background(Color.white.opacity(0.1))
                     .clipShape(Capsule())
             }
@@ -396,10 +394,9 @@ public struct FloatingPillView: View {
                 }
             } label: {
                 Text("\(String(format: "%.2f", appState.playbackSpeed))×")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color(red: 0.0, green: 0.9, blue: 1.0))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2.5)
+                    .frame(width: 40, height: 18)
                     .background(Color.white.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
             }
@@ -433,6 +430,7 @@ public struct FloatingPillView: View {
                 }
                 .buttonStyle(.plain)
             }
+            .frame(height: 16)
         }
     }
     
