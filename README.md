@@ -11,6 +11,7 @@
 ## 🚀 Funzionalità Chiave
 
 *   **100% Nativa SwiftUI/AppKit**: Leggerissima sulla memoria (<80 MB) con tempi di avvio istantanei. Zero Electron, zero WebKit.
+*   **Supporto Multilingua (Novità)**: Selezione dinamica di 5 lingue (Italiano, Inglese, Spagnolo, Francese, Tedesco) con profili vocali dedicati per ciascun idioma.
 *   **Accessibilità Integrata (AX)**: Si aggancia nativamente a macOS tramite le Accessibility API per leggere il testo selezionato in qualsiasi applicazione attiva (Browser, PDF Reader, Word).
 *   **Motore Audio Gapless**: Architettura `AVAudioPlayer` ad altissime prestazioni per una riproduzione senza interruzioni e un *waveform tap* real-time fluido e leggero.
 *   **Normalizzazione Intelligente**: Espande automaticamente abbreviazioni italiane ("Dott.", "Sig.ra"), date, valute e URL *prima* della sintesi vocale.
