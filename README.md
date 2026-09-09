@@ -2,6 +2,9 @@
 
 > **Lettore Native** è un'applicazione macOS nativa progettata per l'accessibilità e l'inclusione. Legge ad alta voce i tuoi testi selezionati ovunque nel sistema usando il motore vocale neurale Supertonic 3 (basato su ONNX Runtime).
 
+> ⚠️ **Disponibilità della Piattaforma:** Per il momento il progetto è sviluppato e disponibile **esclusivamente per macOS** (14.0 Sonoma o superiore). Non è al momento supportato su Windows o Linux.
+
+![macOS Only](https://img.shields.io/badge/platform-macOS%20only-lightgrey?style=flat-square&logo=apple)
 ![macOS Support](https://img.shields.io/badge/macOS-14.0%2B-silver?style=flat-square&logo=apple)
 ![Swift Version](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)
 ![License](https://img.shields.io/badge/license-CC_BY--NC--SA_4.0-blue?style=flat-square)
@@ -27,6 +30,7 @@ Il motore neurale di sintesi vocale (Supertonic) risiede ancora in un backend lo
 
 ## 🛠️ Requisiti di Sistema
 
+*   **Piattaforma**: **Esclusivamente macOS** (attualmente non compatibile con Windows o Linux).
 *   **OS**: macOS 14.0 (Sonoma) o superiore.
 *   **Sviluppo**: Xcode 16.0+ o Swift 6.0 Toolchain.
 *   **Python**: Python 3.10+ (necessario solo per eseguire il backend TTS in modalità sviluppo).
