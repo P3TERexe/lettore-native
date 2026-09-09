@@ -78,6 +78,13 @@ public struct TextNormalizer: Sendable {
             )
         }
         
+        // 7. Rimuovi variation selectors Unicode e caratteri invisibili
+        processed = processed.replacingOccurrences(
+            of: #"[\u{FE00}-\u{FE0F}]"#,
+            with: "",
+            options: .regularExpression
+        )
+        
         // Rimuovi spazi doppi orfani
         processed = processed.replacingOccurrences(
             of: #"\s{2,}"#,

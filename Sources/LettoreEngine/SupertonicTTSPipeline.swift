@@ -44,16 +44,18 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         // L'ID della voce nel frontend è "IT-M1", "EN-F2", ecc. 
-        // Il backend Python si aspetta solo "M1", "F1", "M2", "F2".
-        let baseVoiceId = voice.id.split(separator: "-").last.map(String.init) ?? "M1"
-        let validVoices: Set<String> = ["M1", "F1", "M2", "F2"]
+        // Il backend Python supporta M1..M5 e F1..F5.
+        let baseVoiceId = voice.id.split(separator: "-").last.map(String.init)?.uppercased() ?? "M1"
+        let validVoices: Set<String> = ["M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5"]
         let supertonicVoiceId = validVoices.contains(baseVoiceId) ? baseVoiceId : "M1"
+        
+        let safeSpeed = min(2.0, max(0.7, Double(speed)))
         
         let body: [String: Any] = [
             "text": text,
             "voice": supertonicVoiceId,
             "lang": voice.language,
-            "speed": Double(speed),
+            "speed": safeSpeed,
             "steps": 8
         ]
         

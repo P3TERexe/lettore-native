@@ -125,12 +125,23 @@ class SupertonicONNXEngine(BaseTTSEngine):
     def _resolve_style(self, voice: str) -> Any:
         if self._tts is None:
             raise RuntimeError("Motore ONNX non inizializzato")
+        # 1. Match esatto (es. "M1", "F1")
         if voice in self._tts.voice_style_names:
             return self._tts.get_voice_style(voice)
+        
+        # 2. Match su suffisso lingua (es. "IT-M1" -> "M1", "EN-F2" -> "F2")
+        candidate = voice.strip().split("-")[-1].upper()
+        if candidate in self._tts.voice_style_names:
+            return self._tts.get_voice_style(candidate)
+            
+        # 3. Match su file di stile personalizzato
         custom_path = _model_cache_dir(self.model) / "custom_styles" / f"{voice}.json"
         if custom_path.is_file():
             return self._tts.get_voice_style_from_path(custom_path)
-        raise ValueError(f"voce sconosciuta: {voice}")
+            
+        # 4. Fallback sicuro su M1 invece di bloccare la sintesi con eccezione 400
+        logger.warning("Voce '%s' non trovata in %s. Fallback su 'M1'", voice, self._tts.voice_style_names)
+        return self._tts.get_voice_style("M1")
 
     def synthesize(
         self, text: str, voice: str, lang: str, steps: int, speed: float
@@ -138,12 +149,30 @@ class SupertonicONNXEngine(BaseTTSEngine):
         if self._tts is None:
             raise RuntimeError("Motore ONNX non inizializzato")
         style = self._resolve_style(voice)
+        
+        # Sanitizzazione automatica dei caratteri non supportati (es. emoji, varianti grafiche, simboli rari)
+        sanitized_text = text
+        if hasattr(self._tts, "model") and hasattr(self._tts.model, "text_processor"):
+            tp = self._tts.model.text_processor
+            is_valid, unsupported = tp.validate_text(sanitized_text)
+            if not is_valid and unsupported:
+                logger.info("Rimozione caratteri non supportati per TTS: %s", unsupported)
+                for c in unsupported:
+                    sanitized_text = sanitized_text.replace(c, " ")
+                sanitized_text = " ".join(sanitized_text.split())
+        
+        if not sanitized_text.strip():
+            sanitized_text = "..."
+            
+        # Clamping velocità ammesso da Supertonic (0.7 - 2.0)
+        safe_speed = max(0.7, min(2.0, float(speed)))
+            
         wav, duration = self._tts.synthesize(
-            text=text,
+            text=sanitized_text,
             voice_style=style,
             lang=lang,
             total_steps=steps,
-            speed=speed,
+            speed=safe_speed,
         )
         duration_sec = float(duration[0])
         return wav, duration_sec

@@ -10,7 +10,7 @@ class TTSRequest(BaseModel):
     lang: str = "auto"
     voice: str = "M1"
     steps: int = Field(default=8, ge=5, le=12)
-    speed: float = Field(default=1.05, ge=0.7, le=2.0)
+    speed: float = Field(default=1.05, ge=0.1, le=4.0)
     normalize_text: bool = True
     text_exclusions: list[str] = Field(default_factory=list)
 
@@ -20,7 +20,7 @@ class ExportRequest(BaseModel):
     lang: str = "auto"
     voice: str = "M1"
     steps: int = Field(default=8, ge=5, le=12)
-    speed: float = Field(default=1.05, ge=0.7, le=2.0)
+    speed: float = Field(default=1.05, ge=0.1, le=4.0)
 
 
 class Job(BaseModel):
