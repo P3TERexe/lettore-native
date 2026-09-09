@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lettore Native: Sintesi Vocale Neurale per macOS</title>
+  <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+  <!-- Barra di Navigazione Superiore -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#hero" class="brand">
+        <span class="brand-icon">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+        </span>
+        <span class="brand-name">Lettore Native</span>
+        <span class="brand-tag">v3.0.0</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Navigazione principale">
+        <a href="#simulatore" class="nav-link">Simulatore</a>
+        <a href="#funzionalita" class="nav-link">Architettura</a>
+        <a href="#accessibilita" class="nav-link">Accessibilità</a>
+        <a href="#galleria" class="nav-link">Interfaccia</a>
+        <a href="#installazione" class="nav-link">Sorgenti & Build</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://github.com/P3TERexe/lettore-native" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" aria-label="Visualizza repository su GitHub">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+        <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-primary btn-sm">Scarica per macOS</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main id="main-content">
+    <section id="hero" class="section hero-section">
+      <div class="container hero-container">
+        <div class="hero-badge-wrap">
+          <span class="hero-badge">macOS 14 Sonoma & 15 Sequoia</span>
+        </div>
+        <h1 class="hero-title">Lettura vocale neurale a livello di sistema. Senza web wrapper, senza latenza.</h1>
+        <p class="hero-lead">
+          Costruito interamente in Swift 6 nativo con AppKit e SwiftUI. Si aggancia direttamente alle API di Accessibilità di macOS per leggere qualunque testo evidenziato a schermo, occupando meno di 80 MB di memoria.
+        </p>
+
+        <div class="hero-cta-group">
+          <a href="#simulatore" class="btn btn-primary btn-lg">Prova il Simulatore Web</a>
+          <a href="#installazione" class="btn btn-secondary btn-lg">Istruzioni di Build Swift</a>
+        </div>
+
+        <!-- Metriche Tecniche Reali -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-val">&lt; 80 MB</span>
+            <span class="metric-label">Memoria RAM in esecuzione</span>
+            <span class="metric-note">Zero Chromium, zero Electron</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">&lt; 150 ms</span>
+            <span class="metric-label">Latenza avvio sintesi</span>
+            <span class="metric-note">Streaming audio a blocchi</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">100% Locale</span>
+            <span class="metric-label">Privacy e autonomia</span>
+            <span class="metric-note">Modello neurale ONNX offline</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val">Swift 6</span>
+            <span class="metric-label">Architettura macOS</span>
+            <span class="metric-note">Concorrenza sicura e AppKit</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simulatore Interattivo Desktop -->
+    <section id="simulatore" class="section simulator-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Esperienza Interattiva</span>
+          <h2 class="section-title">La Floating Pill nel tuo browser</h2>
+          <p class="section-desc">
+            Durante la lettura la pillola rimane compatta mostrando unicamente l'onda vocale. Passa con il mouse sopra la pillola per svelare i controlli completi con fisica a molla.
+          </p>
+        </div>
+
+        <!-- Schermata Desktop Simulata -->
+        <div class="simulator-window">
+          <!-- Window Titlebar macOS -->
+          <div class="window-titlebar">
+            <div class="traffic-lights" aria-hidden="true">
+              <span class="traffic-light close"></span>
+              <span class="traffic-light minimize"></span>
+              <span class="traffic-light zoom"></span>
+            </div>
+            <div class="window-title" id="window-title-text">Documento: Italo Calvino, Lezioni Americane</div>
+            <div class="window-controls-dummy"></div>
+          </div>
+
+          <!-- Document Selector Bar -->
+          <div class="doc-toolbar">
+            <span class="doc-toolbar-label">Brano di prova:</span>
+            <div class="doc-chips" role="tablist">
+              <button type="button" class="doc-chip is-active" role="tab" aria-selected="true" data-doc="calvino">Italo Calvino</button>
+              <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="neuroscience">Neuroscienze & Lettura</button>
+              <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="custom">Testo Personalizzato</button>
+            </div>
+          </div>
+
+          <!-- Document Workspace Area -->
+          <div class="document-viewport">
+            
+            <!-- FLOATING PILL OVERLAY (Dynamic Island) -->
+            <div class="pill-mount-point" id="pillContainer">
+              <div class="dynamic-pill" id="dynamicPill" tabindex="0" role="region" aria-label="Controller vocale Lettore">
+                
+                <!-- Stato Collassato: Onda Sonora -->
+                <div class="pill-wave-section" id="pillWaveSection">
+                  <div class="wave-visualizer" id="waveBars" aria-hidden="true">
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                    <span class="wave-bar"></span>
+                  </div>
+                  <span class="pill-status-dot" id="pillStatusDot" title="Stato: pronto"></span>
+                </div>
+
+                <!-- Stato Espanso: Controlli Completi -->
+                <div class="pill-controls-section" id="pillControlsSection">
+                  <button type="button" class="pill-btn" id="btnPrevChunk" aria-label="Frase precedente" title="Frase precedente (Freccia Sinistra)">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                      <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                    </svg>
+                  </button>
+
+                  <button type="button" class="pill-btn pill-btn-play" id="btnPlayPause" aria-label="Riproduci o metti in pausa" title="Play / Pausa (Spazio)">
+                    <svg class="icon-play" id="iconPlay" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    <svg class="icon-pause is-hidden" id="iconPause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                  </button>
+
+                  <button type="button" class="pill-btn" id="btnNextChunk" aria-label="Frase successiva" title="Frase successiva (Freccia Destra)">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                    </svg>
+                  </button>
+
+                  <div class="pill-divider"></div>
+
+                  <!-- Selettore di Velocità -->
+                  <button type="button" class="pill-speed-toggle" id="btnSpeed" aria-label="Velocità di riproduzione" title="Modifica velocità">
+                    <span id="speedValue">1.0×</span>
+                  </button>
+
+                  <!-- Selettore Modalità Voce -->
+                  <div class="pill-divider"></div>
+
+                  <span class="pill-timer" id="pillTimer" aria-live="polite">Frase 1/3</span>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Contenuto del Documento -->
+            <div class="document-content-paper" id="documentPaper">
+              <!-- Testo Calvino (Predefinito) -->
+              <div class="doc-text-block is-visible" id="doc-calvino">
+                <p>
+                  <span class="chunk" data-chunk-index="0">Prendete la vita con leggerezza, che leggerezza non è superficialità, ma planare sulle cose dall'alto, non avere macigni sul cuore.</span>
+                  <span class="chunk" data-chunk-index="1">La leggerezza per me si associa con la precisione e la determinazione, non con la vaghezza e l'abbandono al caso.</span>
+                  <span class="chunk" data-chunk-index="2">Nei momenti in cui il regno dell'umano mi sembra condannato alla pesantezza, penso che dovrei volare in un altro spazio, come Perseo.</span>
+                </p>
+              </div>
+
+              <!-- Testo Scientifico -->
+              <div class="doc-text-block" id="doc-neuroscience">
+                <p>
+                  <span class="chunk" data-chunk-index="0">L'ascolto combinato alla scansione visiva riduce il carico cognitivo della memoria di lavoro fino al quaranta percento durante lo studio intensivo.</span>
+                  <span class="chunk" data-chunk-index="1">La segmentazione del discorso in unità sintattiche complete consente al cervello di anticipare la struttura della frase senza interruzioni ritmiche.</span>
+                  <span class="chunk" data-chunk-index="2">Per questo motivo la sincronizzazione istantanea tra voce neurale e marcatore visivo è essenziale per la comprensione profonda.</span>
+                </p>
+              </div>
+
+              <!-- Editor Testo Personalizzato -->
+              <div class="doc-text-block" id="doc-custom">
+                <div class="custom-input-wrap">
+                  <label for="customTextInput" class="custom-input-label">Incolla o digita il tuo testo (verrà suddiviso in frasi):</label>
+                  <textarea id="customTextInput" class="custom-textarea" rows="4" placeholder="Scrivi una o più frasi qui per testare la segmentazione e la lettura vocale..."></textarea>
+                  <div class="custom-input-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="btnApplyCustomText">Carica nel simulatore</button>
+                  </div>
+                </div>
+                <div id="customChunksContainer" class="custom-chunks-preview"></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Barra di Stato del Simulatore -->
+          <div class="simulator-footer">
+            <div class="simulator-hints">
+              <span class="hint-item"><kbd>Spazio</kbd> Play / Pausa</span>
+              <span class="hint-item"><kbd>←</kbd> <kbd>→</kbd> Salta Frase</span>
+              <span class="hint-item"><kbd>Click Frase</kbd> Ascolta da lì</span>
+            </div>
+            <div class="simulator-engine-tag">
+              <span class="dot-online"></span> Demo Web: Web Audio Engine (Su macOS: Modello Neurale ONNX Locale)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architettura & Caratteristiche Tecniche -->
+    <section id="funzionalita" class="section architecture-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Ingegneria Nativa</span>
+          <h2 class="section-title">Architettura a zero compromessi per macOS</h2>
+          <p class="section-desc">
+            Nessun browser incorporato, nessuna telemetria di terze parti. Ogni componente sfrutta i framework di sistema più veloci disponibili su Apple Silicon.
+          </p>
+        </div>
+
+        <div class="features-mosaic">
+          <!-- Card 1: Accessibility AX -->
+          <article class="feature-box">
+            <div class="feature-box-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="4" r="2"/>
+                <path d="M12 7v7"/>
+                <path d="M8 10h8"/>
+                <path d="M9 21l3-7 3 7"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Cattura Istantanea con Accessibility AX</h3>
+            <p class="feature-box-text">
+              Si collega all'albero <code>AXUIElement</code> del sistema operativo. Non serve copiare e incollare testo: basta selezionare qualsiasi paragrafo in Safari, Apple Books, Anteprima o Microsoft Word e premere la scorciatoia globale configurata.
+            </p>
+          </article>
+
+          <!-- Card 2: Vision OCR Offline -->
+          <article class="feature-box">
+            <div class="feature-box-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Apple Vision OCR Offline</h3>
+            <p class="feature-box-text">
+              Per i documenti scansionati, i PDF protetti o il testo bloccato all'interno di grafici e presentazioni, Lettore scatta un'acquisizione mirata dell'area e la trasforma in testo leggibile usando i modelli di visione neurale integrati in macOS.
+            </p>
+          </article>
+
+          <!-- Card 3: Normalizzatore Linguistico -->
+          <article class="feature-box">
+            <div class="feature-box-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 7V4h16v3"/>
+                <path d="M9 20h6"/>
+                <path d="M12 4v16"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Normalizzatore Intelligente per l'Italiano</h3>
+            <p class="feature-box-text">
+              Espande in automatico abbreviazioni frequenti ("Dott.", "Ing.", "Sig.ra", "pagg."), date formattate, valute ("150€" in "centocinquanta euro") e URL, per garantire una dizione fonetica naturale e corretta durante la sintesi.
+            </p>
+          </article>
+
+          <!-- Card 4: Audio Engine AVAudioPlayer -->
+          <article class="feature-box">
+            <div class="feature-box-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Pipeline Audio Gapless</h3>
+            <p class="feature-box-text">
+              La riproduzione non attende che l'intero documento sia sintetizzato: genera e accoda i frammenti di frase (chunk) man mano che procedi. Il metering nativo a 20 Hz anima la forma d'onda senza pesare sulla GPU o sulla batteria.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Galleria Visuale Mockup di Produzione -->
+    <section id="galleria" class="section gallery-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Interfaccia Utente</span>
+          <h2 class="section-title">Disegnato per non interrompere il flusso di lavoro</h2>
+          <p class="section-desc">
+            Dalla pillola fluttuante non intrusiva alla vista Studio per la revisione approfondita di lunghi documenti.
+          </p>
+        </div>
+
+        <div class="gallery-grid">
+          <figure class="gallery-item">
+            <div class="gallery-img-wrap">
+              <img src="./assets/images/12_dynamic_island_hover_states.jpg" alt="Mockup della Floating Pill in stato compresso e in stato espanso al passaggio del mouse" loading="lazy">
+            </div>
+            <figcaption class="gallery-caption">
+              <strong>Stati della Dynamic Island</strong>
+              <span>A sinistra solo l'onda vocale per zero distrazioni; a destra l'espansione elastica con tutti i controlli audio.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-item">
+            <div class="gallery-img-wrap">
+              <img src="./assets/images/01_dynamic_notch_hud.jpg" alt="Mockup dell'integrazione del controller vocale direttamente nella tacca dei MacBook" loading="lazy">
+            </div>
+            <figcaption class="gallery-caption">
+              <strong>Integrazione Tacca MacBook</strong>
+              <span>Il controller si ancora magneticamente ai lati della fotocamera, lasciando il 100% dell'area di lavoro libera.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-item">
+            <div class="gallery-img-wrap">
+              <img src="./assets/images/04_macos_studio_mode.jpg" alt="Mockup della finestra completa Studio Mode per la lettura di documenti complessi" loading="lazy">
+            </div>
+            <figcaption class="gallery-caption">
+              <strong>Lettore Studio Mode</strong>
+              <span>Ambiente completo con divisione in paragrafi, navigazione per frasi e ispezione fonetica per letture prolungate.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-item">
+            <div class="gallery-img-wrap">
+              <img src="./assets/images/06_super_accessible_low_vision.png" alt="Mockup del profilo Super-Accessible ad altissimo contrasto per ipovedenti" loading="lazy">
+            </div>
+            <figcaption class="gallery-caption">
+              <strong>Modalità Super-Accessible</strong>
+              <span>Profilo ad alto contrasto conforme WCAG AAA, con supporto a caratteri ad alta leggibilità per persone con dislessia o ipovisione.</span>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Accessibilità & Inclusione -->
+    <section id="accessibilita" class="section a11y-section">
+      <div class="container">
+        <div class="a11y-card">
+          <div class="a11y-content">
+            <span class="section-kicker">Accessibilità Universale</span>
+            <h2 class="section-title">Costruito per chi legge con le orecchie</h2>
+            <p class="a11y-text">
+              Lettore è nato con un obiettivo chiaro: permettere a chi affronta affaticamento visivo, dislessia o difficoltà di concentrazione di fruire di qualunque testo sullo schermo con la stessa naturalezza di un podcast.
+            </p>
+            <ul class="a11y-list">
+              <li>
+                <strong>Navigazione da tastiera senza mouse:</strong> scorciatoie globali personalizzabili per avviare, mettere in pausa e scorrere i blocchi senza mai togliere le mani dalla tastiera.
+              </li>
+              <li>
+                <strong>Nessun contrasto slavato:</strong> l'evidenziatore di lettura usa colori scelti per superare i requisiti WCAG AA su sfondi scuri e chiari.
+              </li>
+              <li>
+                <strong>Finestre accessorie senza furto di focus:</strong> la pillola fluttuante non toglie il cursore dall'editor di testo o dal documento su cui stai lavorando.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download & Guida per Sviluppatori -->
+    <section id="installazione" class="section install-section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">Disponibilità & Compilazione</span>
+          <h2 class="section-title">Scarica o compila direttamente da sorgente</h2>
+          <p class="section-desc">
+            Richiede macOS 14.0 Sonoma o versione successiva. Il backend locale Supertonic ONNX genera l'audio sulla tua macchina, senza costi di API cloud.
+          </p>
+        </div>
+
+        <div class="install-grid">
+          <!-- Colonna 1: Download Release -->
+          <div class="install-card">
+            <div class="install-card-badge">Release Pronta</div>
+            <h3 class="install-card-title">Pacchetto Applicazione (.zip)</h3>
+            <p class="install-card-text">
+              Scarica l'applicazione macOS precompilata con supporto per architetture Apple Silicon (M1/M2/M3/M4).
+            </p>
+            <div class="install-card-actions">
+              <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-primary btn-block">
+                Scarica Lettore Native v3.0.0
+              </a>
+              <span class="install-note">Dimensione app: ~400 KB (richiede Python 3.10+ per il backend locale)</span>
+            </div>
+          </div>
+
+          <!-- Colonna 2: Compilazione da Terminale -->
+          <div class="install-card">
+            <div class="install-card-badge">Open Source</div>
+            <h3 class="install-card-title">Compilazione con Swift Package Manager</h3>
+            <p class="install-card-text">
+              Clona la repository ed esegui il target nativo con un singolo comando:
+            </p>
+
+            <div class="code-block-wrap">
+              <div class="code-block-header">
+                <span>Terminale macOS (Zsh)</span>
+                <button type="button" class="btn-copy" id="btnCopyCode" aria-label="Copia comando negli appunti">Copia</button>
+              </div>
+              <pre class="code-pre"><code id="codeSnippet">git clone https://github.com/P3TERexe/lettore-native.git
+cd lettore-native
+
+# 1. Avvia il backend locale in una finestra
+cd backend && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt && python main.py
+
+# 2. In un altro terminale compila ed esegui l'app nativa
+swift run LettoreApp</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer Minimale e Onesto (Niente template 4 colonne finto) -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-left">
+        <span class="footer-brand">Lettore Native</span>
+        <span class="footer-copy">Progetto open source rilasciato sotto licenza CC BY-NC-SA 4.0.</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/P3TERexe/lettore-native" target="_blank" rel="noopener noreferrer">Repository GitHub</a>
+        <a href="https://github.com/P3TERexe/lettore-native/releases" target="_blank" rel="noopener noreferrer">Note di Rilascio</a>
+        <a href="https://github.com/P3TERexe/lettore-native/issues" target="_blank" rel="noopener noreferrer">Segnala un Problema</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
