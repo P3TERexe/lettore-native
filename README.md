@@ -6,6 +6,8 @@
 ![Swift Version](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)
 ![License](https://img.shields.io/badge/license-CC_BY--NC--SA_4.0-blue?style=flat-square)
 
+### 📥 [Scarica l'Ultima Versione (v3.0.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
+
 ## 🚀 Funzionalità Chiave
 
 *   **100% Nativa SwiftUI/AppKit**: Leggerissima sulla memoria (<80 MB) con tempi di avvio istantanei. Zero Electron, zero WebKit.
@@ -51,6 +53,17 @@ Apri una nuova finestra del terminale:
 swift run LettoreApp
 ```
 In alternativa, puoi aprire il file `Package.swift` direttamente con **Xcode** e premere `Cmd+R`.
+
+## ⚙️ Configurazione Accessibilità (AX)
+
+Affinché l'app possa leggere il testo che evidenzi (premendo Play sulla Pillola o usando le scorciatoie da tastiera), deve poter "vedere" le altre app aperte sul Mac. 
+
+Al primo avvio, l'applicazione ti chiederà automaticamente i permessi. Per autorizzarla:
+1. Apri le **Impostazioni di Sistema** del Mac.
+2. Vai su **Privacy e Sicurezza** -> **Accessibilità**.
+3. Cerca `Lettore Native` nell'elenco.
+4. **Attiva l'interruttore** (se non c'è, puoi aggiungerlo trascinando l'app dentro la finestra o cliccando sul tasto `+`).
+5. Chiudi e riapri l'app. Da ora in poi il lettore funzionerà su qualsiasi applicazione!
 
 ## 🚨 Risoluzione Problemi: "Apple non è in grado di verificare l'app" (Gatekeeper)
 
