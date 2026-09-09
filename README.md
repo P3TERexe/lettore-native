@@ -52,6 +52,24 @@ swift run LettoreApp
 ```
 In alternativa, puoi aprire il file `Package.swift` direttamente con **Xcode** e premere `Cmd+R`.
 
+## 🚨 Risoluzione Problemi: "Apple non è in grado di verificare l'app" (Gatekeeper)
+
+Poiché l'app scaricata da GitHub (o compilata manualmente) non è autenticata con un certificato Apple Developer a pagamento, macOS per sicurezza la bloccherà mostrando il messaggio: *"Apple non è in grado di verificare che LettoreNative non contenga malware"*.
+
+Per aprirla, puoi usare uno dei due metodi seguenti:
+
+### Metodo 1: Click Destro (Consigliato)
+1. Tieni premuto **Control (`^`)** e fai **Click** sull'app `LettoreNative.app` (oppure fai **Click destro**).
+2. Scegli **Apri** dal menu a tendina.
+3. macOS ti mostrerà lo stesso avviso, ma questa volta ci sarà un pulsante **"Apri"**. Cliccalo per autorizzare l'app per sempre.
+
+### Metodo 2: Terminale (Se il Metodo 1 non funziona)
+Se il Mac è impostato in modo molto restrittivo e nasconde il pulsante Apri, rimuovi la "quarantena" di macOS aprendo il Terminale e scrivendo:
+```bash
+xattr -cr /Percorso/Dove/Hai/Salvato/LettoreNative.app
+```
+Dopodiché potrai aprirla con un normale doppio click!
+
 ## 📦 Struttura del Progetto
 
 *   `Package.swift`: Configurazione del Swift Package Manager.
