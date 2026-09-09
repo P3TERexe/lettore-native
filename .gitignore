@@ -29,6 +29,7 @@ Icon
 # Lettore Artifacts
 *.wav
 *.mp3
+!docs/assets/audio/*.mp3
 tests/test_output/
 backend_tests/test_output/
 

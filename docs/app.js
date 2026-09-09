@@ -1,11 +1,25 @@
 /**
  * Lettore Native: Simulatore Interattivo Web (docs/app.js)
- * Architettura: Web Audio API + SpeechSynthesis + Dynamic Island Morphing
- * Conforme a standard anti-slop: zero elementi finti, navigazione completa.
+ * Architettura: Audio Neurale Supertonic 3 ONNX + Web Audio Analyser
+ * Conforme a standard anti-slop: campioni vocali originali a 44.1 kHz.
  */
 
 (function () {
   'use strict';
+
+  // Mappa dei file audio reali generati direttamente dal motore Supertonic 3 ONNX
+  const supertonicAudioMap = {
+    calvino: [
+      './assets/audio/calvino_0.mp3',
+      './assets/audio/calvino_1.mp3',
+      './assets/audio/calvino_2.mp3'
+    ],
+    neuroscience: [
+      './assets/audio/neuroscience_0.mp3',
+      './assets/audio/neuroscience_1.mp3',
+      './assets/audio/neuroscience_2.mp3'
+    ]
+  };
 
   // Stato dell'applicazione simulatore
   const state = {
@@ -17,8 +31,9 @@
     isExpanded: false,
     audioContext: null,
     analyser: null,
+    audioSourceNode: null,
     animFrameId: null,
-    speechUtterance: null,
+    audioElement: null,
     autoTimer: null
   };
 
@@ -48,7 +63,7 @@
   const btnCopyCode = document.getElementById('btnCopyCode');
   const codeSnippet = document.getElementById('codeSnippet');
 
-  // Inizializzazione Audio Context (attivato solo al primo gesto dell'utente)
+  // Inizializzazione Audio Context e Analyser per l'onda sonora in tempo reale
   function ensureAudioContext() {
     if (!state.audioContext) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -56,11 +71,51 @@
         state.audioContext = new AudioCtx();
         state.analyser = state.audioContext.createAnalyser();
         state.analyser.fftSize = 32;
+        state.analyser.smoothingTimeConstant = 0.8;
       }
     }
     if (state.audioContext && state.audioContext.state === 'suspended') {
       state.audioContext.resume();
     }
+  }
+
+  // Animazione dell'onda sonora sincronizzata alle frequenze audio reali
+  function startWaveAnimation() {
+    if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
+
+    const bufferLength = state.analyser ? state.analyser.frequencyBinCount : 0;
+    const dataArray = state.analyser ? new Uint8Array(bufferLength) : null;
+
+    function renderFrame() {
+      if (!state.isPlaying) return;
+
+      if (state.analyser && dataArray) {
+        state.analyser.getByteFrequencyData(dataArray);
+        // Distribuisce le frequenze sulle 7 barre della pillola
+        waveBars.forEach((bar, i) => {
+          const val = dataArray[i % bufferLength] || 0;
+          // Normalizza l'altezza tra 4px e 24px
+          const barHeight = Math.max(4, Math.min(24, Math.round((val / 255) * 24)));
+          bar.style.height = `${barHeight}px`;
+        });
+      }
+
+      state.animFrameId = requestAnimationFrame(renderFrame);
+    }
+
+    renderFrame();
+  }
+
+  function stopWaveAnimation() {
+    if (state.animFrameId) {
+      cancelAnimationFrame(state.animFrameId);
+      state.animFrameId = null;
+    }
+    // Ripristina l'altezza base delle barre
+    const defaultHeights = [6, 12, 18, 14, 20, 10, 6];
+    waveBars.forEach((bar, i) => {
+      bar.style.height = `${defaultHeights[i] || 8}px`;
+    });
   }
 
   // Ottiene i chunk attivi nel documento corrente
@@ -76,14 +131,12 @@
     chunks.forEach((c, idx) => {
       if (idx === state.currentChunkIndex) {
         c.classList.add('is-active');
-        // Scroll morbido se il chunk è fuori vista nel box
         c.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       } else {
         c.classList.remove('is-active');
       }
     });
 
-    // Aggiorna indicatore frasi nella pillola
     if (chunks.length > 0) {
       pillTimer.textContent = `Frase ${state.currentChunkIndex + 1}/${chunks.length}`;
     } else {
@@ -91,19 +144,13 @@
     }
   }
 
-  // Sintesi vocale del chunk corrente
-  function speakCurrentChunk() {
-    const chunks = getCurrentChunks();
-    if (chunks.length === 0 || state.currentChunkIndex >= chunks.length) {
-      stopPlayback();
-      return;
+  // Ferma qualsiasi audio o sintesi in corso
+  function stopActiveAudioSources() {
+    if (state.audioElement) {
+      state.audioElement.pause();
+      state.audioElement.currentTime = 0;
+      state.audioElement = null;
     }
-
-    const chunkEl = chunks[state.currentChunkIndex];
-    const textToSpeak = chunkEl.textContent.trim();
-    updateChunkHighlight();
-
-    // Pulizia timer o sintesi precedente
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -111,27 +158,51 @@
       clearTimeout(state.autoTimer);
       state.autoTimer = null;
     }
+    stopWaveAnimation();
+  }
 
-    // Se il browser supporta SpeechSynthesis
-    if ('speechSynthesis' in window && textToSpeak.length > 0) {
-      ensureAudioContext();
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      state.speechUtterance = utterance;
-      utterance.lang = 'it-IT';
-      utterance.rate = state.speed;
+  // Esecuzione del chunk corrente
+  function playCurrentChunk() {
+    const chunks = getCurrentChunks();
+    if (chunks.length === 0 || state.currentChunkIndex >= chunks.length) {
+      stopPlayback();
+      return;
+    }
 
-      // Cerca una voce italiana se disponibile
-      const voices = window.speechSynthesis.getVoices();
-      const itVoice = voices.find(v => v.lang.startsWith('it'));
-      if (itVoice) {
-        utterance.voice = itVoice;
+    updateChunkHighlight();
+    stopActiveAudioSources();
+    ensureAudioContext();
+
+    // Caso 1: Documento standard con campioni reali Supertonic 3 ONNX
+    if (supertonicAudioMap[state.currentDoc] && supertonicAudioMap[state.currentDoc][state.currentChunkIndex]) {
+      const audioUrl = supertonicAudioMap[state.currentDoc][state.currentChunkIndex];
+      const audio = new Audio(audioUrl);
+      state.audioElement = audio;
+      audio.playbackRate = state.speed;
+
+      // Connessione Web Audio per visualizzatore di frequenze (se non bloccato da CORS)
+      if (state.audioContext && state.analyser) {
+        try {
+          if (!audio._connected) {
+            const source = state.audioContext.createMediaElementSource(audio);
+            source.connect(state.analyser);
+            state.analyser.connect(state.audioContext.destination);
+            audio._connected = true;
+          }
+        } catch (e) {
+          // Fallback silenzioso se già connesso o restrizione browser
+        }
       }
 
-      utterance.onend = function () {
+      audio.onplay = function () {
+        startWaveAnimation();
+      };
+
+      audio.onended = function () {
         if (!state.isPlaying) return;
         if (state.currentChunkIndex < chunks.length - 1) {
           state.currentChunkIndex++;
-          speakCurrentChunk();
+          playCurrentChunk();
         } else {
           // Fine documento
           stopPlayback();
@@ -140,35 +211,75 @@
         }
       };
 
-      utterance.onerror = function (e) {
-        console.warn('SpeechSynthesis error, fallback a timer:', e);
-        fallbackChunkTimer(textToSpeak, chunks.length);
+      audio.onerror = function (err) {
+        console.warn('Errore riproduzione file Supertonic, fallback a SpeechSynthesis:', err);
+        fallbackChunkSpeech(chunks[state.currentChunkIndex].textContent.trim(), chunks.length);
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.warn('Autoplay bloccato dal browser:', error);
+          pausePlayback();
+        });
+      }
+    } else {
+      // Caso 2: Testo personalizzato inserito dall'utente (SpeechSynthesis)
+      const textToSpeak = chunks[state.currentChunkIndex].textContent.trim();
+      fallbackChunkSpeech(textToSpeak, chunks.length);
+    }
+  }
+
+  // Fallback vocale per testo custom o mancato supporto
+  function fallbackChunkSpeech(text, totalChunks) {
+    if ('speechSynthesis' in window && text.length > 0) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'it-IT';
+      utterance.rate = state.speed;
+
+      const voices = window.speechSynthesis.getVoices();
+      const itVoice = voices.find(v => v.lang.startsWith('it'));
+      if (itVoice) utterance.voice = itVoice;
+
+      utterance.onstart = function () {
+        startWaveAnimation();
+      };
+
+      utterance.onend = function () {
+        if (!state.isPlaying) return;
+        if (state.currentChunkIndex < totalChunks - 1) {
+          state.currentChunkIndex++;
+          playCurrentChunk();
+        } else {
+          stopPlayback();
+          state.currentChunkIndex = 0;
+          updateChunkHighlight();
+        }
+      };
+
+      utterance.onerror = function () {
+        stopPlayback();
       };
 
       window.speechSynthesis.speak(utterance);
     } else {
-      // Fallback naturale calcolato sui tempi di lettura delle parole
-      fallbackChunkTimer(textToSpeak, chunks.length);
+      // Stima temporale
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      const durationMs = Math.max(1200, (wordCount / (3 * state.speed)) * 1000);
+      startWaveAnimation();
+
+      state.autoTimer = setTimeout(() => {
+        if (!state.isPlaying) return;
+        if (state.currentChunkIndex < totalChunks - 1) {
+          state.currentChunkIndex++;
+          playCurrentChunk();
+        } else {
+          stopPlayback();
+          state.currentChunkIndex = 0;
+          updateChunkHighlight();
+        }
+      }, durationMs);
     }
-  }
-
-  // Fallback con stima temporale di lettura
-  function fallbackChunkTimer(text, totalChunks) {
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
-    // Stima: ~180 parole al minuto / fattore velocità
-    const durationMs = Math.max(1200, (wordCount / (3 * state.speed)) * 1000);
-
-    state.autoTimer = setTimeout(() => {
-      if (!state.isPlaying) return;
-      if (state.currentChunkIndex < totalChunks - 1) {
-        state.currentChunkIndex++;
-        speakCurrentChunk();
-      } else {
-        stopPlayback();
-        state.currentChunkIndex = 0;
-        updateChunkHighlight();
-      }
-    }, durationMs);
   }
 
   // Avvia la riproduzione
@@ -177,7 +288,7 @@
     pill.classList.add('is-playing');
     iconPlay.classList.add('is-hidden');
     iconPause.classList.remove('is-hidden');
-    speakCurrentChunk();
+    playCurrentChunk();
   }
 
   // Mette in pausa
@@ -186,14 +297,7 @@
     pill.classList.remove('is-playing');
     iconPlay.classList.remove('is-hidden');
     iconPause.classList.add('is-hidden');
-
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    if (state.autoTimer) {
-      clearTimeout(state.autoTimer);
-      state.autoTimer = null;
-    }
+    stopActiveAudioSources();
   }
 
   // Ferma completamente
@@ -216,7 +320,7 @@
     if (state.currentChunkIndex < chunks.length - 1) {
       state.currentChunkIndex++;
       if (state.isPlaying) {
-        speakCurrentChunk();
+        playCurrentChunk();
       } else {
         updateChunkHighlight();
       }
@@ -227,7 +331,7 @@
     if (state.currentChunkIndex > 0) {
       state.currentChunkIndex--;
       if (state.isPlaying) {
-        speakCurrentChunk();
+        playCurrentChunk();
       } else {
         updateChunkHighlight();
       }
@@ -241,8 +345,10 @@
     state.speed = state.speeds[nextIdx];
     speedValue.textContent = `${state.speed.toFixed(1)}×`;
 
-    if (state.isPlaying) {
-      speakCurrentChunk();
+    if (state.audioElement) {
+      state.audioElement.playbackRate = state.speed;
+    } else if (state.isPlaying) {
+      playCurrentChunk();
     }
   }
 
@@ -297,7 +403,6 @@
       return;
     }
 
-    // Suddivisione in frasi secondo punteggiatura italiana (. ? !)
     const rawSentences = text.match(/[^.!?\n]+[.!?]+|[^.!?\n]+$/g) || [text];
     const sentences = rawSentences.map(s => s.trim()).filter(s => s.length > 0);
 
@@ -317,7 +422,6 @@
     updateChunkHighlight();
     attachChunkClickListeners();
 
-    // Avvia subito la lettura del testo caricato
     startPlayback();
   }
 
@@ -374,7 +478,6 @@
 
   // Supporto Tastiera (WCAG AA / R-32)
   window.addEventListener('keydown', (e) => {
-    // Non intercettare se l'utente sta digitando nella textarea
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
       return;
     }
@@ -396,18 +499,10 @@
 
   // Touch & Mobile toggle per la pillola
   pill.addEventListener('click', (e) => {
-    // Se il click non è su un pulsante interno, alterna espansione su schermi touch
     if (!e.target.closest('button')) {
       pill.classList.toggle('is-expanded');
     }
   });
-
-  // Caricamento voci del browser (alcuni browser le caricano asincronamente)
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.onvoiceschanged = function () {
-      // Voci pronte
-    };
-  }
 
   // Inizializzazione pagina
   updateChunkHighlight();
