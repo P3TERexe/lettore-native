@@ -39,6 +39,7 @@ public final class AppState: @unchecked Sendable {
     public var isPillExpanded: Bool = false
     public var pillOrientation: PillOrientation = .horizontal
     public var pillDockSide: PillDockSide = .center
+    public var isAccessibilityGranted: Bool = false
     
     // MARK: - Spettro Audio Live (Metal & SwiftUI Waveform)
     /// 7 valori normalizzati (0.0 - 1.0) aggiornati a 60fps dal tap audio.

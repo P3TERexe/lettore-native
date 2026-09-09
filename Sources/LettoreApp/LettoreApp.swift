@@ -70,6 +70,8 @@ struct LettoreApp: App {
             }
         }
         
+        state.isAccessibilityGranted = AXIsProcessTrusted()
+        
         shortcutManager.onTogglePlaybackRequested = { [weak coordinator] in
             if state.playbackState == .playing {
                 coordinator?.stop()
@@ -79,11 +81,39 @@ struct LettoreApp: App {
         }
         
         shortcutManager.onCaptureRequested = captureAction
-        shortcutManager.startMonitoring()
+        if state.isAccessibilityGranted {
+            shortcutManager.startMonitoring()
+        } else {
+            print("[LettoreApp] ⚠️ Monitor scorciatoie in attesa dei permessi di Accessibilità...")
+        }
         
         // Ascolta richieste di cattura provenienti dalla UI (es. Pillola)
         NotificationCenter.default.addObserver(forName: NSNotification.Name("CaptureAXText"), object: nil, queue: .main) { _ in
             captureAction()
+        }
+        
+        // Ri-sincronizza permessi e monitor scorciatoie quando l'utente torna sull'applicazione
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                let isTrusted = AXIsProcessTrusted()
+                state.isAccessibilityGranted = isTrusted
+                if isTrusted && !shortcutManager.isMonitoring {
+                    shortcutManager.startMonitoring()
+                }
+            }
+        }
+        
+        // Ascolta richiesta manuale di verifica permessi dalla UI (es. pulsante "Verifica Ora")
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("CheckAccessibilityPermissions"), object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                let promptOption = "AXTrustedCheckOptionPrompt" as CFString
+                let options = [promptOption: true] as CFDictionary
+                let isTrusted = AXIsProcessTrustedWithOptions(options)
+                state.isAccessibilityGranted = isTrusted
+                if isTrusted && !shortcutManager.isMonitoring {
+                    shortcutManager.startMonitoring()
+                }
+            }
         }
     }
     

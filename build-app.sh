@@ -57,7 +57,14 @@ cat << PLIST > "$CONTENTS_DIR/Info.plist"
 </plist>
 PLIST
 
-echo "🔐 Signing App Bundle (Ad-hoc)..."
-codesign --force --deep --sign - "$APP_DIR"
+echo "🧹 Rimuovo attributi di quarantena e attributi estesi..."
+xattr -cr "$APP_DIR"
 
-echo "✅ App Bundle created successfully at: $(pwd)/$APP_DIR"
+echo "🔐 Signing App Bundle with stable Designated Requirement..."
+codesign --force --deep --sign - --identifier "com.p3ter.lettorenative" --requirements '=designated => identifier "com.p3ter.lettorenative"' "$APP_DIR"
+
+echo "📦 Packaging clean zip archive with ditto..."
+rm -f "LettoreNative-v3.0.0-macOS.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "LettoreNative-v3.0.0-macOS.zip"
+
+echo "✅ App Bundle and Zip created successfully at: $(pwd)/$APP_DIR"

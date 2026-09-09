@@ -61,14 +61,23 @@ In alternativa, puoi aprire il file `Package.swift` direttamente con **Xcode** e
 
 ## ⚙️ Configurazione Accessibilità (AX)
 
-Affinché l'app possa leggere il testo che evidenzi (premendo Play sulla Pillola o usando le scorciatoie da tastiera), deve poter "vedere" le altre app aperte sul Mac. 
+Affinché l'app possa leggere il testo che evidenzi (premendo Play sulla Pillola o usando la scorciatoia da tastiera `⌥ + C`), deve poter interagire con le finestre e il testo del Mac.
 
-Al primo avvio, l'applicazione ti chiederà automaticamente i permessi. Per autorizzarla:
-1. Apri le **Impostazioni di Sistema** del Mac.
-2. Vai su **Privacy e Sicurezza** -> **Accessibilità**.
-3. Cerca `Lettore Native` nell'elenco.
-4. **Attiva l'interruttore** (se non c'è, puoi aggiungerlo trascinando l'app dentro la finestra o cliccando sul tasto `+`).
-5. Chiudi e riapri l'app. Da ora in poi il lettore funzionerà su qualsiasi applicazione!
+Al primo avvio, l'applicazione mostrerà automaticamente la richiesta di autorizzazione:
+1. Sposta prima di tutto l'applicazione nella cartella **/Applicazioni** (`/Applications`) per evitare l'App Translocation di macOS.
+2. Apri le **Impostazioni di Sistema** del Mac.
+3. Vai su **Privacy e Sicurezza** -> **Accessibilità**.
+4. Cerca `Lettore Native` nell'elenco e **attiva l'interruttore**.
+
+### ⚠️ Permessi già attivi ma l'app non legge? (Bug TCC Cache di macOS)
+Se l'interruttore risulta già attivo nelle Impostazioni ma la scorciatoia o la cattura non rispondono, macOS ha mantenuto memorizzato il vecchio identificativo binario dell'aggiornamento precedente nel database di sicurezza TCC. Per sincronizzarlo:
+
+*   **Soluzione rapida grafica:** Nelle *Impostazioni di Sistema* -> *Accessibilità*, clicca su `Lettore Native`, premi il tasto **`-` (meno)** in basso per cancellare la voce memorizzata, quindi premi **`+`** e riseleziona `LettoreNative.app` dalla cartella Applicazioni (oppure trascinala dentro).
+*   **Soluzione istantanea da Terminale:** Esegui questo comando per resettare la cache dei permessi di Lettore:
+    ```bash
+    tccutil reset Accessibility com.p3ter.lettorenative
+    ```
+    Al successivo avvio dell'app ti verrà richiesto nuovamente il consenso e funzionerà subito.
 
 ## 🚨 Risoluzione Problemi: "Apple non è in grado di verificare l'app" (Gatekeeper)
 

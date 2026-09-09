@@ -41,6 +41,13 @@ public struct LettoreStudioView: View {
             Divider()
                 .background(Color.white.opacity(0.12))
             
+            if !appState.isAccessibilityGranted {
+                accessibilityStatusBanner
+                
+                Divider()
+                    .background(Color.white.opacity(0.12))
+            }
+            
             // Corpo Principale: Canvas di Lettura & Sidebar Parametri
             HStack(spacing: 0) {
                 mainReadingCanvas
@@ -147,6 +154,59 @@ public struct LettoreStudioView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(Color(red: 0.08, green: 0.09, blue: 0.12))
+    }
+    
+    // MARK: - Accessibility Status Banner
+    
+    private var accessibilityStatusBanner: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Permessi di Accessibilità Non Attivi o Da Sincronizzare")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                
+                Text("Necessari per catturare il testo con ⌥+C nelle app esterne. Se l'interruttore in macOS è già attivo ma non rileva i tasti, rimuovi 'Lettore Native' con '-' e riaggiungilo con '+'.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Button("Apri Impostazioni") {
+                    AXCaptureService.openAccessibilitySettings()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color(red: 1.0, green: 0.72, blue: 0.2).opacity(0.2))
+                .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.3))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color(red: 1.0, green: 0.72, blue: 0.2).opacity(0.4), lineWidth: 1)
+                )
+                
+                Button("Verifica Ora") {
+                    NotificationCenter.default.post(name: NSNotification.Name("CheckAccessibilityPermissions"), object: nil)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.12))
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(Color(red: 0.18, green: 0.13, blue: 0.05))
     }
     
     // MARK: - Canvas di Lettura Centrale
@@ -535,6 +595,12 @@ public struct LettoreStudioView: View {
                 await MainActor.run {
                     self.inputText = result.text
                     processNewInput()
+                }
+            } else {
+                await MainActor.run {
+                    if !appState.isAccessibilityGranted {
+                        NotificationCenter.default.post(name: NSNotification.Name("CheckAccessibilityPermissions"), object: nil)
+                    }
                 }
             }
         }

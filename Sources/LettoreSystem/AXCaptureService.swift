@@ -34,15 +34,28 @@ public actor AXCaptureService {
         return AXIsProcessTrusted()
     }
     
+    /// Apre direttamente la pagina Privacy & Sicurezza -> Accessibilità nelle Impostazioni di macOS.
+    @MainActor
+    public static func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    
     /// Richiede al sistema operativo di mostrare il prompt per concedere i permessi di Accessibilità.
     public func requestAccessibilityPrompt() {
         let promptKey = "AXTrustedCheckOptionPrompt" as CFString
         let options = [promptKey: true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        _ = AXIsProcessTrustedWithOptions(options)
     }
     
     /// Cattura il testo attualmente selezionato nell'applicazione attiva in primo piano.
     public func captureSelectedText() async -> AXCaptureResult? {
+        if !AXIsProcessTrusted() {
+            print("[AXCapture] ⚠️ Accessibilità NON concessa dal sistema operativo (AXIsProcessTrusted == false).")
+            requestAccessibilityPrompt()
+        }
+        
         let systemWide = AXUIElementCreateSystemWide()
         var focusedAppValue: AnyObject?
         
@@ -59,6 +72,8 @@ public actor AXCaptureService {
                let titleStr = titleValue as? String {
                 appName = titleStr
             }
+        } else {
+            print("[AXCapture] Nota: kAXFocusedApplicationAttribute restituito con codice \(appResult.rawValue)")
         }
         
         var focusedElementValue: AnyObject?

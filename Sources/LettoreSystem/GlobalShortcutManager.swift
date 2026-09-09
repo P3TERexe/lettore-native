@@ -17,6 +17,10 @@ public final class GlobalShortcutManager {
     
     public init() {}
     
+    public var isMonitoring: Bool {
+        return globalMonitor != nil
+    }
+    
     /// Registra il monitor globale degli eventi di sistema.
     /// Funziona SOLO quando l'app NON è in primo piano (il caso d'uso principale: l'utente è su Safari/Word).
     /// Non registra un local monitor per evitare di interferire con la catena eventi di SwiftUI.
@@ -25,6 +29,12 @@ public final class GlobalShortcutManager {
         
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handleKeyEvent(event)
+        }
+        
+        if globalMonitor != nil {
+            print("[GlobalShortcutManager] Monitor globale eventi registrato con successo.")
+        } else {
+            print("[GlobalShortcutManager] ⚠️ Impossibile registrare monitor globale (Accessibilità non concessa o TCC non attivo).")
         }
     }
     
