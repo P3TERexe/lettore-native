@@ -29,13 +29,14 @@ public final class FloatingPillPanelManager {
         }
         
         let pillView = FloatingPillView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
-            .padding(10)
+            .padding(40) // Spazio abbondante per non tagliare le ombre
         
         let hostingView = NSHostingView(rootView: pillView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         
+        // Finestra molto più grande della pillola per ospitare l'ampio raggio dell'ombra
         let newPanel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 70),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 160),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -53,8 +54,8 @@ public final class FloatingPillPanelManager {
         // Posiziona la pillola in alto al centro dello schermo principale
         if let screen = NSScreen.main {
             let screenRect = screen.visibleFrame
-            let xPos = screenRect.midX - 240
-            let yPos = screenRect.maxY - 90
+            let xPos = screenRect.midX - 300
+            let yPos = screenRect.maxY - 160
             newPanel.setFrameOrigin(NSPoint(x: xPos, y: yPos))
         }
         
