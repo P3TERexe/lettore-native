@@ -37,3 +37,16 @@ pub fn read_from_cursor_from_pid(_pid: i32, _known_selection: Option<&str>) -> R
 pub fn post_select_from_cursor() -> bool {
     false
 }
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn get_target_window_info() -> Option<(i32, u32, Option<String>)> {
+    None
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn extract_window_blocks(_pid: i32) -> Result<Option<Vec<RawAxElement>>, String> {
+    Ok(None)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+pub fn capture_window_screenshot(_win_id: u32, _output_path: &str) -> Result<bool, String> {
+    Ok(false)
+}
+

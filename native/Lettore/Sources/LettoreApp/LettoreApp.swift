@@ -1,0 +1,89 @@
+import SwiftUI
+import AppKit
+import LettoreCore
+import LettoreEngine
+import LettoreSystem
+import LettoreUI
+
+/// Delegate per garantire che l'app CLI/SPM venga promossa a vera app GUI macOS con focus in primo piano.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Trasforma il processo da CLI/Accessory a regolare applicazione grafica
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            for window in NSApp.windows where !(window is NSPanel) {
+                window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+            }
+        }
+    }
+}
+
+@main
+struct LettoreApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var appState: AppState
+    private let audioEngine = AudioEngineService()
+    private let axCapture = AXCaptureService()
+    private let coordinator: PlaybackCoordinator
+    
+    init() {
+        let chunker = SentenceChunker()
+        let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida. Passa il cursore sulla pillola per espandere i controlli audio stile Dynamic Island."
+        let chunks = chunker.chunk(text: sample)
+        let state = AppState()
+        state.setQueue(chunks)
+        _appState = State(initialValue: state)
+        
+        self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
+    }
+    
+    var body: some Scene {
+        // Finestra Principale Studio / Super Accessibile
+        WindowGroup("Lettore Studio", id: "studio-window") {
+            if appState.accessibilityProfile == .lowVision {
+                SuperAccessibleView(appState: appState, audioEngine: audioEngine)
+                    .frame(minWidth: 960, minHeight: 640)
+            } else {
+                LettoreStudioView(
+                    appState: appState,
+                    audioEngine: audioEngine,
+                    coordinator: coordinator,
+                    axCapture: axCapture
+                )
+                .frame(minWidth: 960, minHeight: 640)
+            }
+        }
+        .windowToolbarStyle(.unified)
+        
+        // Menu Bar Item di Sistema
+        MenuBarExtra("Lettore", systemImage: "waveform.badge.magnifyingglass") {
+            Button("Mostra / Nascondi Pillola Fluttuante") {
+                FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+            }
+            Divider()
+            Button("Profilo Bassa Visione (WCAG AAA)") {
+                appState.accessibilityProfile = (appState.accessibilityProfile == .lowVision) ? .standard : .lowVision
+            }
+            Divider()
+            Button("Esci da Lettore") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
+}
+
+/// Helper AppKit per ottenere il blur di sistema nativo NSVisualEffectView in SwiftUI.
+struct VisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}

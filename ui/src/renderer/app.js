@@ -32,6 +32,11 @@ const els = {
   peakerGrid: document.getElementById("peaker-blocks-grid"),
   peakerClose: document.getElementById("peaker-btn-close"),
   peakerClipboard: document.getElementById("peaker-btn-clipboard"),
+  urlayerScanAx: document.getElementById("urlayer-btn-scan-ax"),
+  urlayerScanOcr: document.getElementById("urlayer-btn-scan-ocr"),
+  urlayerSourceBadge: document.getElementById("urlayer-source-badge"),
+  urlayerCountBadge: document.getElementById("urlayer-count-badge"),
+  urlayerLiveRegion: document.getElementById("urlayer-live-region"),
   exportBtn: document.getElementById("btn-export"),
   clearQueue: document.getElementById("btn-clear-queue"),
   tabCapture: document.getElementById("tab-capture"),
@@ -425,122 +430,372 @@ async function handleCursorRead(payload) {
 }
 
 /* ==========================================================================
-   Text Block Peaker (Identificazione Testo a Riquadri Semi-Trasparenti)
+   Universal Reading Layer (Identificazione e Navigazione Blocchi Testuali)
    ========================================================================== */
 
-function openPeaker(initialText = null) {
-  let text = initialText;
-  if (!text || !text.trim()) {
-    text = els.textInput.value.trim();
-  }
-  if (!text && readingLastText) {
-    text = readingLastText.trim();
-  }
+let urlayerCurrentDoc = null;
+let urlayerSelectedIndex = 0;
+let urlayerPlayingBlockId = null;
 
-  els.peakerOverlay.hidden = false;
-  renderPeakerBlocks(text);
+function announceToScreenReader(message) {
+  if (!els.urlayerLiveRegion) return;
+  els.urlayerLiveRegion.textContent = "";
+  setTimeout(() => {
+    if (els.urlayerLiveRegion) {
+      els.urlayerLiveRegion.textContent = message;
+    }
+  }, 40);
 }
 
-function closePeaker() {
+function getBlockTypeLabel(type, level) {
+  switch (type) {
+    case "heading":
+      return level ? `Titolo H${level}` : "Titolo";
+    case "list_item":
+      return "Elenco";
+    case "quote":
+      return "Citazione";
+    case "code":
+      return "Codice";
+    case "paragraph":
+    default:
+      return "Paragrafo";
+  }
+}
+
+function closeURLayer() {
   if (els.peakerOverlay) {
     els.peakerOverlay.hidden = true;
   }
+  urlayerPlayingBlockId = null;
 }
 
-function renderPeakerBlocks(text) {
+function closePeaker() {
+  closeURLayer();
+}
+
+async function openURLayer(opts = {}) {
+  const mode = opts.mode || "auto";
+  els.peakerOverlay.hidden = false;
+  urlayerSelectedIndex = 0;
+
+  if (els.urlayerSourceBadge) {
+    els.urlayerSourceBadge.textContent = "Scansione in corso...";
+  }
+  if (els.urlayerCountBadge) {
+    els.urlayerCountBadge.textContent = "...";
+  }
+
+  els.peakerGrid.innerHTML = `
+    <div class="urlayer-loading-state">
+      <div class="spinner"></div>
+      <p>Scansione ${mode.toUpperCase()} e analisi della struttura semantica...</p>
+    </div>
+  `;
+
+  let doc = null;
+  const exclusions = typeof getExclusionsList === "function" ? getExclusionsList() : [];
+
+  try {
+    if (opts.initialDoc) {
+      doc = opts.initialDoc;
+    } else if (opts.initialText && opts.initialText.trim()) {
+      doc = await api.analyzeBlocks({
+        text: opts.initialText.trim(),
+        source: "clipboard",
+        exclusions,
+      });
+    } else if (mode === "clipboard") {
+      const clip = await api.readClipboard().catch(() => "");
+      if (clip && clip.trim()) {
+        doc = await api.analyzeBlocks({
+          text: clip.trim(),
+          source: "clipboard",
+          exclusions,
+        });
+      } else {
+        toast("Gli appunti di sistema sono vuoti.");
+      }
+    } else {
+      // Chiama il comando nativo Rust con pipeline di fallback (AX -> Clipboard -> Vision OCR)
+      const res = await api.captureUniversalBlocks(mode);
+      if (res && res.total_blocks > 0) {
+        doc = res;
+      } else if (els.textInput.value.trim()) {
+        // Fallback al testo già presente nell'editor di Lettore se la scansione esterna è vuota
+        doc = await api.analyzeBlocks({
+          text: els.textInput.value.trim(),
+          source: "manual",
+          exclusions,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Errore durante la scansione URLayer:", err);
+    toast(`Errore scansione: ${err.message || err}`);
+  }
+
+  if (!doc) {
+    doc = {
+      source: mode,
+      app_name: null,
+      total_blocks: 0,
+      blocks: [],
+    };
+  }
+
+  urlayerCurrentDoc = doc;
+  renderURLayerBlocks(doc);
+}
+
+function openPeaker(initialText = null) {
+  if (initialText) {
+    openURLayer({ initialText });
+  } else {
+    openURLayer({ mode: "auto" });
+  }
+}
+
+function formatSourceLabel(doc) {
+  if (doc.app_name) {
+    if (doc.source === "ocr") return `${doc.app_name} (OCR)`;
+    return doc.app_name;
+  }
+  switch (doc.source) {
+    case "accessibility":
+    case "ax":
+      return "Accessibilità (AX)";
+    case "ocr":
+      return "OCR Schermo";
+    case "clipboard":
+      return "Appunti";
+    case "manual":
+      return "Editor Locale";
+    default:
+      return doc.source || "Auto";
+  }
+}
+
+function renderURLayerBlocks(doc) {
   const grid = els.peakerGrid;
   if (!grid) return;
   grid.innerHTML = "";
 
-  if (!text || !text.trim()) {
+  const appName = formatSourceLabel(doc);
+  if (els.urlayerSourceBadge) {
+    els.urlayerSourceBadge.textContent = `Fonte: ${appName}`;
+  }
+  if (els.urlayerCountBadge) {
+    els.urlayerCountBadge.textContent = `${doc.total_blocks} blocchi`;
+  }
+
+  if (!doc.blocks || doc.blocks.length === 0) {
     grid.innerHTML = `
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5">
+      <div class="empty-state urlayer-empty">
+        <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2"></rect>
           <line x1="9" y1="9" x2="15" y2="9"></line>
           <line x1="9" y1="13" x2="15" y2="13"></line>
         </svg>
-        <p>Nessun blocco di testo identificato.<br>Incolla del testo nell'editor oppure clicca "Dagli Appunti".</p>
-      </div>
-    `;
-    return;
-  }
-
-  // Segmenta il testo in paragrafi/blocchi logici
-  let rawBlocks = text
-    .split(/\n\s*\n+/)
-    .map((b) => b.trim())
-    .filter(Boolean);
-
-  // Se è un testo continuo senza doppi ritorni a capo, segmenta per frasi logiche
-  if (rawBlocks.length <= 1 && text.length > 200) {
-    const sentences = text.match(/[^.!?]+[.!?]+(\s+|$)/g) || [text];
-    rawBlocks = [];
-    let current = "";
-    for (const s of sentences) {
-      current += s;
-      if (current.length > 110) {
-        rawBlocks.push(current.trim());
-        current = "";
-      }
-    }
-    if (current.trim()) rawBlocks.push(current.trim());
-  }
-
-  if (!rawBlocks.length) rawBlocks = [text.trim()];
-
-  rawBlocks.forEach((blockText, idx) => {
-    const words = blockText.split(/\s+/).filter(Boolean).length;
-    const box = document.createElement("div");
-    box.className = "peaker-box";
-    box.setAttribute("role", "button");
-    box.setAttribute("tabindex", "0");
-    box.setAttribute("aria-label", `Riquadro ${idx + 1}: ${words} parole. Clicca per ascoltare.`);
-    box.innerHTML = `
-      <div class="peaker-box-header">
-        <span class="peaker-box-tag">Riquadro ${idx + 1}</span>
-        <span class="peaker-box-action-hint">
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          ${words} parole
-        </span>
-      </div>
-      <div class="peaker-box-text">${escapeHtml(blockText)}</div>
-      <div class="peaker-box-play-overlay">
-        <div class="peaker-play-badge">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <span>Ascolta questo riquadro</span>
+        <h4>Nessun blocco identificato</h4>
+        <p>Non è stato possibile estrarre blocchi strutturati da questa app. Prova con un altro canale:</p>
+        <div class="urlayer-empty-actions">
+          <button id="btn-empty-retry-clip" class="btn btn-sm btn-secondary">📋 Analizza Appunti</button>
+          <button id="btn-empty-retry-ocr" class="btn btn-sm btn-primary">📷 Scansione OCR Schermo</button>
         </div>
       </div>
     `;
 
-    const triggerPlay = async () => {
-      box.style.transform = "scale(0.98)";
-      setTimeout(() => {
-        closePeaker();
-        els.textInput.value = blockText;
-        queue.stop().then(() => {
-          queue.add(blockText, { split: false }).then(() => {
-            queue.play().then(() => queue.advance());
-          });
-        });
-      }, 120);
-    };
-
-    box.addEventListener("click", triggerPlay);
-    box.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        triggerPlay();
-      }
+    document.getElementById("btn-empty-retry-clip")?.addEventListener("click", () => {
+      openURLayer({ mode: "clipboard" });
+    });
+    document.getElementById("btn-empty-retry-ocr")?.addEventListener("click", () => {
+      openURLayer({ mode: "ocr" });
     });
 
-    grid.appendChild(box);
+    announceToScreenReader("Nessun blocco di testo identificato.");
+    return;
+  }
+
+  announceToScreenReader(
+    `${doc.total_blocks} blocchi identificati da ${appName}. Usa le frecce per navigare e Invio per ascoltare.`
+  );
+
+  doc.blocks.forEach((block, idx) => {
+    const card = document.createElement("article");
+    const typeClass = `block-type-${block.type}`;
+    const typeLabel = getBlockTypeLabel(block.type, block.level);
+
+    card.className = `peaker-box urlayer-card ${typeClass}`;
+    card.setAttribute("role", "article");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("data-block-id", block.id);
+    card.setAttribute("data-index", idx);
+    card.setAttribute(
+      "aria-label",
+      `Blocco ${idx + 1} di ${doc.total_blocks}: ${typeLabel}. ${block.word_count} parole. ${block.text}`
+    );
+
+    if (idx === urlayerSelectedIndex) {
+      card.classList.add("selected-block");
+    }
+    if (urlayerPlayingBlockId === block.id) {
+      card.classList.add("playing-block");
+    }
+
+    let bboxBadge = "";
+    if (block.bbox && block.bbox.width > 0) {
+      bboxBadge = `<span class="urlayer-meta-chip bbox-chip" title="Posizione a schermo">${Math.round(
+        block.bbox.width
+      )}×${Math.round(block.bbox.height)}px</span>`;
+    }
+
+    card.innerHTML = `
+      <div class="peaker-box-header urlayer-card-header">
+        <div class="urlayer-card-tags">
+          <span class="urlayer-type-badge ${typeClass}">${typeLabel}</span>
+          <span class="urlayer-num-badge">#${idx + 1}</span>
+          ${bboxBadge}
+        </div>
+        <span class="peaker-box-action-hint urlayer-words-hint">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          ${block.word_count} parole
+        </span>
+      </div>
+      <div class="peaker-box-text urlayer-card-text">${escapeHtml(block.text)}</div>
+      <div class="peaker-box-play-overlay urlayer-card-footer">
+        <button class="btn btn-xs btn-primary urlayer-play-btn" type="button" tabindex="-1">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span>Ascolta questo blocco</span>
+        </button>
+      </div>
+    `;
+
+    card.addEventListener("click", () => {
+      playBlock(block, idx);
+    });
+
+    card.addEventListener("focus", () => {
+      selectBlock(idx, false);
+    });
+
+    grid.appendChild(card);
   });
+
+  // Metti a fuoco il primo blocco
+  setTimeout(() => {
+    selectBlock(0, false);
+  }, 100);
 }
+
+function selectBlock(index, announce = true) {
+  if (!urlayerCurrentDoc || !urlayerCurrentDoc.blocks || !urlayerCurrentDoc.blocks.length) return;
+
+  const total = urlayerCurrentDoc.blocks.length;
+  const targetIndex = Math.max(0, Math.min(index, total - 1));
+  urlayerSelectedIndex = targetIndex;
+
+  const cards = els.peakerGrid.querySelectorAll(".urlayer-card");
+  cards.forEach((c, idx) => {
+    const isSelected = idx === targetIndex;
+    c.classList.toggle("selected-block", isSelected);
+    if (isSelected) {
+      c.focus();
+      c.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  });
+
+  if (announce) {
+    const b = urlayerCurrentDoc.blocks[targetIndex];
+    const typeName = getBlockTypeLabel(b.type, b.level);
+    announceToScreenReader(
+      `Blocco ${targetIndex + 1} di ${total}: ${typeName}. ${b.word_count} parole. Premi Invio per ascoltare.`
+    );
+  }
+}
+
+function selectNextBlock() {
+  selectBlock(urlayerSelectedIndex + 1, true);
+}
+
+function selectPrevBlock() {
+  selectBlock(urlayerSelectedIndex - 1, true);
+}
+
+function jumpToNextBlockType(targetType) {
+  if (!urlayerCurrentDoc || !urlayerCurrentDoc.blocks) return;
+  const blocks = urlayerCurrentDoc.blocks;
+  const start = urlayerSelectedIndex + 1;
+
+  for (let i = 0; i < blocks.length; i++) {
+    const idx = (start + i) % blocks.length;
+    if (blocks[idx].type === targetType) {
+      selectBlock(idx, true);
+      return;
+    }
+  }
+  toast(`Nessun altro blocco di tipo '${targetType}' trovato.`);
+}
+
+async function playBlock(block, index) {
+  if (!block || !block.text) return;
+
+  urlayerSelectedIndex = index;
+  urlayerPlayingBlockId = block.id;
+
+  const cards = els.peakerGrid.querySelectorAll(".urlayer-card");
+  cards.forEach((c, idx) => {
+    c.classList.toggle("playing-block", idx === index);
+  });
+
+  announceToScreenReader(`In riproduzione: ${block.text}`);
+
+  const playText = block.clean_text || block.text;
+  els.textInput.value = block.text;
+
+  await queue.stop();
+  await queue.add(playText, { split: false });
+  await queue.play();
+  await queue.advance();
+}
+
+function handleURLayerKeydown(e) {
+  if (!els.peakerOverlay || els.peakerOverlay.hidden) return;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeURLayer();
+    return;
+  }
+
+  const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    selectNextBlock();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    selectPrevBlock();
+  } else if (isCmdOrCtrl && (e.key === "t" || e.key === "T")) {
+    e.preventDefault();
+    jumpToNextBlockType("heading");
+  } else if (isCmdOrCtrl && (e.key === "p" || e.key === "P")) {
+    e.preventDefault();
+    jumpToNextBlockType("paragraph");
+  } else if (e.key === "Enter" || e.key === " ") {
+    if (!e.target.closest("button:not(.urlayer-play-btn)")) {
+      e.preventDefault();
+      if (urlayerCurrentDoc && urlayerCurrentDoc.blocks && urlayerCurrentDoc.blocks[urlayerSelectedIndex]) {
+        playBlock(urlayerCurrentDoc.blocks[urlayerSelectedIndex], urlayerSelectedIndex);
+      }
+    }
+  }
+}
+
 
 async function resolveReadingText() {
   let text = els.textInput.value.trim();
@@ -872,17 +1127,20 @@ function bind() {
     }
   });
 
-  // Peaker overlay controls
-  els.btnPeaker?.addEventListener("click", () => openPeaker());
-  els.peakerClose?.addEventListener("click", () => closePeaker());
+  // Universal Reading Layer controls
+  els.btnPeaker?.addEventListener("click", () => openURLayer({ mode: "auto" }));
+  els.peakerClose?.addEventListener("click", () => closeURLayer());
+  els.urlayerScanAx?.addEventListener("click", () => openURLayer({ mode: "ax" }));
+  els.urlayerScanOcr?.addEventListener("click", () => openURLayer({ mode: "ocr" }));
   els.peakerClipboard?.addEventListener("click", async () => {
     const clip = await api.readClipboard().catch(() => "");
     if (clip && clip.trim()) {
-      openPeaker(clip.trim());
+      openURLayer({ initialText: clip.trim() });
     } else {
       toast("La clipboard è vuota");
     }
   });
+
 
   els.play.addEventListener("click", togglePlayback);
   els.stop.addEventListener("click", () => queue.stop());
@@ -989,18 +1247,18 @@ async function init() {
   }, 1200);
 
   window.addEventListener("keydown", (e) => {
+    if (els.peakerOverlay && !els.peakerOverlay.hidden) {
+      handleURLayerKeydown(e);
+      return;
+    }
     if (e.key === "Escape") {
-      if (els.peakerOverlay && !els.peakerOverlay.hidden) {
-        e.preventDefault();
-        closePeaker();
-        return;
-      }
       if (els.megaphonePopover && !els.megaphonePopover.hidden) {
         e.preventDefault();
         toggleMegaphonePopover(false);
         return;
       }
     }
+
     if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return;
     if (e.code === "Space") {
       e.preventDefault();

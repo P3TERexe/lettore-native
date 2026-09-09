@@ -100,11 +100,12 @@
           </svg>
         </div>
         <div class="tile-content">
-          <div class="tile-title">Identifica Testo (Peaker)</div>
-          <div class="tile-desc">Inquadra a riquadri e clicca per ascoltare</div>
+          <div class="tile-title">Universal Reading Layer</div>
+          <div class="tile-desc">Scansiona app esterna a blocchi AX/OCR</div>
         </div>
-        <span class="tile-tag">Visual</span>
+        <span class="tile-tag">A11y Layer</span>
       </button>
+
 
       <!-- Tile 4: Modalità Pillola -->
       <button id="popover-btn-pill" class="popover-tile" type="button">
@@ -295,15 +296,16 @@
                   </svg>
                   <span>📍 Leggi da qui</span>
                 </button>
-                <button id="btn-peaker" class="btn btn-sm btn-ghost" title="Identifica e riquadra i blocchi di testo per ascoltarli al click">
+                <button id="btn-peaker" class="btn btn-sm btn-ghost" title="Universal Reading Layer: identifica e naviga i blocchi testuali (AX / Clipboard / OCR)">
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
                     <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
                     <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
                     <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
                   </svg>
-                  <span>Riquadri</span>
+                  <span>Blocchi (URLayer)</span>
                 </button>
+
                 <button id="btn-export" class="btn btn-sm btn-ghost" title="Esporta l'audio dell'intero testo in un file WAV">
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -463,32 +465,63 @@
     </main>
   </div>
 
-  <!-- Modal Overlay: Text Block Peaker (Identificazione a Riquadri) -->
-  <div id="text-peaker-overlay" class="peaker-overlay" hidden>
-    <div class="peaker-container">
-      <div class="peaker-topbar">
-        <div class="peaker-title-group">
-          <div class="peaker-badge">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              <line x1="3" y1="9" x2="21" y2="9"></line>
-              <line x1="9" y1="21" x2="9" y2="9"></line>
-            </svg>
-            <span>Peaker Attivo</span>
+  <!-- Modal Overlay: Universal Reading Layer (Identificazione e Navigazione Blocchi Testuali) -->
+  <div id="text-peaker-overlay" class="peaker-overlay urlayer-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="urlayer-title">
+    <div class="peaker-container urlayer-container">
+      <div class="peaker-topbar urlayer-topbar">
+        <div class="peaker-title-group urlayer-title-group">
+          <div class="urlayer-badge-row">
+            <div class="peaker-badge urlayer-badge">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              <span>Universal Reading Layer</span>
+            </div>
+            <span id="urlayer-source-badge" class="urlayer-chip urlayer-source-chip">Fonte: Appunti</span>
+            <span id="urlayer-count-badge" class="urlayer-chip urlayer-count-chip">0 blocchi</span>
           </div>
-          <h3 class="peaker-heading">Identificazione Blocchi di Testo</h3>
-          <p class="peaker-subheading">Clicca sul rettangolo semi-trasparente desiderato per avviare la sintesi vocale di quel blocco.</p>
+          <h3 id="urlayer-title" class="peaker-heading urlayer-heading">Navigazione Semantica per Blocchi</h3>
+          <p class="peaker-subheading urlayer-subheading">
+            Struttura leggibile e navigabile da qualsiasi applicazione esterna via AX, Clipboard e OCR locale.
+          </p>
         </div>
-        <div class="peaker-controls">
-          <button id="peaker-btn-clipboard" class="btn btn-xs btn-secondary" title="Inquadra testo dalla clipboard">Dagli Appunti</button>
-          <button id="peaker-btn-close" class="btn btn-xs btn-ghost" title="Chiudi Peaker (Esc)">Chiudi &times;</button>
+        <div class="peaker-controls urlayer-controls">
+          <button id="urlayer-btn-scan-ax" class="btn btn-xs btn-primary" title="Scansiona l'albero di accessibilità (AX) dell'app attiva in primo piano">
+            ⚡ Scansiona App
+          </button>
+          <button id="peaker-btn-clipboard" class="btn btn-xs btn-secondary" title="Inquadra ed analizza il testo copiato negli appunti">
+            📋 Appunti
+          </button>
+          <button id="urlayer-btn-scan-ocr" class="btn btn-xs btn-secondary" title="Esegui OCR offline sullo schermo tramite Apple Vision">
+            📷 OCR Schermo
+          </button>
+          <button id="peaker-btn-close" class="btn btn-xs btn-ghost" title="Chiudi Universal Reading Layer (Esc)">
+            Chiudi &times;
+          </button>
         </div>
       </div>
-      <div id="peaker-blocks-grid" class="peaker-blocks-grid">
-        <!-- I riquadri semi-trasparenti vengono generati dinamicamente qui -->
+
+      <!-- Barra scorciatoie e navigazione cognitiva -->
+      <div class="urlayer-hints-bar" aria-hidden="true">
+        <span class="hint-item"><kbd>↓</kbd> <kbd>↑</kbd> Naviga blocchi</span>
+        <span class="hint-item"><kbd>⌘</kbd>+<kbd>T</kbd> Salta ai titoli</span>
+        <span class="hint-item"><kbd>⌘</kbd>+<kbd>P</kbd> Salta ai paragrafi</span>
+        <span class="hint-item"><kbd>Invio</kbd> / <kbd>Spazio</kbd> Ascolta blocco</span>
+        <span class="hint-item"><kbd>Esc</kbd> Chiudi</span>
+      </div>
+
+      <!-- Annunci vocali e screen reader -->
+      <div id="urlayer-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+      <!-- Griglia interattiva dei blocchi semantici -->
+      <div id="peaker-blocks-grid" class="peaker-blocks-grid urlayer-blocks-grid" role="feed" aria-label="Blocchi testuali identificati">
+        <!-- I blocchi strutturati vengono generati dinamicamente qui -->
       </div>
     </div>
   </div>
+
 
   <!-- Notification Toast -->
   <div id="toast" class="toast" hidden role="alert" aria-live="polite"></div>

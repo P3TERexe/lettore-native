@@ -330,7 +330,155 @@ pub async fn capture_from_cursor(
 }
 
 #[tauri::command]
+pub async fn capture_universal_blocks(
+    app: AppHandle,
+    sidecar: State<'_, SidecarState>,
+    mode: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let requested_mode = mode.unwrap_or_else(|| "auto".to_string());
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(5000))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let backend_url = format!("http://127.0.0.1:{}", sidecar.port);
+    let target_info = accessibility::get_target_window_info();
+    let (target_pid, win_id, app_name) = match target_info {
+        Some((p, w, n)) => (Some(p), w, n),
+        None => (None, 0, None),
+    };
+
+    // 1. Livello 1: Accessibility (AX) — Se non è forzata la modalità OCR o Clipboard
+    if requested_mode != "ocr" && requested_mode != "clipboard" {
+        if let Some(pid) = target_pid {
+            if let Ok(Some(raw_elements)) = accessibility::extract_window_blocks(pid) {
+                if !raw_elements.is_empty() {
+                    let analyze_url = format!("{}/v1/blocks/analyze", backend_url);
+                    let payload = serde_json::json!({
+                        "raw_elements": raw_elements,
+                        "app_name": app_name,
+                        "source": "accessibility"
+                    });
+
+                    if let Ok(resp) = client.post(&analyze_url).json(&payload).send().await {
+                        if resp.status().is_success() {
+                            if let Ok(doc) = resp.json::<serde_json::Value>().await {
+                                let total = doc.get("total_blocks").and_then(|v| v.as_i64()).unwrap_or(0);
+                                if total > 0 {
+                                    return Ok(doc);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Livello 2: Clipboard / Selezione — Se AX non ha restituito blocchi o modalità clipboard
+    if requested_mode != "ocr" {
+        let mut selection_text: Option<String> = None;
+        if let Some(pid) = target_pid {
+            if let Ok(Some(sel)) = accessibility::read_selection_from_pid(pid) {
+                if !sel.trim().is_empty() {
+                    selection_text = Some(sel.trim().to_string());
+                }
+            }
+        }
+        if selection_text.is_none() {
+            if let Ok(clip) = app.clipboard().read_text() {
+                if !clip.trim().is_empty() {
+                    selection_text = Some(clip.trim().to_string());
+                }
+            }
+        }
+
+        if let Some(text) = selection_text {
+            let analyze_url = format!("{}/v1/blocks/analyze", backend_url);
+            let payload = serde_json::json!({
+                "text": text,
+                "app_name": app_name,
+                "source": "clipboard"
+            });
+
+            if let Ok(resp) = client.post(&analyze_url).json(&payload).send().await {
+                if resp.status().is_success() {
+                    if let Ok(doc) = resp.json::<serde_json::Value>().await {
+                        let total = doc.get("total_blocks").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if total > 0 {
+                            return Ok(doc);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Livello 3: macOS Vision OCR Offline
+    if requested_mode != "clipboard" {
+        let temp_dir = std::env::temp_dir();
+        let temp_screenshot = temp_dir.join(format!("lettore_ocr_{}.png", std::process::id()));
+        let temp_path_str = temp_screenshot.to_string_lossy().to_string();
+
+        let captured = accessibility::capture_window_screenshot(win_id, &temp_path_str).unwrap_or(false);
+        if captured && temp_screenshot.exists() {
+            let ocr_url = format!("{}/v1/blocks/ocr", backend_url);
+            let payload = serde_json::json!({
+                "image_path": temp_path_str,
+                "app_name": app_name
+            });
+
+            let ocr_res = client.post(&ocr_url).json(&payload).send().await;
+            let _ = std::fs::remove_file(&temp_screenshot);
+
+            if let Ok(resp) = ocr_res {
+                if resp.status().is_success() {
+                    if let Ok(doc) = resp.json::<serde_json::Value>().await {
+                        let total = doc.get("total_blocks").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if total > 0 {
+                            return Ok(doc);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Livello 4: Fallback sugli appunti di sistema se non vuoti
+    if let Ok(clip) = app.clipboard().read_text() {
+        if !clip.trim().is_empty() {
+            let analyze_url = format!("{}/v1/blocks/analyze", backend_url);
+            let payload = serde_json::json!({
+                "text": clip.trim(),
+                "app_name": app_name,
+                "source": "clipboard"
+            });
+
+            if let Ok(resp) = client.post(&analyze_url).json(&payload).send().await {
+                if resp.status().is_success() {
+                    if let Ok(doc) = resp.json::<serde_json::Value>().await {
+                        let total = doc.get("total_blocks").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if total > 0 {
+                            return Ok(doc);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback vuoto
+    Ok(serde_json::json!({
+        "source": requested_mode,
+        "app_name": app_name,
+        "total_blocks": 0,
+        "blocks": []
+    }))
+}
+
+#[tauri::command]
 pub async fn open_accessibility_settings() -> Result<(), String> {
+
     #[cfg(target_os = "macos")]
     {
         let _ = std::process::Command::new("open")

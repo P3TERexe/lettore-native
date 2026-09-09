@@ -119,3 +119,38 @@ Veniva letta solo la parola/frase evidenziata, oppure la selezione si fermava al
    - La funzione cattura la porzione iniziale evidenziata dall'utente e la passa come àncora a `read_from_cursor_from_pid`.
    - `handleCursorRead` in `app.js` ora dà priorità alla textarea locale solo se ha il focus attivo (`document.activeElement === input`), prevenendo letture spurie di testo residuo quando l'utente attiva la funzione da applicazioni esterne.
    - Tutti i test Rust e Python passano al 100%.
+
+---
+
+# Bug Report 7
+
+## Description
+All'apertura o scansione dello Universal Reading Layer ("Scansiona App"), l'interfaccia mostrava 0 blocchi identificati ("Nessun blocco di testo identificato") oppure rischiava un abort improvviso con foreign exception.
+
+## Steps to Reproduce
+1. Aprire un'applicazione esterna sul desktop (es. VS Code o browser).
+2. Aprire Lettore e cliccare sull'icona dello Universal Reading Layer (o "Scansiona App").
+3. La scansione terminava immediatamente con "Fonte: ax - 0 blocchi".
+
+## Expected Behavior
+Il layer rileva la finestra dell'applicazione utente attiva ed estrae i blocchi semantici (tramite albero AX nativo, selezione o fallback su Apple Vision OCR locale).
+
+## Actual Behavior
+Venivano identificati 0 blocchi e la fonte riportava erroneamente il valore non formattato "ax".
+
+## Diagnosi e Risoluzione (2026-09-05)
+1. **Intercettazione di finestre di driver/background non utente (`Cua Driver`)**:
+   - `get_target_window_info` scansionava la lista Quartz (`CGWindowListCopyWindowInfo`) prendendo il primo elemento con `kCGWindowLayer == 0`.
+   - Processi ausiliari di background come `Cua Driver` creano finestre a livello 0 a tutto schermo trasparenti prive di testo o interfaccia.
+   - **Risoluzione**: Aggiunto filtro rigido con `NSRunningApplication.activationPolicy == NSApplicationActivationPolicyRegular (0)`, esclusione delle finestre di supporto interne di Lettore (`owner.contains("lettore")`), e controllo su dimensioni minime visibili (`w >= 150 && h >= 150`).
+2. **Prevenzione di Foreign Exception in Rust**:
+   - In `macos.rs`, attributi come `AXValue` su elementi non testuali possono restituire puntatori a tipi CoreFoundation non-stringa (`AXValueRef`, `CFNumberRef`).
+   - Implementato `safe_cf_to_string` con verifica preventiva `CFGetTypeID(cf) == CFStringGetTypeID()` e controlli `AXValueGetTypeID()` / `CFArrayGetTypeID()`, azzerando il rischio di crash.
+3. **Mancata estrazione di `AXWebArea` nei browser**:
+   - I browser web (Brave, Chrome, Safari, Edge) e le app Electron annidano l'area web oltre la profondità 8.
+   - Aumentata la profondità di ricorsione ad almeno 16 e abilitato `AXManualAccessibility` su app Chromium/Electron.
+   - Quando `traverse_ax_node` incontra `AXWebArea`, invoca direttamente `extract_web_full_text` estraendo nativamente il testo completo.
+4. **Resilienza della pipeline di fallback**:
+   - Se AX produce 0 blocchi, la pipeline passa automaticamente a selezione e poi a Vision OCR con fallback su screenshot dell'intero schermo se la cattura selettiva per Window ID non produce pixel validi.
+   - Formattazione accurata dei badge sorgente nell'interfaccia utente (`Fonte: <Nome App>`, `Fonte: <Nome App> (OCR)`, `Fonte: Accessibilità (AX)`).
+

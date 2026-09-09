@@ -17,7 +17,50 @@ export const api = {
   openAccessibilitySettings: () => invoke("open_accessibility_settings"),
   captureFromCursor: (opts) =>
     invoke("capture_from_cursor", { autoCopy: opts?.autoCopy ?? true }),
+  captureUniversalBlocks: (mode) =>
+    invoke("capture_universal_blocks", { mode: mode || "auto" }),
+  analyzeBlocks: async ({ text, rawElements, appName, source, exclusions }) => {
+    try {
+      const resp = await fetch(`${BASE_URL}/v1/blocks/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          raw_elements: rawElements,
+          app_name: appName,
+          source: source || "manual",
+          exclusions,
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return await resp.json();
+    } catch (err) {
+      console.warn("analyzeBlocks fallback:", err);
+      return null;
+    }
+  },
+  ocrBlocks: async ({ imagePath, imageBase64, appName, languages, exclusions }) => {
+    try {
+      const resp = await fetch(`${BASE_URL}/v1/blocks/ocr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_path: imagePath,
+          image_base64: imageBase64,
+          app_name: appName,
+          languages,
+          exclusions,
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return await resp.json();
+    } catch (err) {
+      console.warn("ocrBlocks fallback:", err);
+      return null;
+    }
+  },
   exportWav: async ({ wavBase64, defaultName }) => {
+
     try {
       const filePath = await save({
         title: "Esporta audio",

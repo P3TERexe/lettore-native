@@ -34,6 +34,7 @@ pub fn run() {
             commands::read_clipboard,
             commands::capture_selection,
             commands::capture_from_cursor,
+            commands::capture_universal_blocks,
             commands::open_accessibility_settings,
             commands::export_wav,
             commands::start_dragging,

@@ -139,3 +139,18 @@ Ogni scenario deve seguire tassativamente questa struttura:
   4. Cliccare sul rettangolo prescelto.
 - **Esito Atteso**: L'overlay si chiude con animazione fluida, il contenuto del riquadro selezionato viene caricato nel player e la sintesi vocale di quel blocco specifico parte istantaneamente.
 - **Esito Fallito**: Nessun riquadro visualizzato, overlay bloccato o click che non avvia la riproduzione.
+
+---
+
+### [TC-012] Universal Reading Layer: Scansione Esterna e Navigazione Semantica
+- **Prerequisiti**: Finestra di un'applicazione esterna aperta (es. Safari, Notes, TextEdit) o testo negli appunti. Permesso di Accessibilità abilitato.
+- **Passaggi**:
+  1. Portare in primo piano un'app esterna con del testo, poi cliccare su Lettore e premere "Blocchi (URLayer)" o "Universal Reading Layer" nel popover del megafono.
+  2. Cliccare "⚡ Scansiona App" per avviare la scansione dell'albero AX dell'applicazione attiva.
+  3. Verificare che compaiano le schede semantiche con badge bicolore (`[Titolo]`, `[Paragrafo]`, `[Elenco]`, `[Citazione]`) e conteggio parole.
+  4. Utilizzare la tastiera: premere `↓` e `↑` per navigare tra le schede osservando l'auto-scroll e l'annuncio vocale / live region ARIA; premere `Cmd+T` per saltare direttamente al prossimo titolo.
+  5. Con una scheda selezionata, premere `Invio` o `Spazio`: verificare che la riproduzione vocale del singolo blocco si avvii istantaneamente e che la scheda mostri lo stato attivo pulsante.
+  6. Testare la scansione OCR cliccando "📷 OCR Schermo": verificare che venga catturato lo screenshot e riconosciuto il testo tramite Apple Vision framework offline.
+- **Esito Atteso**: L'albero o l'immagine vengono scansionati ed elaborati in millisecondi; la struttura semantica viene navigata fluidamente solo da tastiera e la lettura parte senza blocchi.
+- **Esito Fallito**: Overlay non reattivo, blocchi non classificati o mancata riproduzione TTS.
+

@@ -153,8 +153,9 @@ Specifiche operative per le feature utente approvate:
 | 🎚️ **Player Minimale a Barra Singola (Floating Pill)** | Modalità compatta ridisegnata: una barra sottile e discreta (pillola fluttuante 380x48px) con barra di avanzamento temporale, piccole linee vocali animate (waveform indicator) reattive alla riproduzione, controlli play/pausa essenziali e dissolvenza trasparente al termine. Minimo ingombro visivo. | *Settimana 6* — ✅ **Completata nel codebase reale** (stile pillola 24px radius, glassmorphism, onde vocali e fadeout). |
 | 🚫 **Esclusione di Testo (Filtro Stringhe)** | Configurazione utente per escludere stringhe esatte, pattern ricorrenti o disclaimer (es. "Inviato da iPhone", header ripetitivi, note legali) prima del chunking e della sintesi TTS. | *Settimane 4–5* — ✅ **Completata nel codebase reale** (`TextNormalizer.filter_exclusions`, config UI e sync). |
 | ⌨️ **Scorciatoie Personalizzabili (Play / Pausa / Stop)** | Impostazione dedicata nelle preferenze che consente all'utente di registrare e rimappare le scorciatoie da tastiera globali per Play, Pausa e Stop. Include set raccomandato per macOS: **Play: `Fn + F`** / `Alt+P`, **Pausa: `Fn + J`** / `Alt+J`, **Stop: `Fn + JJ`** / `Alt+K`. | *Settimana 6* — ✅ **Completata nel codebase reale** (Rust settings/shortcuts dinamicamente reattivi + input UI). |
-| 🔍 **Auto-identificazione Testo & Cattura Assistita a Riquadri (R&D / Fattibilità)** | **(Da pianificare & validare)** Due modalità di cattura intelligente senza selezione manuale: <br>1. *Automatica*: rilevamento automatico del blocco di testo principale dell'app/browser in primo piano (tramite traversing dell'albero AX/UIA o Readability engine locale). <br>2. *Assistita*: overlay su schermo con box visivi attorno alle sezioni di testo rilevate; con un click l'utente sceglie se avviare la riproduzione immediata del blocco o aggiungerlo alla coda di lettura. | *TRACK 2 — Visione v2 (R&D / Prototipazione)* — In studio di fattibilità tecnica. |
+| 🔍 **Universal Reading Layer: Auto-identificazione Testo & Navigazione a Blocchi** | Pipeline di cattura intelligente multi-livello offline: <br>1. *macOS AX*: attraversamento dell'albero di accessibilità dell'app attiva in primo piano con recupero ruoli, testo e coordinate a schermo. <br>2. *Clipboard Fallback*: estrazione testo selezionato. <br>3. *Vision OCR*: screenshot ed elaborazione neurale offline con Apple Vision framework. <br>Include analizzatore di layout deterministico locale, navigazione tastiera accessibile e supporto ai 4 profili di inclusione. | *TRACK 2 — Visione v2* — ✅ **Completata nel codebase reale** (Rust AX/screenshot + FastAPI `/v1/blocks/` + overlay accessibile con supporto screen reader). |
 | 🧩 **Modularità Motore Vocale (Plug-and-Play TTS)** | Disaccoppiamento del runtime TTS tramite interfaccia/adattatore unificato (`BaseTTSEngine`). Permette di sostituire o affiancare l'engine attuale con librerie o modelli emergenti più performanti/naturali senza impattare frontend, API FastAPI o IPC Tauri. | *Settimane 1–3* — ✅ **Completata nel codebase reale** (`BaseTTSEngine`, `SupertonicONNXEngine`, `create_engine` factory). |
+
 ---
 
 ## Rischi & Mitigazioni
@@ -182,3 +183,23 @@ Specifiche operative per le feature utente approvate:
 | Telemetria generica | Default OFF, granulare, coerente con privacy |
 | Fase 4 vaga (hash fragile) | Rimandata a v2 con schema fuzzy definito |
 | Nessuna metrica di successo | Gate quantificati per ogni fase |
+
+---
+
+## Fase 3.0 — 100% Native macOS Architecture (Branch `rewrite/100-native`) 🍏
+
+Traghettamento completo da Tauri 2 / Python / WebKit a un'applicazione Swift 6 / SwiftUI / AppKit unificata, ad alte prestazioni (<80 MB RAM, avvio <200ms, zero processi esterni).
+
+| Milestone | Contenuto & Moduli | Stato |
+|---|---|---|
+| **M1: Core Domain & NLP** | Modelli `@Observable`, `SentenceChunker` (`NaturalLanguage.framework` + regole italiane), `TextNormalizer` deterministico (valute, date, link, regex), `AppState`. | ✅ **Completato & Testato** (7 test) |
+| **M2: Audio & System Services** | `AudioEngineService` (`AVAudioEngine`, `AVAudioUnitTimePitch` 0.5x–3.0x, tap real-time FFT a 60fps), `AXCaptureService` (`AXUIElement`), `VisionOCRService` (`Vision.framework`). | ✅ **Completato & Testato** (2 test) |
+| **M3: Native UI Paradigms** | `FloatingPillView` (hover morph a Dynamic Island elastica, scrub multi-livello), `DynamicNotchView` (hardware notch HUD), `SuperAccessibleView` (WCAG AAA 14.2:1). | ✅ **Completato** (SwiftUI) |
+| **M4: Motore Vocale Nativo** | Binding C-API ONNX Runtime / CoreML per Supertonic 3 in Swift, streaming tensori a 24 kHz gapless. | ⏳ *In corso* |
+| **M5: Packaging & Performance Gate** | Sandboxing AppKit, firma & notarizzazione, benchmark di confronto RAM e latenza rispetto a Tauri. | 📋 *Pianificato* |
+
+### ✅ Gate di uscita Fase 3.0
+- Consumo RAM in riproduzione < 90 MB (rispetto ai 450 MB dell'architettura Tauri/Python).
+- Tempo di primo avvio (cold boot) < 250 ms.
+- 100% test unitari passati su pipeline audio, OCR e normalizzazione.
+

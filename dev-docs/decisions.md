@@ -77,3 +77,34 @@ Ogni decisione deve seguire tassativamente questa struttura:
   Applicare la normalizzazione a monte della segmentazione (`smart_chunk_text`) e della sintesi vocale su `/v1/queue` e `/v1/tts`.
 - **Alternative Scartate**: Normalizzazione demandata al frontend (risulterebbe disallineata rispetto ad esportazioni WAV o chiamate dirette API) oppure affidata a modelli LLM pesanti (latenza e consumo CPU incompatibili con TTS in tempo reale).
 - **Conseguenze & Vincoli Intoccabili**: La normalizzazione deve avvenire prima dello smart chunking, affinché le frasi espanse non vengano spezzate erroneamente a metà di un numero o di una valuta.
+
+---
+
+## [ADR-007] Universal Reading Layer con Fallback a 3 Livelli (AX -> Clipboard -> Vision OCR) e Layout Analysis Deterministica (2026-09-05)
+- **Stato**: Accettata
+- **Contesto & Problema**: Per utenti con dislessia, cecità, ipovisione o ridotta alfabetizzazione, il semplice paradigma "seleziona, copia e ascolta" è insufficiente. Le applicazioni esterne possono esporre il testo tramite Accessibility API, solo tramite clipboard, oppure non esporlo affatto (canvas, PDF scansionati, grafici o app non accessibili). Inoltre, una stringa di testo continua priva di struttura impedisce la navigazione semantica (saltare ai titoli, elenchi, paragrafi o citazioni).
+- **Decisione Presa**:
+  1. Implementare una pipeline di acquisizione a 3 livelli ordinata per affidabilità e velocità:
+     - **Livello 1**: macOS Accessibility (`AXUIElement` in Rust) per estrarre l'albero visivo della finestra target (ruoli `AXHeading`, `AXParagraph`, `AXStaticText`, ecc., testo e coordinate a schermo).
+     - **Livello 2**: Fallback su selezione/clipboard per app senza albero AX completo.
+     - **Livello 3**: Fallback su screenshot finestra (`screencapture -l`) e riconoscimento OCR offline tramite il framework nativo di macOS **Apple Vision** (`VNRecognizeTextRequest`).
+  2. Incapsulare l'analisi del layout in `backend/blocks/layout_analyzer.py`: un algoritmo deterministico locale (100% offline, zero dipendenze LLM pesanti) che raggruppa linee contigue e classifica i blocchi in `heading`, `paragraph`, `list_item`, `quote`, `code`, normalizzandoli con `TextNormalizer`.
+  3. Esporre il comando Tauri `capture_universal_blocks` e gli endpoint REST `/v1/blocks/analyze` e `/v1/blocks/ocr`.
+  4. Riprogettare l'interfaccia in un **Universal Reading Layer** a schede semantiche navigabili da tastiera (`ArrowDown`/`ArrowUp`, `Cmd+T` per i titoli, `Invio`/`Spazio` per ascoltare) con supporto completo screen reader via live region ARIA e stili calibrati per i 4 profili di accessibilità.
+- **Alternative Scartate**: Affidarsi esclusivamente all'OCR (lento ed energivoro se l'app è già accessibile via AX), usare modelli LLM per il layout (latenza di secondi e dipendenze enormi), o limitarsi alla sola visualizzazione interna del testo locale.
+---
+
+## [ADR-008] Rewrite 100% Nativo macOS in Swift, AppKit, SwiftUI e AVAudioEngine (2026-09-09)
+- **Stato**: Accettata (Branch `rewrite/100-native`)
+- **Contesto & Problema**: L'architettura ibrida Tauri 2 + Rust + Python FastAPI sidecar + WebKit JS comporta ~450 MB di consumo RAM, 2.5s di avvio, overhead di serializzazione HTTP/IPC e impossibilità di sfruttare nativamente l'Apple Neural Engine (ANE) e le interazioni pixel-perfect di sistema come il Dynamic Notch hardware e le finestre `.nonactivatingPanel`.
+- **Decisione Presa**: Avviare sul branch dedicato `rewrite/100-native` la riprogettazione e riscrittura completa in un'applicazione **100% nativa macOS**:
+  1. **Linguaggio & UI**: Swift 6, SwiftUI e AppKit per finestre native (`NotchWindowController`, `FloatingPillController` a molla elastica e `StudioWindowController`).
+  2. **Pipeline Audio**: `AVAudioEngine` e `AVAudioPlayerNode` per streaming di campioni PCM a 24 kHz gapless con `AVAudioUnitTimePitch` per velocità a formanti preservate.
+  3. **TTS & Inferenza**: Esecuzione locale diretta di Supertonic 3 tramite binding Swift di ONNX Runtime C-API con accelerazione CoreML/Metal (e futuro CoreML puro).
+  4. **NLP & Chunking**: `NaturalLanguage.framework` nativo per la segmentazione frasi in sostituzione di `pySBD`.
+  5. **Accessibilità di Sistema**: Integrazione diretta con `AXUIElement` e Apple `Vision.framework` senza intermediari.
+  Specifiche tecniche dettagliate in [`docs/progettazione-100-native.md`](../docs/progettazione-100-native.md).
+- **Alternative Scartate**: Mantenere l'architettura ibrida (troppo pesante per un'utility di lettura continua in background); usare Electron o Flutter (ancora più pesanti e privi di integrazione hardware con la tacca).
+- **Conseguenze & Vincoli Intoccabili**: Il rewrite si sviluppa nel branch dedicato `rewrite/100-native` senza rompere il branch principale `main` fino al raggiungimento della parità di feature e dei benchmark di stabilità.
+
+
