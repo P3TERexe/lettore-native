@@ -59,7 +59,7 @@ public struct LettoreStudioView: View {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                for window in NSApp.windows where !(window is NSPanel) && window.frame.width >= 800 {
+                for window in NSApp.windows where window.canBecomeKey && !(window is NSPanel) {
                     window.level = appState.isAlwaysOnTop ? .floating : .normal
                     window.makeKeyAndOrderFront(nil)
                     window.orderFrontRegardless()
