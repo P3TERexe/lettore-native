@@ -4,7 +4,7 @@
 
 ![macOS Support](https://img.shields.io/badge/macOS-14.0%2B-silver?style=flat-square&logo=apple)
 ![Swift Version](https://img.shields.io/badge/Swift-6.0-F05138?style=flat-square&logo=swift)
-![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-CC_BY--NC--SA_4.0-blue?style=flat-square)
 
 ## 🚀 Funzionalità Chiave
 
@@ -70,4 +70,9 @@ Le Pull Request sono benvenute! Assicurati di eseguire `swift test` prima di pro
 
 ## 📄 Licenza
 
-Questo progetto è distribuito con licenza MIT. Vedi il file `LICENSE` per ulteriori dettagli.
+Questo progetto è distribuito con licenza **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)**. 
+Questo significa che sei libero di utilizzare e modificare il codice, ma:
+1. **Non puoi utilizzarlo per scopi commerciali**.
+2. **Devi mantenere il progetto open source** (le tue modifiche devono essere distribuite sotto la stessa licenza).
+
+Vedi il file `LICENSE.md` per ulteriori dettagli.
