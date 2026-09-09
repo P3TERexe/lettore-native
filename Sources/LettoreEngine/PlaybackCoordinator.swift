@@ -15,6 +15,10 @@ public final class PlaybackCoordinator {
     private var isPlayingSupertonic: Bool = true
     private var isSynthesizing: Bool = false
     
+    // Cache per il preloading del chunk successivo
+    private var preloadedWAVs: [UUID: Data] = [:]
+    private var preloadTask: Task<Void, Never>? = nil
+    
     public init(
         appState: AppState,
         audioEngine: AudioEngineService,
@@ -77,9 +81,46 @@ public final class PlaybackCoordinator {
     
     public func stop() {
         isSynthesizing = false
+        preloadTask?.cancel()
+        preloadTask = nil
+        preloadedWAVs.removeAll()
         audioEngine.stop()
         speechFallback.stop()
         appState.playbackState = .idle
+    }
+    
+    private func preloadNextChunk() {
+        guard let current = appState.currentChunk,
+              let currentIndex = appState.readingQueue.firstIndex(where: { $0.id == current.id }) else {
+            return
+        }
+        
+        let nextIndex = currentIndex + 1
+        guard nextIndex < appState.readingQueue.count else { return }
+        
+        let nextChunk = appState.readingQueue[nextIndex]
+        if preloadedWAVs[nextChunk.id] != nil { return } // Già in cache
+        
+        preloadTask?.cancel()
+        preloadTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let wavData = try await self.supertonicPipeline.synthesize(
+                    text: nextChunk.text,
+                    voice: self.appState.selectedVoice,
+                    speed: self.appState.playbackSpeed
+                )
+                
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.preloadedWAVs[nextChunk.id] = wavData
+                        print("[PlaybackCoordinator] Preload completato in background per chunk \(nextIndex)")
+                    }
+                }
+            } catch {
+                print("[PlaybackCoordinator] Errore preloading chunk \(nextIndex): \(error.localizedDescription)")
+            }
+        }
     }
     
     public func playCurrentChunk() {
@@ -87,13 +128,36 @@ public final class PlaybackCoordinator {
             appState.playbackState = .idle
             return
         }
+        
+        appState.playbackState = .playing
+        
+        if let cachedWAV = preloadedWAVs[current.id] {
+            print("[PlaybackCoordinator] Hit cache locale per chunk corrente (nessuna attesa)!")
+            preloadedWAVs.removeValue(forKey: current.id)
+            isSynthesizing = false
+            isPlayingSupertonic = true
+            
+            preloadNextChunk() // Avvia il preload del successivo mentre suona
+            
+            audioEngine.playWAVData(cachedWAV, speed: appState.playbackSpeed) {
+                Task { @MainActor in
+                    if self.appState.advanceChunk() != nil {
+                        self.playCurrentChunk()
+                    } else {
+                        self.appState.playbackState = .idle
+                    }
+                }
+            }
+            return
+        }
+        
         guard !isSynthesizing else {
             print("[PlaybackCoordinator] Sintesi già in corso, ignorata")
             return
         }
         
-        appState.playbackState = .playing
         isSynthesizing = true
+        print("[PlaybackCoordinator] Cache miss, sintetizzo chunk corrente...")
         
         Task {
             do {
@@ -108,6 +172,9 @@ public final class PlaybackCoordinator {
                 await MainActor.run {
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = true
+                    
+                    self.preloadNextChunk() // Avvia il preload del successivo mentre suona
+                    
                     self.audioEngine.playWAVData(wavData, speed: self.appState.playbackSpeed) {
                         Task { @MainActor in
                             if self.appState.advanceChunk() != nil {
