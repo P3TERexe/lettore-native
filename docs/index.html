@@ -6,7 +6,7 @@
   <title>Lettore Native: Sintesi Vocale Neurale per macOS</title>
   <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=supertonic-v3-real-audio">
 </head>
 <body>
 
@@ -457,9 +457,16 @@ swift run LettoreApp</code></pre>
         <a href="https://github.com/P3TERexe/lettore-native/releases" target="_blank" rel="noopener noreferrer">Note di Rilascio</a>
         <a href="https://github.com/P3TERexe/lettore-native/issues" target="_blank" rel="noopener noreferrer">Segnala un Problema</a>
       </div>
-    </div>
-  </footer>
+  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati -->
+  <div style="display:none;" aria-hidden="true">
+    <audio id="audio-calvino-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
+    <audio id="audio-calvino-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
+    <audio id="audio-calvino-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
+    <audio id="audio-neuroscience-0" preload="auto" src="./assets/audio/neuroscience_0.mp3"></audio>
+    <audio id="audio-neuroscience-1" preload="auto" src="./assets/audio/neuroscience_1.mp3"></audio>
+    <audio id="audio-neuroscience-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
+  </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=supertonic-v3-real-audio"></script>
 </body>
 </html>

@@ -1,25 +1,11 @@
 /**
  * Lettore Native: Simulatore Interattivo Web (docs/app.js)
- * Architettura: Audio Neurale Supertonic 3 ONNX + Web Audio Analyser
- * Conforme a standard anti-slop: campioni vocali originali a 44.1 kHz.
+ * Architettura: Audio Neurale Supertonic 3 ONNX Reale Precaricato
+ * Riproduzione audio 100% fedele senza sintetizzatori sintetici del browser.
  */
 
 (function () {
   'use strict';
-
-  // Mappa dei file audio reali generati direttamente dal motore Supertonic 3 ONNX
-  const supertonicAudioMap = {
-    calvino: [
-      './assets/audio/calvino_0.mp3',
-      './assets/audio/calvino_1.mp3',
-      './assets/audio/calvino_2.mp3'
-    ],
-    neuroscience: [
-      './assets/audio/neuroscience_0.mp3',
-      './assets/audio/neuroscience_1.mp3',
-      './assets/audio/neuroscience_2.mp3'
-    ]
-  };
 
   // Stato dell'applicazione simulatore
   const state = {
@@ -29,12 +15,7 @@
     speed: 1.0,
     speeds: [1.0, 1.25, 1.5, 2.0],
     isExpanded: false,
-    audioContext: null,
-    analyser: null,
-    audioSourceNode: null,
-    animFrameId: null,
-    audioElement: null,
-    autoTimer: null
+    currentAudio: null
   };
 
   // Titoli delle finestre simulate
@@ -63,61 +44,6 @@
   const btnCopyCode = document.getElementById('btnCopyCode');
   const codeSnippet = document.getElementById('codeSnippet');
 
-  // Inizializzazione Audio Context e Analyser per l'onda sonora in tempo reale
-  function ensureAudioContext() {
-    if (!state.audioContext) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        state.audioContext = new AudioCtx();
-        state.analyser = state.audioContext.createAnalyser();
-        state.analyser.fftSize = 32;
-        state.analyser.smoothingTimeConstant = 0.8;
-      }
-    }
-    if (state.audioContext && state.audioContext.state === 'suspended') {
-      state.audioContext.resume();
-    }
-  }
-
-  // Animazione dell'onda sonora sincronizzata alle frequenze audio reali
-  function startWaveAnimation() {
-    if (state.animFrameId) cancelAnimationFrame(state.animFrameId);
-
-    const bufferLength = state.analyser ? state.analyser.frequencyBinCount : 0;
-    const dataArray = state.analyser ? new Uint8Array(bufferLength) : null;
-
-    function renderFrame() {
-      if (!state.isPlaying) return;
-
-      if (state.analyser && dataArray) {
-        state.analyser.getByteFrequencyData(dataArray);
-        // Distribuisce le frequenze sulle 7 barre della pillola
-        waveBars.forEach((bar, i) => {
-          const val = dataArray[i % bufferLength] || 0;
-          // Normalizza l'altezza tra 4px e 24px
-          const barHeight = Math.max(4, Math.min(24, Math.round((val / 255) * 24)));
-          bar.style.height = `${barHeight}px`;
-        });
-      }
-
-      state.animFrameId = requestAnimationFrame(renderFrame);
-    }
-
-    renderFrame();
-  }
-
-  function stopWaveAnimation() {
-    if (state.animFrameId) {
-      cancelAnimationFrame(state.animFrameId);
-      state.animFrameId = null;
-    }
-    // Ripristina l'altezza base delle barre
-    const defaultHeights = [6, 12, 18, 14, 20, 10, 6];
-    waveBars.forEach((bar, i) => {
-      bar.style.height = `${defaultHeights[i] || 8}px`;
-    });
-  }
-
   // Ottiene i chunk attivi nel documento corrente
   function getCurrentChunks() {
     const activeDocBlock = document.getElementById(`doc-${state.currentDoc}`);
@@ -144,24 +70,22 @@
     }
   }
 
-  // Ferma qualsiasi audio o sintesi in corso
-  function stopActiveAudioSources() {
-    if (state.audioElement) {
-      state.audioElement.pause();
-      state.audioElement.currentTime = 0;
-      state.audioElement = null;
+  // Ferma qualsiasi traccia audio attiva
+  function stopAllAudios() {
+    if (state.currentAudio) {
+      state.currentAudio.pause();
+      state.currentAudio.currentTime = 0;
+      state.currentAudio = null;
     }
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    if (state.autoTimer) {
-      clearTimeout(state.autoTimer);
-      state.autoTimer = null;
-    }
-    stopWaveAnimation();
+    // Ferma anche tutti gli elementi audio nella pagina per sicurezza
+    document.querySelectorAll('audio').forEach(a => {
+      a.pause();
+      a.currentTime = 0;
+    });
+    pill.classList.remove('is-playing');
   }
 
-  // Esecuzione del chunk corrente
+  // Riproduce il chunk corrente usando l'audio Supertonic 3 ONNX reale
   function playCurrentChunk() {
     const chunks = getCurrentChunks();
     if (chunks.length === 0 || state.currentChunkIndex >= chunks.length) {
@@ -170,33 +94,22 @@
     }
 
     updateChunkHighlight();
-    stopActiveAudioSources();
-    ensureAudioContext();
+    stopAllAudios();
 
-    // Caso 1: Documento standard con campioni reali Supertonic 3 ONNX
-    if (supertonicAudioMap[state.currentDoc] && supertonicAudioMap[state.currentDoc][state.currentChunkIndex]) {
-      const audioUrl = supertonicAudioMap[state.currentDoc][state.currentChunkIndex];
-      const audio = new Audio(audioUrl);
-      state.audioElement = audio;
+    // Seleziona l'elemento audio reale Supertonic precaricato
+    const audioId = `audio-${state.currentDoc}-${state.currentChunkIndex}`;
+    let audio = document.getElementById(audioId);
+
+    // Se l'elemento non è nell'HTML, prova a instanziarlo direttamente
+    if (!audio) {
+      const fallbackUrl = `./assets/audio/${state.currentDoc}_${state.currentChunkIndex}.mp3`;
+      audio = new Audio(fallbackUrl);
+    }
+
+    if (audio) {
+      state.currentAudio = audio;
       audio.playbackRate = state.speed;
-
-      // Connessione Web Audio per visualizzatore di frequenze (se non bloccato da CORS)
-      if (state.audioContext && state.analyser) {
-        try {
-          if (!audio._connected) {
-            const source = state.audioContext.createMediaElementSource(audio);
-            source.connect(state.analyser);
-            state.analyser.connect(state.audioContext.destination);
-            audio._connected = true;
-          }
-        } catch (e) {
-          // Fallback silenzioso se già connesso o restrizione browser
-        }
-      }
-
-      audio.onplay = function () {
-        startWaveAnimation();
-      };
+      audio.currentTime = 0;
 
       audio.onended = function () {
         if (!state.isPlaying) return;
@@ -204,88 +117,31 @@
           state.currentChunkIndex++;
           playCurrentChunk();
         } else {
-          // Fine documento
+          // Fine documento: resetta alla prima frase
           stopPlayback();
           state.currentChunkIndex = 0;
           updateChunkHighlight();
         }
-      };
-
-      audio.onerror = function (err) {
-        console.warn('Errore riproduzione file Supertonic, fallback a SpeechSynthesis:', err);
-        fallbackChunkSpeech(chunks[state.currentChunkIndex].textContent.trim(), chunks.length);
       };
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.warn('Autoplay bloccato dal browser:', error);
+        playPromise.then(() => {
+          pill.classList.add('is-playing');
+        }).catch(err => {
+          console.warn('Avvio audio impedito dalle policy del browser:', err);
           pausePlayback();
         });
       }
     } else {
-      // Caso 2: Testo personalizzato inserito dall'utente (SpeechSynthesis)
-      const textToSpeak = chunks[state.currentChunkIndex].textContent.trim();
-      fallbackChunkSpeech(textToSpeak, chunks.length);
-    }
-  }
-
-  // Fallback vocale per testo custom o mancato supporto
-  function fallbackChunkSpeech(text, totalChunks) {
-    if ('speechSynthesis' in window && text.length > 0) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'it-IT';
-      utterance.rate = state.speed;
-
-      const voices = window.speechSynthesis.getVoices();
-      const itVoice = voices.find(v => v.lang.startsWith('it'));
-      if (itVoice) utterance.voice = itVoice;
-
-      utterance.onstart = function () {
-        startWaveAnimation();
-      };
-
-      utterance.onend = function () {
-        if (!state.isPlaying) return;
-        if (state.currentChunkIndex < totalChunks - 1) {
-          state.currentChunkIndex++;
-          playCurrentChunk();
-        } else {
-          stopPlayback();
-          state.currentChunkIndex = 0;
-          updateChunkHighlight();
-        }
-      };
-
-      utterance.onerror = function () {
-        stopPlayback();
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } else {
-      // Stima temporale
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      const durationMs = Math.max(1200, (wordCount / (3 * state.speed)) * 1000);
-      startWaveAnimation();
-
-      state.autoTimer = setTimeout(() => {
-        if (!state.isPlaying) return;
-        if (state.currentChunkIndex < totalChunks - 1) {
-          state.currentChunkIndex++;
-          playCurrentChunk();
-        } else {
-          stopPlayback();
-          state.currentChunkIndex = 0;
-          updateChunkHighlight();
-        }
-      }, durationMs);
+      console.warn('Audio non trovato per', audioId);
+      stopPlayback();
     }
   }
 
   // Avvia la riproduzione
   function startPlayback() {
     state.isPlaying = true;
-    pill.classList.add('is-playing');
     iconPlay.classList.add('is-hidden');
     iconPause.classList.remove('is-hidden');
     playCurrentChunk();
@@ -294,15 +150,19 @@
   // Mette in pausa
   function pausePlayback() {
     state.isPlaying = false;
-    pill.classList.remove('is-playing');
     iconPlay.classList.remove('is-hidden');
     iconPause.classList.add('is-hidden');
-    stopActiveAudioSources();
+    pill.classList.remove('is-playing');
+
+    if (state.currentAudio) {
+      state.currentAudio.pause();
+    }
   }
 
   // Ferma completamente
   function stopPlayback() {
     pausePlayback();
+    stopAllAudios();
   }
 
   // Toggle Play / Pausa
@@ -345,10 +205,8 @@
     state.speed = state.speeds[nextIdx];
     speedValue.textContent = `${state.speed.toFixed(1)}×`;
 
-    if (state.audioElement) {
-      state.audioElement.playbackRate = state.speed;
-    } else if (state.isPlaying) {
-      playCurrentChunk();
+    if (state.currentAudio) {
+      state.currentAudio.playbackRate = state.speed;
     }
   }
 
@@ -395,7 +253,7 @@
     });
   }
 
-  // Segmentatore di testo personalizzato (Sentence Chunker)
+  // Gestione testo personalizzato
   function applyCustomText() {
     const text = customTextInput.value.trim();
     if (!text) {
@@ -407,8 +265,12 @@
     const sentences = rawSentences.map(s => s.trim()).filter(s => s.length > 0);
 
     customChunksContainer.innerHTML = '';
-    const p = document.createElement('p');
+    const note = document.createElement('div');
+    note.style.cssText = 'background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; color: #34d399;';
+    note.textContent = 'La sintesi neurale Supertonic ONNX a 16 bit in locale richiede l\'applicazione per macOS. Per ascoltare la voce reale Supertonic seleziona uno dei brani campione in alto (Italo Calvino o Neuroscienze).';
+    customChunksContainer.appendChild(note);
 
+    const p = document.createElement('p');
     sentences.forEach((sentence, idx) => {
       const span = document.createElement('span');
       span.className = 'chunk';
@@ -416,13 +278,11 @@
       span.textContent = sentence + ' ';
       p.appendChild(span);
     });
-
     customChunksContainer.appendChild(p);
+
     state.currentChunkIndex = 0;
     updateChunkHighlight();
     attachChunkClickListeners();
-
-    startPlayback();
   }
 
   // Copia codice per il terminale
