@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for window in NSApp.windows where window.canBecomeKey && !(window is NSPanel) {
+            for window in NSApp.windows where window.frame.width >= 800 && !(window is NSPanel) {
                 window.makeKeyAndOrderFront(nil)
                 window.orderFrontRegardless()
             }

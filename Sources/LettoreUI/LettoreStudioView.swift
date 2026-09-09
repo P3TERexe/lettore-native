@@ -128,7 +128,7 @@ public struct LettoreStudioView: View {
                     title: appState.isAlwaysOnTop ? "Sempre Sopra: ON" : "Sempre Sopra: OFF"
                 ) {
                     appState.isAlwaysOnTop.toggle()
-                    for window in NSApp.windows where !(window is NSPanel) {
+                    for window in NSApp.windows where window.frame.width >= 800 && !(window is NSPanel) {
                         window.level = appState.isAlwaysOnTop ? .floating : .normal
                     }
                 }
