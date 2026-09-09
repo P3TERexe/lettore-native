@@ -68,7 +68,13 @@ Se il Mac è impostato in modo molto restrittivo e nasconde il pulsante Apri, ri
 ```bash
 xattr -cr /Percorso/Dove/Hai/Salvato/LettoreNative.app
 ```
-Dopodiché potrai aprirla con un normale doppio click!
+### Metodo 3: Impostazioni di Sistema (Infallibile su macOS Sonoma)
+Se il Click Destro non mostra il pulsante "Apri" e il Terminale non funziona (succede spesso nelle nuove versioni di macOS a causa di un tag invisibile chiamato *Provenance*):
+1. Apri le **Impostazioni di Sistema** (System Settings) del tuo Mac.
+2. Vai su **Privacy e Sicurezza** (Privacy & Security).
+3. Scorri verso il basso fino alla sezione **Sicurezza**.
+4. Vedrai un avviso che dice che `LettoreNative.app` è stata bloccata perché proviene da uno sviluppatore non identificato. Accanto troverai il pulsante **"Apri Comunque"** (Open Anyway).
+5. Cliccalo, inserisci la password del Mac (o TouchID) e l'app si aprirà.
 
 ## 📦 Struttura del Progetto
 
