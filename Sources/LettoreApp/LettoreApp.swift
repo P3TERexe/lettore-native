@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for window in NSApp.windows where !(window is NSPanel) {
+            for window in NSApp.windows where window.title == "Lettore Studio" {
                 window.makeKeyAndOrderFront(nil)
                 window.orderFrontRegardless()
             }
