@@ -7,6 +7,10 @@ xcuserdata/
 *.xcframework
 DerivedData/
 
+# App Bundles & Archives
+*.app/
+*.zip
+
 # Python
 __pycache__/
 *.pyc
