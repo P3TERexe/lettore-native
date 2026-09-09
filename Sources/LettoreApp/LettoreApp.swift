@@ -57,6 +57,26 @@ struct LettoreApp: App {
             }
         }
         .windowToolbarStyle(.unified)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("Informazioni su Lettore Native") {
+                    NSApplication.shared.orderFrontStandardAboutPanel(
+                        options: [
+                            .applicationName: "Lettore Native",
+                            .applicationVersion: "3.0.0",
+                            .version: "Native macOS Edition",
+                            .credits: NSAttributedString(
+                                string: "Applicazione 100% nativa progettata per l'accessibilità.\nSintesi neurale locale potenziata da Supertonic ONNX.",
+                                attributes: [
+                                    .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                                    .foregroundColor: NSColor.labelColor
+                                ]
+                            )
+                        ]
+                    )
+                }
+            }
+        }
         
         // Menu Bar Item di Sistema
         MenuBarExtra("Lettore", systemImage: "waveform.badge.magnifyingglass") {
