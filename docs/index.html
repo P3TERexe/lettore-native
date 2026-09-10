@@ -10,7 +10,7 @@
   <meta property="og:title" content="Lettore Native: Sintesi Vocale Neurale per macOS">
   <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=simple-v9">
+  <link rel="stylesheet" href="./styles.css?v=voices-v11">
 </head>
 <body>
 
@@ -72,9 +72,29 @@
           </div>
         </div>
 
+        <!-- Evidenziazione Architettura Multilingua Neurale -->
+        <div class="hero-multilang-badge reveal-on-scroll" aria-label="Supporto multilingua">
+          <div class="multilang-lead">
+            <svg class="multilang-globe-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span>Architettura Poliglotta:</span>
+          </div>
+          <div class="multilang-chips-row">
+            <span class="m-lang-chip"><span class="m-lang-flag">🇮🇹</span> Italiano</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇬🇧</span> English</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇪🇸</span> Español</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇫🇷</span> Français</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇩🇪</span> Deutsch</span>
+            <span class="m-lang-count">20+ Voci Neurali</span>
+          </div>
+        </div>
+
         <h1 class="hero-title reveal-on-scroll">Lettura vocale neurale a livello di sistema. Senza web wrapper, senza latenza.</h1>
         <p class="hero-lead reveal-on-scroll">
-          Costruito interamente in Swift 6 con AppKit, SwiftUI e sintesi neurale locale Supertonic ONNX a 16-bit. Si collega direttamente alle Accessibility API di macOS per leggere qualsiasi testo selezionato, con un consumo reale inferiore a 80 MB di memoria.
+          Costruito interamente in Swift 6 per macOS con AppKit, SwiftUI e sintesi neurale Supertonic ONNX a 16-bit. Include supporto nativo <strong>multilingua (5 lingue e oltre 20 profili vocali calibrati)</strong> con cattura istantanea da qualsiasi applicazione e consumo reale inferiore a 80 MB di memoria.
         </p>
 
         <div class="hero-cta-group reveal-on-scroll">
@@ -102,6 +122,15 @@
             </div>
             <span class="metric-label">Memoria in esecuzione</span>
             <span class="metric-note">Zero Chromium, zero overhead Electron</span>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">5 Lingue</span>
+              <span class="metric-pill-tag">Poliglotta</span>
+            </div>
+            <span class="metric-label">Sintesi &amp; 20+ Profili</span>
+            <span class="metric-note">IT · EN · ES · FR · DE con voci ♂ e ♀</span>
           </div>
 
           <div class="metric-card">
@@ -183,6 +212,10 @@
                   </svg>
                   <span>Neuroscienze &amp; Lettura</span>
                 </button>
+                <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="english">
+                  <span class="chip-flag" aria-hidden="true">🇬🇧</span>
+                  <span>Oliver Sacks (EN)</span>
+                </button>
                 <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="custom">
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -190,6 +223,49 @@
                   </svg>
                   <span>Testo Personalizzato</span>
                 </button>
+              </div>
+
+              <!-- Selettore Voci Neurale macOS -->
+              <div class="voice-selector-bar" role="region" aria-label="Selezione voce neurale">
+                <label for="voiceSelect" class="voice-select-label">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                  <span>Voce:</span>
+                </label>
+                <div class="voice-select-pill">
+                  <select id="voiceSelect" class="voice-dropdown" aria-label="Scegli voce neurale">
+                    <optgroup label="Italiano (IT)">
+                      <option value="IT-M1" selected>🇮🇹 Marco (Maschile · Caldo)</option>
+                      <option value="IT-F1">🇮🇹 Giulia (Femminile · Cristallina)</option>
+                      <option value="IT-M2">🇮🇹 Luca (Maschile · Dinamico)</option>
+                      <option value="IT-F2">🇮🇹 Sofia (Femminile · Naturale)</option>
+                    </optgroup>
+                    <optgroup label="English (EN)">
+                      <option value="EN-M1">🇬🇧 John (Male · Warm RP)</option>
+                      <option value="EN-F1">🇬🇧 Emma (Female · Clear Studio)</option>
+                      <option value="EN-M2">🇬🇧 Michael (Male · Narrative)</option>
+                    </optgroup>
+                    <optgroup label="Español (ES)">
+                      <option value="ES-M1">🇪🇸 Carlos (Masculino · Fluido)</option>
+                      <option value="ES-F1">🇪🇸 Lucia (Femenino · Cálido)</option>
+                    </optgroup>
+                    <optgroup label="Français (FR)">
+                      <option value="FR-M1">🇫🇷 Pierre (Masculin · Posé)</option>
+                      <option value="FR-F1">🇫🇷 Camille (Féminin · Doux)</option>
+                    </optgroup>
+                    <optgroup label="Deutsch (DE)">
+                      <option value="DE-M1">🇩🇪 Klaus (Männlich · Klar)</option>
+                      <option value="DE-F1">🇩🇪 Anna (Weiblich · Präzise)</option>
+                    </optgroup>
+                  </select>
+                  <svg class="select-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
               </div>
             </div>
 
@@ -266,8 +342,11 @@
 
                     <div class="pill-divider" aria-hidden="true"></div>
 
-                    <!-- Badge Voce Neurale Supertonic -->
-                    <span class="pill-voice-tag" title="Sintesi Neurale Supertonic 3 ONNX 44.1 kHz">Supertonic 3</span>
+                    <!-- Badge Voce Neurale Attiva con cambio rapido -->
+                    <button type="button" class="pill-voice-btn" id="btnPillVoice" title="Voce attiva: clicca per cambiare profilo vocale" aria-label="Cambia voce neurale">
+                      <span class="voice-indicator-dot" aria-hidden="true"></span>
+                      <span id="pillVoiceName">Marco (IT)</span>
+                    </button>
 
                     <span class="pill-timer" id="pillTimer" aria-live="polite">Frase 1/3</span>
                   </div>
@@ -292,6 +371,15 @@
                     <span class="chunk" data-chunk-index="0" tabindex="0" role="button" aria-label="Frase 1: L'ascolto combinato alla scansione visiva...">L'ascolto combinato alla scansione visiva riduce il carico cognitivo della memoria di lavoro fino al quaranta percento durante lo studio intensivo.</span>
                     <span class="chunk" data-chunk-index="1" tabindex="0" role="button" aria-label="Frase 2: La segmentazione del discorso in unità sintattiche...">La segmentazione del discorso in unità sintattiche complete consente al cervello di anticipare la struttura della frase senza interruzioni ritmiche.</span>
                     <span class="chunk" data-chunk-index="2" tabindex="0" role="button" aria-label="Frase 3: Per questo motivo la sincronizzazione istantanea...">Per questo motivo la sincronizzazione istantanea tra voce neurale e marcatore visivo è essenziale per la comprensione profonda.</span>
+                  </p>
+                </div>
+
+                <!-- Testo Letteratura Inglese (Multilingua) -->
+                <div class="doc-text-block" id="doc-english">
+                  <p>
+                    <span class="chunk" data-chunk-index="0" tabindex="0" role="button" aria-label="Sentence 1: There is no doubt that consciousness...">There is no doubt that consciousness is an active, continuous creation of the human mind and memory.</span>
+                    <span class="chunk" data-chunk-index="1" tabindex="0" role="button" aria-label="Sentence 2: Perception is never purely passive;...">Perception is never purely passive; it involves an immediate synthesis of sensory input and narrative focus.</span>
+                    <span class="chunk" data-chunk-index="2" tabindex="0" role="button" aria-label="Sentence 3: Language gives our inner thoughts a lasting architecture...">Language gives our inner thoughts a lasting architecture that transcends the fleeting present moment.</span>
                   </p>
                 </div>
 
@@ -378,19 +466,26 @@
             </p>
           </article>
 
-          <!-- Card 3: Normalizzatore Linguistico -->
+          <!-- Card 3: Architettura Multilingua & Voci Neurali -->
           <article class="feature-box">
             <div class="feature-box-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 7V4h16v3"/>
-                <path d="M9 20h6"/>
-                <path d="M12 4v16"/>
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
             </div>
-            <h3 class="feature-box-title">Pronuncia naturale in italiano</h3>
+            <h3 class="feature-box-title">Multilingua con oltre 20 voci neurali</h3>
             <p class="feature-box-text">
-              Comprende ed espande al volo abbreviazioni frequenti, date, orari, numeri e cifre monetarie (trasformando ad esempio &ldquo;150€&rdquo; in &ldquo;centocinquanta euro&rdquo;), evitando pronunce robotiche o incerte.
+              Supporto nativo per 5 lingue (Italiano, Inglese, Spagnolo, Francese, Tedesco) con profili timbrici maschili e femminili calibrati. Passi da Marco a Giulia o a John in un clic, con fonetica madrelingua fluida ed espansione automatica di date, orari e abbreviazioni per ciascuna lingua.
             </p>
+            <div class="feature-lang-row" aria-label="Lingue supportate">
+              <span class="f-lang-tag">🇮🇹 IT</span>
+              <span class="f-lang-tag">🇬🇧 EN</span>
+              <span class="f-lang-tag">🇪🇸 ES</span>
+              <span class="f-lang-tag">🇫🇷 FR</span>
+              <span class="f-lang-tag">🇩🇪 DE</span>
+            </div>
           </article>
 
           <!-- Card 4: Audio Istantaneo -->
@@ -520,16 +615,46 @@ swift run LettoreApp</code></pre>
     </svg>
   </button>
 
-  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Nativo & Pulito) -->
+  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Multilingua & Voci) -->
   <div class="audio-preload-pool" aria-hidden="true">
+    <!-- Italiano - Marco (IT-M1) -->
+    <audio id="audio-calvino-IT-M1-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
+    <audio id="audio-calvino-IT-M1-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
+    <audio id="audio-calvino-IT-M1-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
+    <audio id="audio-neuroscience-IT-M1-0" preload="auto" src="./assets/audio/neuroscience_0.mp3"></audio>
+    <audio id="audio-neuroscience-IT-M1-1" preload="auto" src="./assets/audio/neuroscience_1.mp3"></audio>
+    <audio id="audio-neuroscience-IT-M1-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
+
+    <!-- Italiano - Giulia (IT-F1) -->
+    <audio id="audio-calvino-IT-F1-0" preload="auto" src="./assets/audio/calvino_giulia_0.mp3"></audio>
+    <audio id="audio-calvino-IT-F1-1" preload="auto" src="./assets/audio/calvino_giulia_1.mp3"></audio>
+    <audio id="audio-calvino-IT-F1-2" preload="auto" src="./assets/audio/calvino_giulia_2.mp3"></audio>
+    <audio id="audio-neuroscience-IT-F1-0" preload="auto" src="./assets/audio/neuroscience_giulia_0.mp3"></audio>
+    <audio id="audio-neuroscience-IT-F1-1" preload="auto" src="./assets/audio/neuroscience_giulia_1.mp3"></audio>
+    <audio id="audio-neuroscience-IT-F1-2" preload="auto" src="./assets/audio/neuroscience_giulia_2.mp3"></audio>
+
+    <!-- English - John (EN-M1) -->
+    <audio id="audio-english-EN-M1-0" preload="auto" src="./assets/audio/english_0.mp3"></audio>
+    <audio id="audio-english-EN-M1-1" preload="auto" src="./assets/audio/english_1.mp3"></audio>
+    <audio id="audio-english-EN-M1-2" preload="auto" src="./assets/audio/english_2.mp3"></audio>
+
+    <!-- English - Emma (EN-F1) -->
+    <audio id="audio-english-EN-F1-0" preload="auto" src="./assets/audio/english_emma_0.mp3"></audio>
+    <audio id="audio-english-EN-F1-1" preload="auto" src="./assets/audio/english_emma_1.mp3"></audio>
+    <audio id="audio-english-EN-F1-2" preload="auto" src="./assets/audio/english_emma_2.mp3"></audio>
+
+    <!-- Fallback generici compatibilità -->
     <audio id="audio-calvino-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
     <audio id="audio-calvino-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
     <audio id="audio-calvino-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
     <audio id="audio-neuroscience-0" preload="auto" src="./assets/audio/neuroscience_0.mp3"></audio>
     <audio id="audio-neuroscience-1" preload="auto" src="./assets/audio/neuroscience_1.mp3"></audio>
     <audio id="audio-neuroscience-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
+    <audio id="audio-english-0" preload="auto" src="./assets/audio/english_0.mp3"></audio>
+    <audio id="audio-english-1" preload="auto" src="./assets/audio/english_1.mp3"></audio>
+    <audio id="audio-english-2" preload="auto" src="./assets/audio/english_2.mp3"></audio>
   </div>
 
-  <script src="./app.js?v=noscroll-v10"></script>
+  <script src="./app.js?v=voices-v11"></script>
 </body>
 </html>

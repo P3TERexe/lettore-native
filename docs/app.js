@@ -23,14 +23,33 @@
     isExpanded: false,
     currentAudio: null,
     isZenMode: false,
-    isCompactPaper: false
+    isCompactPaper: false,
+    selectedVoice: 'IT-M1'
+  };
+
+  // Catalogo Voci Neurali Multilingua (conforme a LettoreCore/Models.swift)
+  const voicesCatalog = {
+    'IT-M1': { name: 'Marco', lang: 'it', flag: '🇮🇹', desc: 'Maschile (Caldo)' },
+    'IT-F1': { name: 'Giulia', lang: 'it', flag: '🇮🇹', desc: 'Femminile (Cristallina)' },
+    'IT-M2': { name: 'Luca', lang: 'it', flag: '🇮🇹', desc: 'Maschile (Dinamico)' },
+    'IT-F2': { name: 'Sofia', lang: 'it', flag: '🇮🇹', desc: 'Femminile (Naturale)' },
+    'EN-M1': { name: 'John', lang: 'en', flag: '🇬🇧', desc: 'Male (Warm RP)' },
+    'EN-F1': { name: 'Emma', lang: 'en', flag: '🇬🇧', desc: 'Female (Clear Studio)' },
+    'EN-M2': { name: 'Michael', lang: 'en', flag: '🇬🇧', desc: 'Male (Narrative)' },
+    'ES-M1': { name: 'Carlos', lang: 'es', flag: '🇪🇸', desc: 'Masculino (Fluido)' },
+    'ES-F1': { name: 'Lucia', lang: 'es', flag: '🇪🇸', desc: 'Femenino (Cálido)' },
+    'FR-M1': { name: 'Pierre', lang: 'fr', flag: '🇫🇷', desc: 'Masculin (Posé)' },
+    'FR-F1': { name: 'Camille', lang: 'fr', flag: '🇫🇷', desc: 'Féminin (Doux)' },
+    'DE-M1': { name: 'Klaus', lang: 'de', flag: '🇩🇪', desc: 'Männlich (Klar)' },
+    'DE-F1': { name: 'Anna', lang: 'de', flag: '🇩🇪', desc: 'Weiblich (Präzise)' }
   };
 
   // Titoli delle finestre simulate
   const docTitles = {
-    calvino: 'Documento: Italo Calvino, Lezioni Americane',
-    neuroscience: 'Documento: Neuroscienze & Lettura Aumentata',
-    custom: 'Documento: Testo Utente Personalizzato'
+    calvino: 'Documento: Italo Calvino, Lezioni Americane (IT)',
+    neuroscience: 'Documento: Neuroscienze & Lettura Aumentata (IT)',
+    english: 'Documento: Oliver Sacks, The River of Consciousness (EN)',
+    custom: 'Documento: Testo Utente Personalizzato (Poliglotta)'
   };
 
   // Elementi DOM
@@ -51,6 +70,9 @@
   const windowStatusLabel = document.getElementById('windowStatusLabel');
   const liveDot = document.getElementById('liveDot');
   const docChips = document.querySelectorAll('.doc-chip');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const btnPillVoice = document.getElementById('btnPillVoice');
+  const pillVoiceName = document.getElementById('pillVoiceName');
   const customTextInput = document.getElementById('customTextInput');
   const btnApplyCustomText = document.getElementById('btnApplyCustomText');
   const customChunksContainer = document.getElementById('customChunksContainer');
@@ -107,8 +129,21 @@
     }
   }
 
-  // Ferma qualsiasi traccia audio attiva
+  // Timer per la stima di avanzamento con SpeechSynthesis
+  let speechProgressTimer = null;
+
+  // Ferma qualsiasi traccia audio attiva o sintesi in corso
   function stopAllAudios() {
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+    if (speechProgressTimer) {
+      clearInterval(speechProgressTimer);
+      speechProgressTimer = null;
+    }
+
     if (state.currentAudio) {
       state.currentAudio.pause();
       state.currentAudio.currentTime = 0;
@@ -124,11 +159,89 @@
 
     pill.classList.remove('is-playing');
     if (liveDot) liveDot.classList.remove('is-active');
-    if (windowStatusLabel) windowStatusLabel.textContent = 'Pronto';
+    const v = voicesCatalog[state.selectedVoice] || { name: 'Supertonic' };
+    if (windowStatusLabel) windowStatusLabel.textContent = `Pronto · Voce: ${v.name}`;
     if (pillProgressFill) pillProgressFill.style.width = '0%';
   }
 
-  // Riproduce il chunk corrente usando l'audio Supertonic 3 ONNX reale
+  // Sintesi vocale tramite Web Speech API per testo personalizzato o voci senza campioni pre-renderizzati
+  function playWithSpeechSynthesis(text, chunks) {
+    if (!('speechSynthesis' in window)) {
+      stopPlayback();
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) {}
+
+    if (speechProgressTimer) {
+      clearInterval(speechProgressTimer);
+      speechProgressTimer = null;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    const v = voicesCatalog[state.selectedVoice] || { lang: 'it', name: 'Voce' };
+    const langMap = { it: 'it-IT', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
+    utterance.lang = langMap[v.lang] || 'it-IT';
+    utterance.rate = state.speed;
+
+    // Seleziona voce corrispondente dal sistema se presente
+    const systemVoices = window.speechSynthesis.getVoices();
+    if (systemVoices && systemVoices.length > 0) {
+      const match = systemVoices.find(sv => sv.lang.startsWith(v.lang) && (sv.name.toLowerCase().includes(v.name.toLowerCase()) || sv.default));
+      if (match) utterance.voice = match;
+    }
+
+    // Stima della durata per la barra di avanzamento della pillola
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const estimatedDurationMs = Math.max(1800, (wordCount / (2.6 * state.speed)) * 1000);
+    const startTime = performance.now();
+
+    speechProgressTimer = setInterval(() => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(98, (elapsed / estimatedDurationMs) * 100);
+      if (pillProgressFill) pillProgressFill.style.width = `${progress}%`;
+    }, 40);
+
+    utterance.onstart = function () {
+      pill.classList.add('is-playing');
+      if (liveDot) liveDot.classList.add('is-active');
+      if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
+    };
+
+    utterance.onend = function () {
+      if (speechProgressTimer) {
+        clearInterval(speechProgressTimer);
+        speechProgressTimer = null;
+      }
+      if (pillProgressFill) pillProgressFill.style.width = '100%';
+
+      if (!state.isPlaying) return;
+      if (state.currentChunkIndex < chunks.length - 1) {
+        state.currentChunkIndex++;
+        playCurrentChunk();
+      } else {
+        stopPlayback();
+        state.currentChunkIndex = 0;
+        updateChunkHighlight(false);
+      }
+    };
+
+    utterance.onerror = function (err) {
+      if (speechProgressTimer) {
+        clearInterval(speechProgressTimer);
+        speechProgressTimer = null;
+      }
+      console.warn('SpeechSynthesis error:', err);
+      stopPlayback();
+    };
+
+    state.isPlaying = true;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // Riproduce il chunk corrente usando l'audio Supertonic 3 ONNX reale o Web Speech
   function playCurrentChunk() {
     const chunks = getCurrentChunks();
     if (chunks.length === 0 || state.currentChunkIndex >= chunks.length) {
@@ -139,11 +252,37 @@
     updateChunkHighlight(true);
     stopAllAudios();
 
-    // Seleziona l'elemento audio reale Supertonic precaricato
-    const audioId = `audio-${state.currentDoc}-${state.currentChunkIndex}`;
-    let audio = document.getElementById(audioId);
+    const currentChunkElement = chunks[state.currentChunkIndex];
+    const chunkText = currentChunkElement ? currentChunkElement.textContent.trim() : '';
 
-    // Se l'elemento non è nell'HTML o è personalizzato, fallback
+    // 1. Cerca audio specifico per documento, voce e chunk (es: audio-calvino-IT-M1-0, audio-calvino-IT-F1-0, audio-english-EN-M1-0)
+    const specificAudioId = `audio-${state.currentDoc}-${state.selectedVoice}-${state.currentChunkIndex}`;
+    let audio = document.getElementById(specificAudioId);
+
+    // 2. Se non presente la combinazione voce esatta, prova variante femminile IT-F1 o maschile IT-M1
+    if (!audio && state.selectedVoice === 'IT-F2') {
+      audio = document.getElementById(`audio-${state.currentDoc}-IT-F1-${state.currentChunkIndex}`);
+    } else if (!audio && (state.selectedVoice === 'IT-M2' || state.selectedVoice === 'IT-M1')) {
+      audio = document.getElementById(`audio-${state.currentDoc}-IT-M1-${state.currentChunkIndex}`);
+    } else if (!audio && state.selectedVoice === 'EN-F2') {
+      audio = document.getElementById(`audio-${state.currentDoc}-EN-F1-${state.currentChunkIndex}`);
+    } else if (!audio && state.selectedVoice === 'EN-M2') {
+      audio = document.getElementById(`audio-${state.currentDoc}-EN-M1-${state.currentChunkIndex}`);
+    }
+
+    // 3. Fallback generico per documento
+    if (!audio) {
+      const genericAudioId = `audio-${state.currentDoc}-${state.currentChunkIndex}`;
+      audio = document.getElementById(genericAudioId);
+    }
+
+    // 4. Se il documento è 'custom' o lingua non pre-renderizzata, usa SpeechSynthesis ad alta fedeltà
+    if ((!audio || state.currentDoc === 'custom') && chunkText && ('speechSynthesis' in window)) {
+      playWithSpeechSynthesis(chunkText, chunks);
+      return;
+    }
+
+    // 5. Fallback URL diretto
     if (!audio) {
       const fallbackUrl = `./assets/audio/${state.currentDoc}_${state.currentChunkIndex}.mp3`;
       audio = new Audio(fallbackUrl);
@@ -169,10 +308,9 @@
           state.currentChunkIndex++;
           playCurrentChunk();
         } else {
-          // Fine documento: resetta alla prima frase
           stopPlayback();
           state.currentChunkIndex = 0;
-          updateChunkHighlight();
+          updateChunkHighlight(false);
         }
       };
 
@@ -181,14 +319,15 @@
         playPromise.then(() => {
           pill.classList.add('is-playing');
           if (liveDot) liveDot.classList.add('is-active');
-          if (windowStatusLabel) windowStatusLabel.textContent = 'In riproduzione';
+          const v = voicesCatalog[state.selectedVoice] || { name: 'Supertonic', lang: 'IT' };
+          if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
         }).catch(err => {
           console.warn('Avvio audio impedito dalle policy del browser:', err);
           pausePlayback();
         });
       }
     } else {
-      console.warn('Audio non trovato per', audioId);
+      console.warn('Audio non disponibile');
       stopPlayback();
     }
   }
@@ -281,6 +420,40 @@
     }
   }
 
+  // Cambio voce neurale attiva
+  function setVoice(voiceId, autoSwitchDoc = true) {
+    if (!voicesCatalog[voiceId]) return;
+    state.selectedVoice = voiceId;
+    const v = voicesCatalog[voiceId];
+
+    // Sincronizza dropdown
+    if (voiceSelect && voiceSelect.value !== voiceId) {
+      voiceSelect.value = voiceId;
+    }
+
+    // Sincronizza etichetta pillola
+    if (pillVoiceName) {
+      pillVoiceName.textContent = `${v.name} (${v.lang.toUpperCase()})`;
+    }
+
+    // Se richiesto, adatta il documento se c'è discrepanza di lingua
+    if (autoSwitchDoc) {
+      if (v.lang === 'en' && (state.currentDoc === 'calvino' || state.currentDoc === 'neuroscience')) {
+        selectDocument('english');
+      } else if (v.lang === 'it' && state.currentDoc === 'english') {
+        selectDocument('calvino');
+      }
+    }
+
+    if (state.isPlaying) {
+      playCurrentChunk();
+    } else {
+      if (windowStatusLabel) {
+        windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
+      }
+    }
+  }
+
   // Gestione selettore documenti
   function selectDocument(docKey) {
     if (state.currentDoc === docKey) return;
@@ -309,7 +482,14 @@
       windowTitleText.textContent = docTitles[docKey];
     }
 
-    updateChunkHighlight();
+    // Seleziona una voce appropriata se il documento ha una lingua specifica
+    if (docKey === 'english' && voicesCatalog[state.selectedVoice] && voicesCatalog[state.selectedVoice].lang !== 'en') {
+      setVoice('EN-M1', false);
+    } else if ((docKey === 'calvino' || docKey === 'neuroscience') && voicesCatalog[state.selectedVoice] && voicesCatalog[state.selectedVoice].lang !== 'it') {
+      setVoice('IT-M1', false);
+    }
+
+    updateChunkHighlight(false);
     attachChunkClickListeners();
   }
 
@@ -485,6 +665,24 @@
 
   if (btnApplyCustomText) {
     btnApplyCustomText.addEventListener('click', applyCustomText);
+  }
+
+  // Cambio voce da Dropdown
+  if (voiceSelect) {
+    voiceSelect.addEventListener('change', (e) => {
+      setVoice(e.target.value, true);
+    });
+  }
+
+  // Cambio rapido voce da Pillola (cicla tra i profili principali)
+  if (btnPillVoice) {
+    btnPillVoice.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const primaryVoices = ['IT-M1', 'IT-F1', 'EN-M1', 'EN-F1', 'ES-M1', 'FR-F1', 'DE-F1'];
+      const curIdx = primaryVoices.indexOf(state.selectedVoice);
+      const nextIdx = (curIdx + 1) % primaryVoices.length;
+      setVoice(primaryVoices[nextIdx], true);
+    });
   }
 
   // Supporto Tastiera Completo (WCAG AAA)
