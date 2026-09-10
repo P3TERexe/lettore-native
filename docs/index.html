@@ -7,7 +7,7 @@
   <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
   <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=clean-v8">
+  <link rel="stylesheet" href="./styles.css?v=simple-v9">
 </head>
 <body>
 
@@ -31,7 +31,7 @@
 
       <nav class="site-nav" aria-label="Navigazione principale">
         <a href="#simulatore" class="nav-link">Simulatore</a>
-        <a href="#funzionalita" class="nav-link">Architettura</a>
+        <a href="#funzionalita" class="nav-link">Funzionalità</a>
         <a href="#accessibilita" class="nav-link">Accessibilità</a>
         <a href="#installazione" class="nav-link">Sorgenti & Build</a>
       </nav>
@@ -332,19 +332,19 @@
 
 
 
-    <!-- Architettura & Caratteristiche Tecniche -->
+    <!-- Caratteristiche & Funzionalità -->
     <section id="funzionalita" class="section architecture-section">
       <div class="container">
         <div class="section-header reveal-on-scroll">
-          <span class="section-kicker">Ingegneria di Sistema</span>
-          <h2 class="section-title">Architettura a zero compromessi per macOS</h2>
+          <span class="section-kicker">Semplicità &amp; Immediatezza</span>
+          <h2 class="section-title">Come funziona sul tuo Mac</h2>
           <p class="section-desc">
-            Nessun browser incorporato, nessun server remoto. Ogni modulo sfrutta le API native più performanti di Apple Silicon.
+            Nessuna configurazione complessa o schermata superflua. Selezioni ciò che vuoi ascoltare e continui a lavorare senza interruzioni.
           </p>
         </div>
 
         <div class="features-mosaic stagger-group reveal-on-scroll">
-          <!-- Card 1: Accessibility AX -->
+          <!-- Card 1: Cattura Istantanea -->
           <article class="feature-box">
             <div class="feature-box-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
@@ -354,16 +354,13 @@
                 <path d="M9 21l3-7 3 7"/>
               </svg>
             </div>
-            <h3 class="feature-box-title">Cattura Istantanea con Accessibility AX</h3>
+            <h3 class="feature-box-title">Seleziona e ascolta da qualsiasi app</h3>
             <p class="feature-box-text">
-              Si collega all'albero <code>AXUIElement</code> del sistema operativo. Non serve copiare e incollare testo: basta selezionare qualsiasi paragrafo in Safari, Apple Books, Anteprima o Microsoft Word e premere la scorciatoia globale configurata.
+              Non serve copiare e incollare. Evidenzia un articolo in Safari, una pagina su Apple Books, un documento Word o un PDF in Anteprima e premi una scorciatoia da tastiera: la lettura inizia all'istante.
             </p>
-            <div class="feature-code-badge">
-              <code>AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute)</code>
-            </div>
           </article>
 
-          <!-- Card 2: Vision OCR Offline -->
+          <!-- Card 2: Vision OCR -->
           <article class="feature-box">
             <div class="feature-box-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
@@ -372,13 +369,10 @@
                 <path d="M21 15l-5-5L5 21"/>
               </svg>
             </div>
-            <h3 class="feature-box-title">Apple Vision OCR Offline</h3>
+            <h3 class="feature-box-title">Legge anche immagini e presentazioni</h3>
             <p class="feature-box-text">
-              Per i documenti scansionati, i PDF protetti o il testo bloccato all'interno di grafici e presentazioni, Lettore scatta un'acquisizione mirata dell'area e la trasforma in testo leggibile usando i modelli di visione neurale integrati in macOS.
+              Trovato un documento scansionato, una slide o un grafico con testo non selezionabile? Cattura un riquadro dello schermo: il Mac riconosce subito le parole e te le legge ad alta voce, 100% offline.
             </p>
-            <div class="feature-code-badge">
-              <code>VNRecognizeTextRequest(recognitionLevel: .accurate)</code>
-            </div>
           </article>
 
           <!-- Card 3: Normalizzatore Linguistico -->
@@ -390,16 +384,13 @@
                 <path d="M12 4v16"/>
               </svg>
             </div>
-            <h3 class="feature-box-title">Normalizzatore Intelligente per l'Italiano</h3>
+            <h3 class="feature-box-title">Pronuncia naturale in italiano</h3>
             <p class="feature-box-text">
-              Espande in automatico abbreviazioni frequenti (&ldquo;Dott.&rdquo;, &ldquo;Ing.&rdquo;, &ldquo;Sig.ra&rdquo;, &ldquo;pagg.&rdquo;), date formattate, valute (&ldquo;150€&rdquo; in &ldquo;centocinquanta euro&rdquo;) e sigle, per garantire una dizione fonetica naturale e corretta durante la sintesi.
+              Comprende ed espande al volo abbreviazioni frequenti, date, orari, numeri e cifre monetarie (trasformando ad esempio &ldquo;150€&rdquo; in &ldquo;centocinquanta euro&rdquo;), evitando pronunce robotiche o incerte.
             </p>
-            <div class="feature-code-badge">
-              <code>TextNormalizer.expandItalianAbbreviations(text)</code>
-            </div>
           </article>
 
-          <!-- Card 4: Audio Engine AVAudioPlayer -->
+          <!-- Card 4: Audio Istantaneo -->
           <article class="feature-box">
             <div class="feature-box-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
@@ -407,13 +398,10 @@
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
               </svg>
             </div>
-            <h3 class="feature-box-title">Pipeline Audio Gapless &amp; Metering a 20 Hz</h3>
+            <h3 class="feature-box-title">Avvio immediato senza attese</h3>
             <p class="feature-box-text">
-              La riproduzione non attende che l'intero documento sia sintetizzato: genera e accoda i frammenti di frase man mano che procedi. Il metering nativo a 20 Hz anima la forma d'onda della Dynamic Island senza pesare sulla GPU o sulla batteria.
+              Non devi attendere che l'intero capitolo venga elaborato prima di iniziare. La voce parte subito fin dalla prima frase, con una pillola fluttuante discreta che non ti toglie mai la concentrazione.
             </p>
-            <div class="feature-code-badge">
-              <code>AVAudioPlayer.averagePower(forChannel: 0)</code>
-            </div>
           </article>
         </div>
       </div>
@@ -539,6 +527,6 @@ swift run LettoreApp</code></pre>
     <audio id="audio-neuroscience-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
   </div>
 
-  <script src="./app.js?v=clean-v8"></script>
+  <script src="./app.js?v=simple-v9"></script>
 </body>
 </html>
