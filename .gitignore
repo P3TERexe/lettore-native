@@ -88,5 +88,8 @@ node_modules/
 
 # Agent Configuration & Personal Documentation
 .agents/
+AGENTS.md
 dev-docs/
 docs/
+mockup-native-100/
+
