@@ -85,3 +85,8 @@ yarn-error.log*
 # Node / Web
 node_modules/
 .npm/
+
+# Agent Configuration & Personal Documentation
+.agents/
+dev-docs/
+docs/
