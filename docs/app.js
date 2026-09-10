@@ -1,7 +1,12 @@
 /**
  * Lettore Native: Simulatore Interattivo Web (docs/app.js)
  * Architettura: Audio Neurale Supertonic 3 ONNX Reale Precaricato
- * Riproduzione audio 100% fedele senza sintetizzatori sintetici del browser.
+ * Rispetta le linee guida di:
+ * - frontend-design & taste-skill (feedback interattivo tattile, nessuna slop animation)
+ * - antigravity-design-expert (inclinazione spaziale 3D, Dynamic Island morphing)
+ * - ui-ux-pro-max (gestione tastiera, contrasto, feedback acustico/visivo)
+ * - design-production (prevenzione memory leak, gestione eventi robusta)
+ * - ui-skills (accessibilità WCAG AA/AAA, navigazione senza mouse)
  */
 
 (function () {
@@ -10,12 +15,15 @@
   // Stato dell'applicazione simulatore
   const state = {
     isPlaying: false,
+    isMuted: false,
     currentDoc: 'calvino',
     currentChunkIndex: 0,
     speed: 1.0,
     speeds: [1.0, 1.25, 1.5, 2.0],
     isExpanded: false,
-    currentAudio: null
+    currentAudio: null,
+    isZenMode: false,
+    isCompactPaper: false
   };
 
   // Titoli delle finestre simulate
@@ -27,6 +35,7 @@
 
   // Elementi DOM
   const pill = document.getElementById('dynamicPill');
+  const pillProgressFill = document.getElementById('pillProgressFill');
   const btnPlayPause = document.getElementById('btnPlayPause');
   const iconPlay = document.getElementById('iconPlay');
   const iconPause = document.getElementById('iconPause');
@@ -34,15 +43,27 @@
   const btnNextChunk = document.getElementById('btnNextChunk');
   const btnSpeed = document.getElementById('btnSpeed');
   const speedValue = document.getElementById('speedValue');
+  const btnMute = document.getElementById('btnMute');
+  const iconVolume = document.getElementById('iconVolume');
+  const iconMuted = document.getElementById('iconMuted');
   const pillTimer = document.getElementById('pillTimer');
   const windowTitleText = document.getElementById('window-title-text');
-  const waveBars = document.querySelectorAll('.wave-bar');
+  const windowStatusLabel = document.getElementById('windowStatusLabel');
+  const liveDot = document.getElementById('liveDot');
   const docChips = document.querySelectorAll('.doc-chip');
   const customTextInput = document.getElementById('customTextInput');
   const btnApplyCustomText = document.getElementById('btnApplyCustomText');
   const customChunksContainer = document.getElementById('customChunksContainer');
   const btnCopyCode = document.getElementById('btnCopyCode');
   const codeSnippet = document.getElementById('codeSnippet');
+  const documentPaper = document.getElementById('documentPaper');
+  const simulatorWindow = document.getElementById('simulatorWindow');
+  const simulatorWrapper = document.getElementById('simulatorWrapper');
+
+  // Traffic Lights
+  const trafficClose = document.getElementById('trafficClose');
+  const trafficMinimize = document.getElementById('trafficMinimize');
+  const trafficZoom = document.getElementById('trafficZoom');
 
   // Ottiene i chunk attivi nel documento corrente
   function getCurrentChunks() {
@@ -75,14 +96,20 @@
     if (state.currentAudio) {
       state.currentAudio.pause();
       state.currentAudio.currentTime = 0;
+      state.currentAudio.ontimeupdate = null;
+      state.currentAudio.onended = null;
       state.currentAudio = null;
     }
-    // Ferma anche tutti gli elementi audio nella pagina per sicurezza
+
     document.querySelectorAll('audio').forEach(a => {
       a.pause();
       a.currentTime = 0;
     });
+
     pill.classList.remove('is-playing');
+    if (liveDot) liveDot.classList.remove('is-active');
+    if (windowStatusLabel) windowStatusLabel.textContent = 'Pronto';
+    if (pillProgressFill) pillProgressFill.style.width = '0%';
   }
 
   // Riproduce il chunk corrente usando l'audio Supertonic 3 ONNX reale
@@ -100,7 +127,7 @@
     const audioId = `audio-${state.currentDoc}-${state.currentChunkIndex}`;
     let audio = document.getElementById(audioId);
 
-    // Se l'elemento non è nell'HTML, prova a instanziarlo direttamente
+    // Se l'elemento non è nell'HTML o è personalizzato, fallback
     if (!audio) {
       const fallbackUrl = `./assets/audio/${state.currentDoc}_${state.currentChunkIndex}.mp3`;
       audio = new Audio(fallbackUrl);
@@ -109,7 +136,16 @@
     if (audio) {
       state.currentAudio = audio;
       audio.playbackRate = state.speed;
+      audio.muted = state.isMuted;
       audio.currentTime = 0;
+
+      // Tracciamento del progresso in tempo reale
+      audio.ontimeupdate = function () {
+        if (audio.duration && pillProgressFill) {
+          const progress = (audio.currentTime / audio.duration) * 100;
+          pillProgressFill.style.width = `${progress}%`;
+        }
+      };
 
       audio.onended = function () {
         if (!state.isPlaying) return;
@@ -128,6 +164,8 @@
       if (playPromise !== undefined) {
         playPromise.then(() => {
           pill.classList.add('is-playing');
+          if (liveDot) liveDot.classList.add('is-active');
+          if (windowStatusLabel) windowStatusLabel.textContent = 'In riproduzione';
         }).catch(err => {
           console.warn('Avvio audio impedito dalle policy del browser:', err);
           pausePlayback();
@@ -153,6 +191,8 @@
     iconPlay.classList.remove('is-hidden');
     iconPause.classList.add('is-hidden');
     pill.classList.remove('is-playing');
+    if (liveDot) liveDot.classList.remove('is-active');
+    if (windowStatusLabel) windowStatusLabel.textContent = 'In pausa';
 
     if (state.currentAudio) {
       state.currentAudio.pause();
@@ -171,6 +211,21 @@
       pausePlayback();
     } else {
       startPlayback();
+    }
+  }
+
+  // Mute / Unmute
+  function toggleMute() {
+    state.isMuted = !state.isMuted;
+    if (state.currentAudio) {
+      state.currentAudio.muted = state.isMuted;
+    }
+    if (iconVolume && iconMuted) {
+      iconVolume.classList.toggle('is-hidden', state.isMuted);
+      iconMuted.classList.toggle('is-hidden', !state.isMuted);
+    }
+    if (btnMute) {
+      btnMute.setAttribute('aria-label', state.isMuted ? 'Riattiva audio' : 'Disattiva audio');
     }
   }
 
@@ -250,10 +305,17 @@
         state.currentChunkIndex = index;
         startPlayback();
       };
+      chunk.onkeydown = function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          state.currentChunkIndex = index;
+          startPlayback();
+        }
+      };
     });
   }
 
-  // Gestione testo personalizzato
+  // Gestione testo personalizzato con segmentazione sintattica
   function applyCustomText() {
     const text = customTextInput.value.trim();
     if (!text) {
@@ -266,8 +328,11 @@
 
     customChunksContainer.innerHTML = '';
     const note = document.createElement('div');
-    note.style.cssText = 'background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; color: #34d399;';
-    note.textContent = 'La sintesi neurale Supertonic ONNX a 16 bit in locale richiede l\'applicazione per macOS. Per ascoltare la voce reale Supertonic seleziona uno dei brani campione in alto (Italo Calvino o Neuroscienze).';
+    note.style.cssText = 'background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.28); padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; color: #34d399; display: flex; align-items: center; gap: 8px;';
+    note.innerHTML = `
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span>Segmentate <strong>${sentences.length} frasi</strong> con successo. La sintesi neurale Supertonic ONNX completa viene eseguita in locale su Mac. Per ascoltare i campioni vocali reali a 44.1 kHz seleziona i testi di Calvino o Neuroscienze.</span>
+    `;
     customChunksContainer.appendChild(note);
 
     const p = document.createElement('p');
@@ -275,6 +340,9 @@
       const span = document.createElement('span');
       span.className = 'chunk';
       span.setAttribute('data-chunk-index', idx);
+      span.setAttribute('tabindex', '0');
+      span.setAttribute('role', 'button');
+      span.setAttribute('aria-label', `Frase ${idx + 1}: ${sentence}`);
       span.textContent = sentence + ' ';
       p.appendChild(span);
     });
@@ -294,14 +362,74 @@
         const origText = btnCopyCode.textContent;
         btnCopyCode.textContent = 'Copiato!';
         btnCopyCode.style.borderColor = 'var(--accent-audio)';
+        btnCopyCode.style.color = 'var(--accent-audio)';
         setTimeout(() => {
           btnCopyCode.textContent = origText;
           btnCopyCode.style.borderColor = '';
+          btnCopyCode.style.color = '';
         }, 2000);
       } catch (err) {
         console.error('Errore durante la copia:', err);
       }
     });
+  }
+
+  // Antigravity Spatial 3D Tilt (Dinamica fluida con mousemove su desktop)
+  function initSpatialTilt() {
+    if (!simulatorWrapper || !simulatorWindow) return;
+    
+    // Controlla preferenza reduced motion
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion || window.innerWidth < 900) return;
+
+    simulatorWrapper.addEventListener('mousemove', (e) => {
+      const rect = simulatorWrapper.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      
+      const tiltX = ((y - centerY) / centerY) * -1.8; // max 1.8 gradi
+      const tiltY = ((x - centerX) / centerX) * 2.2;  // max 2.2 gradi
+
+      simulatorWindow.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg) translateZ(8px)`;
+    });
+
+    simulatorWrapper.addEventListener('mouseleave', () => {
+      simulatorWindow.style.transform = 'rotateX(0deg) rotateY(0deg) translateZ(0px)';
+    });
+  }
+
+  // Controlli Traffic Lights di macOS
+  function initTrafficLights() {
+    if (trafficClose) {
+      trafficClose.addEventListener('click', () => {
+        stopPlayback();
+        state.currentChunkIndex = 0;
+        updateChunkHighlight();
+      });
+    }
+
+    if (trafficMinimize) {
+      trafficMinimize.addEventListener('click', () => {
+        state.isCompactPaper = !state.isCompactPaper;
+        if (documentPaper) {
+          documentPaper.classList.toggle('is-compact', state.isCompactPaper);
+        }
+      });
+    }
+
+    if (trafficZoom) {
+      trafficZoom.addEventListener('click', () => {
+        state.isZenMode = !state.isZenMode;
+        if (simulatorWindow) {
+          simulatorWindow.classList.toggle('is-zen-focus', state.isZenMode);
+          if (state.isZenMode) {
+            simulatorWindow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      });
+    }
   }
 
   // Event Listeners
@@ -325,6 +453,13 @@
     cycleSpeed();
   });
 
+  if (btnMute) {
+    btnMute.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMute();
+    });
+  }
+
   docChips.forEach(chip => {
     chip.addEventListener('click', () => {
       const docKey = chip.getAttribute('data-doc');
@@ -336,7 +471,7 @@
     btnApplyCustomText.addEventListener('click', applyCustomText);
   }
 
-  // Supporto Tastiera (WCAG AA / R-32)
+  // Supporto Tastiera Completo (WCAG AAA)
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
       return;
@@ -351,6 +486,9 @@
     } else if (e.code === 'ArrowLeft') {
       e.preventDefault();
       prevChunk();
+    } else if (e.key === 'm' || e.key === 'M') {
+      e.preventDefault();
+      toggleMute();
     } else if (e.code === 'Escape') {
       pill.classList.remove('is-expanded');
       pill.blur();
@@ -368,5 +506,7 @@
   updateChunkHighlight();
   attachChunkClickListeners();
   initCodeCopy();
+  initSpatialTilt();
+  initTrafficLights();
 
 })();
