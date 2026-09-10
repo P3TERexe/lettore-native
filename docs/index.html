@@ -225,8 +225,8 @@
                 </button>
               </div>
 
-              <!-- Selettore Voci Neurale macOS -->
-              <div class="voice-selector-bar" role="region" aria-label="Selezione voce neurale">
+              <!-- Selettore Voci Neurali Supertonic 3 ONNX -->
+              <div class="voice-selector-bar" role="region" aria-label="Selezione voce neurale Supertonic 3">
                 <label for="voiceSelect" class="voice-select-label">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -237,29 +237,20 @@
                   <span>Voce:</span>
                 </label>
                 <div class="voice-select-pill">
-                  <select id="voiceSelect" class="voice-dropdown" aria-label="Scegli voce neurale">
-                    <optgroup label="Italiano (IT)">
-                      <option value="IT-M1" selected>🇮🇹 Marco (Maschile · Caldo)</option>
-                      <option value="IT-F1">🇮🇹 Giulia (Femminile · Cristallina)</option>
-                      <option value="IT-M2">🇮🇹 Luca (Maschile · Dinamico)</option>
-                      <option value="IT-F2">🇮🇹 Sofia (Femminile · Naturale)</option>
+                  <select id="voiceSelect" class="voice-dropdown" aria-label="Scegli voce neurale Supertonic 3">
+                    <optgroup label="Voci Maschili Supertonic 3 ONNX">
+                      <option value="M1" selected>Supertonic M1 · Marco (Maschile · Caldo &amp; Rilassato)</option>
+                      <option value="M2">Supertonic M2 · Luca (Maschile · Dinamico &amp; Chiaro)</option>
+                      <option value="M3">Supertonic M3 · Nico (Maschile · Naturale)</option>
+                      <option value="M4">Supertonic M4 · Leo (Maschile · Profondo)</option>
+                      <option value="M5">Supertonic M5 · Davide (Maschile · Energetico)</option>
                     </optgroup>
-                    <optgroup label="English (EN)">
-                      <option value="EN-M1">🇬🇧 John (Male · Warm RP)</option>
-                      <option value="EN-F1">🇬🇧 Emma (Female · Clear Studio)</option>
-                      <option value="EN-M2">🇬🇧 Michael (Male · Narrative)</option>
-                    </optgroup>
-                    <optgroup label="Español (ES)">
-                      <option value="ES-M1">🇪🇸 Carlos (Masculino · Fluido)</option>
-                      <option value="ES-F1">🇪🇸 Lucia (Femenino · Cálido)</option>
-                    </optgroup>
-                    <optgroup label="Français (FR)">
-                      <option value="FR-M1">🇫🇷 Pierre (Masculin · Posé)</option>
-                      <option value="FR-F1">🇫🇷 Camille (Féminin · Doux)</option>
-                    </optgroup>
-                    <optgroup label="Deutsch (DE)">
-                      <option value="DE-M1">🇩🇪 Klaus (Männlich · Klar)</option>
-                      <option value="DE-F1">🇩🇪 Anna (Weiblich · Präzise)</option>
+                    <optgroup label="Voci Femminili Supertonic 3 ONNX">
+                      <option value="F1">Supertonic F1 · Giulia (Femminile · Espressiva &amp; Calda)</option>
+                      <option value="F2">Supertonic F2 · Sofia (Femminile · Cristallina &amp; Fluida)</option>
+                      <option value="F3">Supertonic F3 · Elena (Femminile · Narrativa)</option>
+                      <option value="F4">Supertonic F4 · Aurora (Femminile · Dolce)</option>
+                      <option value="F5">Supertonic F5 · Luna (Femminile · Chiara)</option>
                     </optgroup>
                   </select>
                   <svg class="select-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -343,9 +334,9 @@
                     <div class="pill-divider" aria-hidden="true"></div>
 
                     <!-- Badge Voce Neurale Attiva con cambio rapido -->
-                    <button type="button" class="pill-voice-btn" id="btnPillVoice" title="Voce attiva: clicca per cambiare profilo vocale" aria-label="Cambia voce neurale">
+                    <button type="button" class="pill-voice-btn" id="btnPillVoice" title="Voce attiva: clicca per cambiare profilo vocale Supertonic 3" aria-label="Cambia voce neurale Supertonic">
                       <span class="voice-indicator-dot" aria-hidden="true"></span>
-                      <span id="pillVoiceName">Marco (IT)</span>
+                      <span id="pillVoiceName">Supertonic M1</span>
                     </button>
 
                     <span class="pill-timer" id="pillTimer" aria-live="polite">Frase 1/3</span>
@@ -615,35 +606,119 @@ swift run LettoreApp</code></pre>
     </svg>
   </button>
 
-  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Multilingua & Voci) -->
+  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Tutte le 10 Voci: M1-M5, F1-F5) -->
   <div class="audio-preload-pool" aria-hidden="true">
-    <!-- Italiano - Marco (IT-M1) -->
-    <audio id="audio-calvino-IT-M1-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
-    <audio id="audio-calvino-IT-M1-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
-    <audio id="audio-calvino-IT-M1-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
-    <audio id="audio-neuroscience-IT-M1-0" preload="auto" src="./assets/audio/neuroscience_0.mp3"></audio>
-    <audio id="audio-neuroscience-IT-M1-1" preload="auto" src="./assets/audio/neuroscience_1.mp3"></audio>
-    <audio id="audio-neuroscience-IT-M1-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
+    <!-- Supertonic M1 (Marco) -->
+    <audio id="audio-calvino-M1-0" preload="auto" src="./assets/audio/calvino_M1_0.mp3"></audio>
+    <audio id="audio-calvino-M1-1" preload="auto" src="./assets/audio/calvino_M1_1.mp3"></audio>
+    <audio id="audio-calvino-M1-2" preload="auto" src="./assets/audio/calvino_M1_2.mp3"></audio>
+    <audio id="audio-neuroscience-M1-0" preload="auto" src="./assets/audio/neuroscience_M1_0.mp3"></audio>
+    <audio id="audio-neuroscience-M1-1" preload="auto" src="./assets/audio/neuroscience_M1_1.mp3"></audio>
+    <audio id="audio-neuroscience-M1-2" preload="auto" src="./assets/audio/neuroscience_M1_2.mp3"></audio>
+    <audio id="audio-english-M1-0" preload="auto" src="./assets/audio/english_M1_0.mp3"></audio>
+    <audio id="audio-english-M1-1" preload="auto" src="./assets/audio/english_M1_1.mp3"></audio>
+    <audio id="audio-english-M1-2" preload="auto" src="./assets/audio/english_M1_2.mp3"></audio>
 
-    <!-- Italiano - Giulia (IT-F1) -->
-    <audio id="audio-calvino-IT-F1-0" preload="auto" src="./assets/audio/calvino_giulia_0.mp3"></audio>
-    <audio id="audio-calvino-IT-F1-1" preload="auto" src="./assets/audio/calvino_giulia_1.mp3"></audio>
-    <audio id="audio-calvino-IT-F1-2" preload="auto" src="./assets/audio/calvino_giulia_2.mp3"></audio>
-    <audio id="audio-neuroscience-IT-F1-0" preload="auto" src="./assets/audio/neuroscience_giulia_0.mp3"></audio>
-    <audio id="audio-neuroscience-IT-F1-1" preload="auto" src="./assets/audio/neuroscience_giulia_1.mp3"></audio>
-    <audio id="audio-neuroscience-IT-F1-2" preload="auto" src="./assets/audio/neuroscience_giulia_2.mp3"></audio>
+    <!-- Supertonic F1 (Giulia) -->
+    <audio id="audio-calvino-F1-0" preload="auto" src="./assets/audio/calvino_F1_0.mp3"></audio>
+    <audio id="audio-calvino-F1-1" preload="auto" src="./assets/audio/calvino_F1_1.mp3"></audio>
+    <audio id="audio-calvino-F1-2" preload="auto" src="./assets/audio/calvino_F1_2.mp3"></audio>
+    <audio id="audio-neuroscience-F1-0" preload="auto" src="./assets/audio/neuroscience_F1_0.mp3"></audio>
+    <audio id="audio-neuroscience-F1-1" preload="auto" src="./assets/audio/neuroscience_F1_1.mp3"></audio>
+    <audio id="audio-neuroscience-F1-2" preload="auto" src="./assets/audio/neuroscience_F1_2.mp3"></audio>
+    <audio id="audio-english-F1-0" preload="auto" src="./assets/audio/english_F1_0.mp3"></audio>
+    <audio id="audio-english-F1-1" preload="auto" src="./assets/audio/english_F1_1.mp3"></audio>
+    <audio id="audio-english-F1-2" preload="auto" src="./assets/audio/english_F1_2.mp3"></audio>
 
-    <!-- English - John (EN-M1) -->
-    <audio id="audio-english-EN-M1-0" preload="auto" src="./assets/audio/english_0.mp3"></audio>
-    <audio id="audio-english-EN-M1-1" preload="auto" src="./assets/audio/english_1.mp3"></audio>
-    <audio id="audio-english-EN-M1-2" preload="auto" src="./assets/audio/english_2.mp3"></audio>
+    <!-- Supertonic M2 (Luca) -->
+    <audio id="audio-calvino-M2-0" preload="auto" src="./assets/audio/calvino_M2_0.mp3"></audio>
+    <audio id="audio-calvino-M2-1" preload="auto" src="./assets/audio/calvino_M2_1.mp3"></audio>
+    <audio id="audio-calvino-M2-2" preload="auto" src="./assets/audio/calvino_M2_2.mp3"></audio>
+    <audio id="audio-neuroscience-M2-0" preload="auto" src="./assets/audio/neuroscience_M2_0.mp3"></audio>
+    <audio id="audio-neuroscience-M2-1" preload="auto" src="./assets/audio/neuroscience_M2_1.mp3"></audio>
+    <audio id="audio-neuroscience-M2-2" preload="auto" src="./assets/audio/neuroscience_M2_2.mp3"></audio>
+    <audio id="audio-english-M2-0" preload="auto" src="./assets/audio/english_M2_0.mp3"></audio>
+    <audio id="audio-english-M2-1" preload="auto" src="./assets/audio/english_M2_1.mp3"></audio>
+    <audio id="audio-english-M2-2" preload="auto" src="./assets/audio/english_M2_2.mp3"></audio>
 
-    <!-- English - Emma (EN-F1) -->
-    <audio id="audio-english-EN-F1-0" preload="auto" src="./assets/audio/english_emma_0.mp3"></audio>
-    <audio id="audio-english-EN-F1-1" preload="auto" src="./assets/audio/english_emma_1.mp3"></audio>
-    <audio id="audio-english-EN-F1-2" preload="auto" src="./assets/audio/english_emma_2.mp3"></audio>
+    <!-- Supertonic F2 (Sofia) -->
+    <audio id="audio-calvino-F2-0" preload="auto" src="./assets/audio/calvino_F2_0.mp3"></audio>
+    <audio id="audio-calvino-F2-1" preload="auto" src="./assets/audio/calvino_F2_1.mp3"></audio>
+    <audio id="audio-calvino-F2-2" preload="auto" src="./assets/audio/calvino_F2_2.mp3"></audio>
+    <audio id="audio-neuroscience-F2-0" preload="auto" src="./assets/audio/neuroscience_F2_0.mp3"></audio>
+    <audio id="audio-neuroscience-F2-1" preload="auto" src="./assets/audio/neuroscience_F2_1.mp3"></audio>
+    <audio id="audio-neuroscience-F2-2" preload="auto" src="./assets/audio/neuroscience_F2_2.mp3"></audio>
+    <audio id="audio-english-F2-0" preload="auto" src="./assets/audio/english_F2_0.mp3"></audio>
+    <audio id="audio-english-F2-1" preload="auto" src="./assets/audio/english_F2_1.mp3"></audio>
+    <audio id="audio-english-F2-2" preload="auto" src="./assets/audio/english_F2_2.mp3"></audio>
 
-    <!-- Fallback generici compatibilità -->
+    <!-- Supertonic M3 (Nico) -->
+    <audio id="audio-calvino-M3-0" preload="auto" src="./assets/audio/calvino_M3_0.mp3"></audio>
+    <audio id="audio-calvino-M3-1" preload="auto" src="./assets/audio/calvino_M3_1.mp3"></audio>
+    <audio id="audio-calvino-M3-2" preload="auto" src="./assets/audio/calvino_M3_2.mp3"></audio>
+    <audio id="audio-neuroscience-M3-0" preload="auto" src="./assets/audio/neuroscience_M3_0.mp3"></audio>
+    <audio id="audio-neuroscience-M3-1" preload="auto" src="./assets/audio/neuroscience_M3_1.mp3"></audio>
+    <audio id="audio-neuroscience-M3-2" preload="auto" src="./assets/audio/neuroscience_M3_2.mp3"></audio>
+    <audio id="audio-english-M3-0" preload="auto" src="./assets/audio/english_M3_0.mp3"></audio>
+    <audio id="audio-english-M3-1" preload="auto" src="./assets/audio/english_M3_1.mp3"></audio>
+    <audio id="audio-english-M3-2" preload="auto" src="./assets/audio/english_M3_2.mp3"></audio>
+
+    <!-- Supertonic M4 (Leo) -->
+    <audio id="audio-calvino-M4-0" preload="auto" src="./assets/audio/calvino_M4_0.mp3"></audio>
+    <audio id="audio-calvino-M4-1" preload="auto" src="./assets/audio/calvino_M4_1.mp3"></audio>
+    <audio id="audio-calvino-M4-2" preload="auto" src="./assets/audio/calvino_M4_2.mp3"></audio>
+    <audio id="audio-neuroscience-M4-0" preload="auto" src="./assets/audio/neuroscience_M4_0.mp3"></audio>
+    <audio id="audio-neuroscience-M4-1" preload="auto" src="./assets/audio/neuroscience_M4_1.mp3"></audio>
+    <audio id="audio-neuroscience-M4-2" preload="auto" src="./assets/audio/neuroscience_M4_2.mp3"></audio>
+    <audio id="audio-english-M4-0" preload="auto" src="./assets/audio/english_M4_0.mp3"></audio>
+    <audio id="audio-english-M4-1" preload="auto" src="./assets/audio/english_M4_1.mp3"></audio>
+    <audio id="audio-english-M4-2" preload="auto" src="./assets/audio/english_M4_2.mp3"></audio>
+
+    <!-- Supertonic M5 (Davide) -->
+    <audio id="audio-calvino-M5-0" preload="auto" src="./assets/audio/calvino_M5_0.mp3"></audio>
+    <audio id="audio-calvino-M5-1" preload="auto" src="./assets/audio/calvino_M5_1.mp3"></audio>
+    <audio id="audio-calvino-M5-2" preload="auto" src="./assets/audio/calvino_M5_2.mp3"></audio>
+    <audio id="audio-neuroscience-M5-0" preload="auto" src="./assets/audio/neuroscience_M5_0.mp3"></audio>
+    <audio id="audio-neuroscience-M5-1" preload="auto" src="./assets/audio/neuroscience_M5_1.mp3"></audio>
+    <audio id="audio-neuroscience-M5-2" preload="auto" src="./assets/audio/neuroscience_M5_2.mp3"></audio>
+    <audio id="audio-english-M5-0" preload="auto" src="./assets/audio/english_M5_0.mp3"></audio>
+    <audio id="audio-english-M5-1" preload="auto" src="./assets/audio/english_M5_1.mp3"></audio>
+    <audio id="audio-english-M5-2" preload="auto" src="./assets/audio/english_M5_2.mp3"></audio>
+
+    <!-- Supertonic F3 (Elena) -->
+    <audio id="audio-calvino-F3-0" preload="auto" src="./assets/audio/calvino_F3_0.mp3"></audio>
+    <audio id="audio-calvino-F3-1" preload="auto" src="./assets/audio/calvino_F3_1.mp3"></audio>
+    <audio id="audio-calvino-F3-2" preload="auto" src="./assets/audio/calvino_F3_2.mp3"></audio>
+    <audio id="audio-neuroscience-F3-0" preload="auto" src="./assets/audio/neuroscience_F3_0.mp3"></audio>
+    <audio id="audio-neuroscience-F3-1" preload="auto" src="./assets/audio/neuroscience_F3_1.mp3"></audio>
+    <audio id="audio-neuroscience-F3-2" preload="auto" src="./assets/audio/neuroscience_F3_2.mp3"></audio>
+    <audio id="audio-english-F3-0" preload="auto" src="./assets/audio/english_F3_0.mp3"></audio>
+    <audio id="audio-english-F3-1" preload="auto" src="./assets/audio/english_F3_1.mp3"></audio>
+    <audio id="audio-english-F3-2" preload="auto" src="./assets/audio/english_F3_2.mp3"></audio>
+
+    <!-- Supertonic F4 (Aurora) -->
+    <audio id="audio-calvino-F4-0" preload="auto" src="./assets/audio/calvino_F4_0.mp3"></audio>
+    <audio id="audio-calvino-F4-1" preload="auto" src="./assets/audio/calvino_F4_1.mp3"></audio>
+    <audio id="audio-calvino-F4-2" preload="auto" src="./assets/audio/calvino_F4_2.mp3"></audio>
+    <audio id="audio-neuroscience-F4-0" preload="auto" src="./assets/audio/neuroscience_F4_0.mp3"></audio>
+    <audio id="audio-neuroscience-F4-1" preload="auto" src="./assets/audio/neuroscience_F4_1.mp3"></audio>
+    <audio id="audio-neuroscience-F4-2" preload="auto" src="./assets/audio/neuroscience_F4_2.mp3"></audio>
+    <audio id="audio-english-F4-0" preload="auto" src="./assets/audio/english_F4_0.mp3"></audio>
+    <audio id="audio-english-F4-1" preload="auto" src="./assets/audio/english_F4_1.mp3"></audio>
+    <audio id="audio-english-F4-2" preload="auto" src="./assets/audio/english_F4_2.mp3"></audio>
+
+    <!-- Supertonic F5 (Luna) -->
+    <audio id="audio-calvino-F5-0" preload="auto" src="./assets/audio/calvino_F5_0.mp3"></audio>
+    <audio id="audio-calvino-F5-1" preload="auto" src="./assets/audio/calvino_F5_1.mp3"></audio>
+    <audio id="audio-calvino-F5-2" preload="auto" src="./assets/audio/calvino_F5_2.mp3"></audio>
+    <audio id="audio-neuroscience-F5-0" preload="auto" src="./assets/audio/neuroscience_F5_0.mp3"></audio>
+    <audio id="audio-neuroscience-F5-1" preload="auto" src="./assets/audio/neuroscience_F5_1.mp3"></audio>
+    <audio id="audio-neuroscience-F5-2" preload="auto" src="./assets/audio/neuroscience_F5_2.mp3"></audio>
+    <audio id="audio-english-F5-0" preload="auto" src="./assets/audio/english_F5_0.mp3"></audio>
+    <audio id="audio-english-F5-1" preload="auto" src="./assets/audio/english_F5_1.mp3"></audio>
+    <audio id="audio-english-F5-2" preload="auto" src="./assets/audio/english_F5_2.mp3"></audio>
+
+    <!-- Fallback generici -->
     <audio id="audio-calvino-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
     <audio id="audio-calvino-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
     <audio id="audio-calvino-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
@@ -655,6 +730,6 @@ swift run LettoreApp</code></pre>
     <audio id="audio-english-2" preload="auto" src="./assets/audio/english_2.mp3"></audio>
   </div>
 
-  <script src="./app.js?v=voices-v11"></script>
+  <script src="./app.js?v=supertonic-v14"></script>
 </body>
 </html>

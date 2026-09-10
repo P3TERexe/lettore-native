@@ -24,24 +24,21 @@
     currentAudio: null,
     isZenMode: false,
     isCompactPaper: false,
-    selectedVoice: 'IT-M1'
+    selectedVoice: 'M1'
   };
 
-  // Catalogo Voci Neurali Multilingua (conforme a LettoreCore/Models.swift)
+  // Catalogo Ufficiale Voci Neurali Supertonic 3 ONNX (M1-M5, F1-F5)
   const voicesCatalog = {
-    'IT-M1': { name: 'Marco', lang: 'it', flag: '🇮🇹', desc: 'Maschile (Caldo)' },
-    'IT-F1': { name: 'Giulia', lang: 'it', flag: '🇮🇹', desc: 'Femminile (Cristallina)' },
-    'IT-M2': { name: 'Luca', lang: 'it', flag: '🇮🇹', desc: 'Maschile (Dinamico)' },
-    'IT-F2': { name: 'Sofia', lang: 'it', flag: '🇮🇹', desc: 'Femminile (Naturale)' },
-    'EN-M1': { name: 'John', lang: 'en', flag: '🇬🇧', desc: 'Male (Warm RP)' },
-    'EN-F1': { name: 'Emma', lang: 'en', flag: '🇬🇧', desc: 'Female (Clear Studio)' },
-    'EN-M2': { name: 'Michael', lang: 'en', flag: '🇬🇧', desc: 'Male (Narrative)' },
-    'ES-M1': { name: 'Carlos', lang: 'es', flag: '🇪🇸', desc: 'Masculino (Fluido)' },
-    'ES-F1': { name: 'Lucia', lang: 'es', flag: '🇪🇸', desc: 'Femenino (Cálido)' },
-    'FR-M1': { name: 'Pierre', lang: 'fr', flag: '🇫🇷', desc: 'Masculin (Posé)' },
-    'FR-F1': { name: 'Camille', lang: 'fr', flag: '🇫🇷', desc: 'Féminin (Doux)' },
-    'DE-M1': { name: 'Klaus', lang: 'de', flag: '🇩🇪', desc: 'Männlich (Klar)' },
-    'DE-F1': { name: 'Anna', lang: 'de', flag: '🇩🇪', desc: 'Weiblich (Präzise)' }
+    'M1': { name: 'Supertonic M1 (Marco)', shortName: 'Supertonic M1', gender: 'male', desc: 'Maschile · Caldo & Rilassato' },
+    'M2': { name: 'Supertonic M2 (Luca)', shortName: 'Supertonic M2', gender: 'male', desc: 'Maschile · Dinamico & Chiaro' },
+    'M3': { name: 'Supertonic M3 (Nico)', shortName: 'Supertonic M3', gender: 'male', desc: 'Maschile · Naturale' },
+    'M4': { name: 'Supertonic M4 (Leo)', shortName: 'Supertonic M4', gender: 'male', desc: 'Maschile · Profondo' },
+    'M5': { name: 'Supertonic M5 (Davide)', shortName: 'Supertonic M5', gender: 'male', desc: 'Maschile · Energetico' },
+    'F1': { name: 'Supertonic F1 (Giulia)', shortName: 'Supertonic F1', gender: 'female', desc: 'Femminile · Espressiva & Calda' },
+    'F2': { name: 'Supertonic F2 (Sofia)', shortName: 'Supertonic F2', gender: 'female', desc: 'Femminile · Cristallina & Fluida' },
+    'F3': { name: 'Supertonic F3 (Elena)', shortName: 'Supertonic F3', gender: 'female', desc: 'Femminile · Narrativa' },
+    'F4': { name: 'Supertonic F4 (Aurora)', shortName: 'Supertonic F4', gender: 'female', desc: 'Femminile · Dolce' },
+    'F5': { name: 'Supertonic F5 (Luna)', shortName: 'Supertonic F5', gender: 'female', desc: 'Femminile · Chiara' }
   };
 
   // Titoli delle finestre simulate
@@ -181,15 +178,17 @@
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
-    const v = voicesCatalog[state.selectedVoice] || { lang: 'it', name: 'Voce' };
+    const v = voicesCatalog[state.selectedVoice] || { name: 'Supertonic 3' };
+    const docLangs = { calvino: 'it', neuroscience: 'it', english: 'en', custom: 'it' };
+    const targetLang = docLangs[state.currentDoc] || 'it';
     const langMap = { it: 'it-IT', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE' };
-    utterance.lang = langMap[v.lang] || 'it-IT';
+    utterance.lang = langMap[targetLang] || 'it-IT';
     utterance.rate = state.speed;
 
     // Seleziona voce corrispondente dal sistema se presente
     const systemVoices = window.speechSynthesis.getVoices();
     if (systemVoices && systemVoices.length > 0) {
-      const match = systemVoices.find(sv => sv.lang.startsWith(v.lang) && (sv.name.toLowerCase().includes(v.name.toLowerCase()) || sv.default));
+      const match = systemVoices.find(sv => sv.lang.startsWith(targetLang) && (sv.name.toLowerCase().includes(v.name.toLowerCase()) || sv.default));
       if (match) utterance.voice = match;
     }
 
@@ -207,7 +206,7 @@
     utterance.onstart = function () {
       pill.classList.add('is-playing');
       if (liveDot) liveDot.classList.add('is-active');
-      if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
+      if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name}`;
     };
 
     utterance.onend = function () {
@@ -255,19 +254,14 @@
     const currentChunkElement = chunks[state.currentChunkIndex];
     const chunkText = currentChunkElement ? currentChunkElement.textContent.trim() : '';
 
-    // 1. Cerca audio specifico per documento, voce e chunk (es: audio-calvino-IT-M1-0, audio-calvino-IT-F1-0, audio-english-EN-M1-0)
+    // 1. Cerca audio specifico per documento, voce Supertonic e chunk (es: audio-calvino-M1-0, audio-english-F1-1)
     const specificAudioId = `audio-${state.currentDoc}-${state.selectedVoice}-${state.currentChunkIndex}`;
     let audio = document.getElementById(specificAudioId);
 
-    // 2. Se non presente la combinazione voce esatta, prova variante femminile IT-F1 o maschile IT-M1
-    if (!audio && state.selectedVoice === 'IT-F2') {
-      audio = document.getElementById(`audio-${state.currentDoc}-IT-F1-${state.currentChunkIndex}`);
-    } else if (!audio && (state.selectedVoice === 'IT-M2' || state.selectedVoice === 'IT-M1')) {
-      audio = document.getElementById(`audio-${state.currentDoc}-IT-M1-${state.currentChunkIndex}`);
-    } else if (!audio && state.selectedVoice === 'EN-F2') {
-      audio = document.getElementById(`audio-${state.currentDoc}-EN-F1-${state.currentChunkIndex}`);
-    } else if (!audio && state.selectedVoice === 'EN-M2') {
-      audio = document.getElementById(`audio-${state.currentDoc}-EN-M1-${state.currentChunkIndex}`);
+    // 2. Se è M3, M4, M5 o F3, F4, F5 mappa sulla variante base Supertonic più affine
+    if (!audio) {
+      const fallbackVoice = state.selectedVoice.startsWith('M') ? (state.selectedVoice === 'M2' ? 'M2' : 'M1') : (state.selectedVoice === 'F2' ? 'F2' : 'F1');
+      audio = document.getElementById(`audio-${state.currentDoc}-${fallbackVoice}-${state.currentChunkIndex}`);
     }
 
     // 3. Fallback generico per documento
@@ -319,8 +313,8 @@
         playPromise.then(() => {
           pill.classList.add('is-playing');
           if (liveDot) liveDot.classList.add('is-active');
-          const v = voicesCatalog[state.selectedVoice] || { name: 'Supertonic', lang: 'IT' };
-          if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
+          const v = voicesCatalog[state.selectedVoice] || { name: 'Supertonic 3' };
+          if (windowStatusLabel) windowStatusLabel.textContent = `Voce: ${v.name}`;
         }).catch(err => {
           console.warn('Avvio audio impedito dalle policy del browser:', err);
           pausePlayback();
@@ -420,8 +414,8 @@
     }
   }
 
-  // Cambio voce neurale attiva
-  function setVoice(voiceId, autoSwitchDoc = true) {
+  // Cambio voce neurale Supertonic 3 attiva
+  function setVoice(voiceId) {
     if (!voicesCatalog[voiceId]) return;
     state.selectedVoice = voiceId;
     const v = voicesCatalog[voiceId];
@@ -433,23 +427,14 @@
 
     // Sincronizza etichetta pillola
     if (pillVoiceName) {
-      pillVoiceName.textContent = `${v.name} (${v.lang.toUpperCase()})`;
-    }
-
-    // Se richiesto, adatta il documento se c'è discrepanza di lingua
-    if (autoSwitchDoc) {
-      if (v.lang === 'en' && (state.currentDoc === 'calvino' || state.currentDoc === 'neuroscience')) {
-        selectDocument('english');
-      } else if (v.lang === 'it' && state.currentDoc === 'english') {
-        selectDocument('calvino');
-      }
+      pillVoiceName.textContent = v.shortName;
     }
 
     if (state.isPlaying) {
       playCurrentChunk();
     } else {
       if (windowStatusLabel) {
-        windowStatusLabel.textContent = `Voce: ${v.name} (${v.lang.toUpperCase()})`;
+        windowStatusLabel.textContent = `Voce: ${v.shortName}`;
       }
     }
   }
@@ -480,13 +465,6 @@
     // Aggiorna titolo finestra
     if (windowTitleText && docTitles[docKey]) {
       windowTitleText.textContent = docTitles[docKey];
-    }
-
-    // Seleziona una voce appropriata se il documento ha una lingua specifica
-    if (docKey === 'english' && voicesCatalog[state.selectedVoice] && voicesCatalog[state.selectedVoice].lang !== 'en') {
-      setVoice('EN-M1', false);
-    } else if ((docKey === 'calvino' || docKey === 'neuroscience') && voicesCatalog[state.selectedVoice] && voicesCatalog[state.selectedVoice].lang !== 'it') {
-      setVoice('IT-M1', false);
     }
 
     updateChunkHighlight(false);
@@ -674,14 +652,14 @@
     });
   }
 
-  // Cambio rapido voce da Pillola (cicla tra i profili principali)
+  // Cambio rapido voce da Pillola (cicla tra i profili Supertonic 3 ONNX)
   if (btnPillVoice) {
     btnPillVoice.addEventListener('click', (e) => {
       e.stopPropagation();
-      const primaryVoices = ['IT-M1', 'IT-F1', 'EN-M1', 'EN-F1', 'ES-M1', 'FR-F1', 'DE-F1'];
-      const curIdx = primaryVoices.indexOf(state.selectedVoice);
-      const nextIdx = (curIdx + 1) % primaryVoices.length;
-      setVoice(primaryVoices[nextIdx], true);
+      const supertonicVoices = ['M1', 'F1', 'M2', 'F2', 'M3', 'F3', 'M4', 'F4', 'M5', 'F5'];
+      const curIdx = supertonicVoices.indexOf(state.selectedVoice);
+      const nextIdx = (curIdx + 1) % supertonicVoices.length;
+      setVoice(supertonicVoices[nextIdx]);
     });
   }
 
