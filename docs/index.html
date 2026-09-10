@@ -7,7 +7,7 @@
   <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
   <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=clean-v6">
+  <link rel="stylesheet" href="./styles.css?v=scroll-motion-v7">
 </head>
 <body>
 
@@ -46,18 +46,19 @@
         <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-primary btn-sm">Scarica per macOS</a>
       </div>
     </div>
+    <div class="scroll-progress-bar" id="scrollProgressBar" aria-hidden="true"></div>
   </header>
 
   <!-- Hero Section -->
   <main id="main-content">
     <section id="hero" class="section hero-section">
       <!-- Glow ambient background (Antigravity spatial lighting) -->
-      <div class="hero-ambient-glow" aria-hidden="true"></div>
+      <div class="hero-ambient-glow" id="heroAmbientGlow" aria-hidden="true"></div>
 
       <div class="container hero-container">
         
         <!-- Badge Piattaforma Momentaneamente Esclusiva macOS -->
-        <div class="hero-badge-wrap">
+        <div class="hero-badge-wrap reveal-on-scroll">
           <div class="platform-notice-banner" role="status">
             <span class="platform-apple-badge">
               <svg class="platform-apple-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
@@ -69,12 +70,12 @@
           </div>
         </div>
 
-        <h1 class="hero-title">Lettura vocale neurale a livello di sistema. Senza web wrapper, senza latenza.</h1>
-        <p class="hero-lead">
+        <h1 class="hero-title reveal-on-scroll">Lettura vocale neurale a livello di sistema. Senza web wrapper, senza latenza.</h1>
+        <p class="hero-lead reveal-on-scroll">
           Costruito interamente in Swift 6 con AppKit, SwiftUI e sintesi neurale locale Supertonic ONNX a 16-bit. Si collega direttamente alle Accessibility API di macOS per leggere qualsiasi testo selezionato, con un consumo reale inferiore a 80 MB di memoria.
         </p>
 
-        <div class="hero-cta-group">
+        <div class="hero-cta-group reveal-on-scroll">
           <a href="#simulatore" class="btn btn-primary btn-lg">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
               <path d="M8 5v14l11-7z"/>
@@ -91,7 +92,7 @@
         </div>
 
         <!-- Metriche Tecniche Reali -->
-        <div class="metrics-grid">
+        <div class="metrics-grid stagger-group reveal-on-scroll">
           <div class="metric-card">
             <div class="metric-header">
               <span class="metric-val">&lt; 80 MB</span>
@@ -134,7 +135,7 @@
     <!-- Simulatore Interattivo Desktop (Antigravity Floating Pill) -->
     <section id="simulatore" class="section simulator-section">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal-on-scroll">
           <span class="section-kicker">Esperienza Interattiva Live</span>
           <h2 class="section-title">La Floating Pill nel tuo browser</h2>
           <p class="section-desc">
@@ -143,7 +144,7 @@
         </div>
 
         <!-- Simulator Window con retroilluminazione spaziale -->
-        <div class="simulator-wrapper" id="simulatorWrapper">
+        <div class="simulator-wrapper reveal-on-scroll" id="simulatorWrapper">
           <div class="simulator-window-glow" id="simulatorGlow" aria-hidden="true"></div>
 
           <div class="simulator-window" id="simulatorWindow">
@@ -335,7 +336,7 @@
     <!-- Architettura & Caratteristiche Tecniche -->
     <section id="funzionalita" class="section architecture-section">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal-on-scroll">
           <span class="section-kicker">Ingegneria di Sistema</span>
           <h2 class="section-title">Architettura a zero compromessi per macOS</h2>
           <p class="section-desc">
@@ -343,7 +344,7 @@
           </p>
         </div>
 
-        <div class="features-mosaic">
+        <div class="features-mosaic stagger-group reveal-on-scroll">
           <!-- Card 1: Accessibility AX -->
           <article class="feature-box">
             <div class="feature-box-icon" aria-hidden="true">
@@ -422,7 +423,7 @@
     <!-- Accessibilità & Inclusione -->
     <section id="accessibilita" class="section a11y-section">
       <div class="container">
-        <div class="a11y-card">
+        <div class="a11y-card reveal-on-scroll">
           <div class="a11y-content">
             <span class="section-kicker">Accessibilità Universale</span>
             <h2 class="section-title">Costruito per chi legge con le orecchie</h2>
@@ -451,7 +452,7 @@
     <!-- Download & Guida per Sviluppatori -->
     <section id="installazione" class="section install-section">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal-on-scroll">
           <span class="section-kicker">Disponibilità &amp; Compilazione</span>
           <h2 class="section-title">Scarica o compila direttamente da sorgente</h2>
           <p class="section-desc">
@@ -459,7 +460,7 @@
           </p>
         </div>
 
-        <div class="install-grid">
+        <div class="install-grid stagger-group reveal-on-scroll">
           <!-- Colonna 1: Download Release -->
           <div class="install-card">
             <div class="install-card-badge">Esclusiva macOS</div>
@@ -522,6 +523,13 @@ swift run LettoreApp</code></pre>
     </div>
   </footer>
 
+  <!-- Pulsante Rapido Torna su (Antigravity Floating Button) -->
+  <button type="button" class="back-to-top-btn" id="btnBackToTop" aria-label="Torna all'inizio della pagina" title="Torna all'inizio">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+      <path d="M18 15l-6-6-6 6"/>
+    </svg>
+  </button>
+
   <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Nativo & Pulito) -->
   <div class="audio-preload-pool" aria-hidden="true">
     <audio id="audio-calvino-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
@@ -532,6 +540,6 @@ swift run LettoreApp</code></pre>
     <audio id="audio-neuroscience-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
   </div>
 
-  <script src="./app.js?v=design-upgrade-v4"></script>
+  <script src="./app.js?v=scroll-motion-v7"></script>
 </body>
 </html>

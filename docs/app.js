@@ -502,11 +502,118 @@
     }
   });
 
+  // Animazioni di Scroll Spaziali & Reveal (Antigravity & Taste Skill)
+  function initScrollDrivenMotion() {
+    const progressBar = document.getElementById('scrollProgressBar');
+    const heroGlow = document.getElementById('heroAmbientGlow');
+    const btnBackToTop = document.getElementById('btnBackToTop');
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.nav-link');
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // 1. Reveal on scroll via IntersectionObserver
+    if (!prefersReducedMotion && 'IntersectionObserver' in window) {
+      const revealObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, {
+        threshold: 0.12,
+        rootMargin: '0px 0px -40px 0px'
+      });
+
+      document.querySelectorAll('.reveal-on-scroll').forEach(el => {
+        revealObserver.observe(el);
+      });
+    } else {
+      document.querySelectorAll('.reveal-on-scroll').forEach(el => {
+        el.classList.add('is-revealed');
+      });
+    }
+
+    // 2. Loop di scroll con requestAnimationFrame (60/120fps fluido)
+    let isTicking = false;
+    function onScroll() {
+      if (!isTicking) {
+        requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+
+          // Aggiorna progress bar in testata
+          if (progressBar && maxScroll > 0) {
+            const progress = Math.min(100, Math.max(0, (scrollY / maxScroll) * 100));
+            progressBar.style.width = `${progress}%`;
+          }
+
+          // Parallasse sull'ambient glow dell'hero
+          if (heroGlow && !prefersReducedMotion && scrollY < 800) {
+            heroGlow.style.transform = `translate3d(-50%, ${scrollY * 0.28}px, 0)`;
+          }
+
+          // Toggle visibilità pulsante Torna su
+          if (btnBackToTop) {
+            btnBackToTop.classList.toggle('is-visible', scrollY > 400);
+          }
+
+          // ScrollSpy: evidenzia link sezione attiva
+          let currentSectionId = '';
+          sections.forEach(sec => {
+            const top = sec.offsetTop - 140;
+            const height = sec.offsetHeight;
+            if (scrollY >= top && scrollY < top + height) {
+              currentSectionId = sec.getAttribute('id');
+            }
+          });
+
+          navLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && href.startsWith('#')) {
+              const targetId = href.substring(1);
+              link.classList.toggle('is-active', targetId === currentSectionId);
+            }
+          });
+
+          isTicking = false;
+        });
+        isTicking = true;
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // 3. Click handler per Torna su
+    if (btnBackToTop) {
+      btnBackToTop.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      });
+    }
+  }
+
+  // Effetto Spotlight sulle card con tracciamento del cursore
+  function initCardSpotlight() {
+    const cards = document.querySelectorAll('.feature-box, .metric-card');
+    cards.forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+      });
+    });
+  }
+
   // Inizializzazione pagina
   updateChunkHighlight();
   attachChunkClickListeners();
   initCodeCopy();
   initSpatialTilt();
   initTrafficLights();
+  initScrollDrivenMotion();
+  initCardSpotlight();
 
 })();

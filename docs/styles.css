@@ -1347,6 +1347,149 @@ body {
 }
 
 /* ==========================================================================
+   SCROLL-DRIVEN ANIMATIONS & SPATIAL MOTION (Antigravity & Taste Skill)
+   ========================================================================== */
+
+/* Barra di avanzamento scroll in testata */
+.scroll-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-audio), var(--accent-highlight));
+  transition: width 0.08s linear;
+  z-index: 1001;
+  box-shadow: 0 0 10px var(--accent-audio);
+}
+
+/* Base per reveal su scroll */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(32px) scale(0.98);
+  transition: opacity 0.65s var(--spring-snappy), transform 0.65s var(--spring-snappy);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll.is-revealed {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Stagger per elementi griglia (effetto domino armonico) */
+.stagger-group.reveal-on-scroll > * {
+  opacity: 0;
+  transform: translateY(24px) scale(0.97);
+  transition: opacity 0.55s var(--spring-snappy), transform 0.55s var(--spring-snappy);
+  will-change: opacity, transform;
+}
+
+.stagger-group.is-revealed > * {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.stagger-group.is-revealed > *:nth-child(1) { transition-delay: 0.04s; }
+.stagger-group.is-revealed > *:nth-child(2) { transition-delay: 0.12s; }
+.stagger-group.is-revealed > *:nth-child(3) { transition-delay: 0.20s; }
+.stagger-group.is-revealed > *:nth-child(4) { transition-delay: 0.28s; }
+
+/* Spotlight Border Glow su card al movimento del mouse */
+.feature-box, .metric-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-box::after, .metric-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(350px circle at var(--mouse-x, -500px) var(--mouse-y, -500px), rgba(255, 255, 255, 0.08), transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 2;
+}
+
+.feature-box:hover::after, .metric-card:hover::after {
+  opacity: 1;
+}
+
+/* Floating Pill: respiro di peso zero quando a riposo */
+@keyframes pillIdleFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.dynamic-pill:not(.is-expanded):not(.is-playing) {
+  animation: pillIdleFloat 4.2s ease-in-out infinite;
+}
+
+/* Pulsante Fluttuante Torna su */
+.back-to-top-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(18, 20, 30, 0.88);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 900;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65), 0 0 16px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.9);
+  transition: opacity 0.3s ease, transform 0.3s var(--spring-snappy), background 0.15s ease, border-color 0.15s ease;
+}
+
+.back-to-top-btn.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.back-to-top-btn:hover {
+  background: rgba(28, 32, 46, 0.96);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px) scale(1.06);
+}
+
+.back-to-top-btn:active {
+  transform: scale(0.94);
+}
+
+/* Indicatore NavLink Attivo (ScrollSpy) */
+.nav-link.is-active {
+  color: #ffffff;
+  position: relative;
+}
+
+.nav-link.is-active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-audio);
+  box-shadow: 0 0 8px var(--accent-audio);
+}
+
+/* ==========================================================================
    ACCESSIBILITÀ: PREFERS REDUCED MOTION (WCAG / Baseline UI)
    ========================================================================== */
 
@@ -1362,8 +1505,20 @@ body {
     transform: none !important;
   }
 
-  .dynamic-pill.is-playing .wave-bar {
+  .dynamic-pill.is-playing .wave-bar,
+  .dynamic-pill:not(.is-expanded):not(.is-playing) {
     animation: none !important;
+  }
+
+  .reveal-on-scroll,
+  .stagger-group.reveal-on-scroll > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .scroll-progress-bar {
+    display: none !important;
   }
 }
 
