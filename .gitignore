@@ -86,3 +86,11 @@ yarn-error.log*
 # Node / Web
 node_modules/
 .npm/
+
+# Agent Configuration & Personal Documentation
+.agents/
+AGENTS.md
+dev-docs/
+mockup-native-100/
+docs/*.md
+
