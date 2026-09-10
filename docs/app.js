@@ -72,13 +72,29 @@
     return Array.from(activeDocBlock.querySelectorAll('.chunk'));
   }
 
+  // Mantiene il chunk visibile solo all'interno del foglio documentPaper
+  // senza MAI influenzare la posizione di scroll della pagina principale del browser
+  function scrollChunkIntoPaper(chunkElement) {
+    if (!documentPaper || !chunkElement) return;
+    const paperRect = documentPaper.getBoundingClientRect();
+    const chunkRect = chunkElement.getBoundingClientRect();
+
+    if (chunkRect.top < paperRect.top) {
+      documentPaper.scrollTop -= (paperRect.top - chunkRect.top + 16);
+    } else if (chunkRect.bottom > paperRect.bottom) {
+      documentPaper.scrollTop += (chunkRect.bottom - paperRect.bottom + 16);
+    }
+  }
+
   // Aggiorna l'evidenziazione visuale del chunk corrente
-  function updateChunkHighlight() {
+  function updateChunkHighlight(autoScrollPaper = false) {
     const chunks = getCurrentChunks();
     chunks.forEach((c, idx) => {
       if (idx === state.currentChunkIndex) {
         c.classList.add('is-active');
-        c.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        if (autoScrollPaper && state.isPlaying) {
+          scrollChunkIntoPaper(c);
+        }
       } else {
         c.classList.remove('is-active');
       }
@@ -120,7 +136,7 @@
       return;
     }
 
-    updateChunkHighlight();
+    updateChunkHighlight(true);
     stopAllAudios();
 
     // Seleziona l'elemento audio reale Supertonic precaricato
