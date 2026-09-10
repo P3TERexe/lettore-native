@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lettore Native: Sintesi Vocale Neurale per macOS</title>
+  <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
+  <link rel="canonical" href="https://p3terexe.github.io/lettore-native/#hero">
+  <meta property="og:url" content="https://p3terexe.github.io/lettore-native/#hero">
+  <meta property="og:title" content="Lettore Native: Sintesi Vocale Neurale per macOS">
+  <meta name="theme-color" content="#08090d">
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles.css?v=voices-v11">
+</head>
+<body>
+
+  <!-- Accessibilità: Salto al contenuto principale (WCAG AA / Baseline UI) -->
+  <a href="#main-content" class="skip-link">Salta al contenuto principale</a>
+
+  <!-- Barra di Navigazione Superiore -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#hero" class="brand" aria-label="Lettore Native - Torna all'inizio">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+        </span>
+        <span class="brand-name">Lettore Native</span>
+        <span class="brand-tag">macOS Nativo</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Navigazione principale">
+        <a href="#simulatore" class="nav-link">Simulatore</a>
+        <a href="#funzionalita" class="nav-link">Funzionalità</a>
+        <a href="#accessibilita" class="nav-link">Accessibilità</a>
+        <a href="#installazione" class="nav-link">Sorgenti & Build</a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://github.com/P3TERexe/lettore-native" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" aria-label="Visualizza repository su GitHub">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+        <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-primary btn-sm">Scarica per macOS</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main id="main-content">
+    <section id="hero" class="section hero-section">
+      <!-- Glow ambient background (Antigravity spatial lighting) -->
+      <div class="hero-ambient-glow" id="heroAmbientGlow" aria-hidden="true"></div>
+
+      <div class="container hero-container">
+        
+        <!-- Badge Piattaforma Momentaneamente Esclusiva macOS -->
+        <div class="hero-badge-wrap reveal-on-scroll">
+          <div class="platform-notice-banner" role="status">
+            <span class="platform-apple-badge">
+              <svg class="platform-apple-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.64 1.34-.56.65-1.06 1.71-.93 2.73 1.01.08 2.04-.47 2.65-1.22z"/>
+              </svg>
+              <strong>Momentaneamente solo per Mac</strong>
+            </span>
+            <span class="platform-notice-desc">Disponibile attualmente per macOS Sonoma &amp; Sequoia. Supporto per altre piattaforme in arrivo.</span>
+          </div>
+        </div>
+
+        <!-- Evidenziazione Architettura Multilingua Neurale -->
+        <div class="hero-multilang-badge reveal-on-scroll" aria-label="Supporto multilingua">
+          <div class="multilang-lead">
+            <svg class="multilang-globe-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span>Architettura Poliglotta:</span>
+          </div>
+          <div class="multilang-chips-row">
+            <span class="m-lang-chip"><span class="m-lang-flag">🇮🇹</span> Italiano</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇬🇧</span> English</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇪🇸</span> Español</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇫🇷</span> Français</span>
+            <span class="m-lang-chip"><span class="m-lang-flag">🇩🇪</span> Deutsch</span>
+            <span class="m-lang-count">20+ Voci Neurali</span>
+          </div>
+        </div>
+
+        <h1 class="hero-title reveal-on-scroll">Lettura vocale neurale a livello di sistema. Senza web wrapper, senza latenza.</h1>
+        <p class="hero-lead reveal-on-scroll">
+          Costruito interamente in Swift 6 per macOS con AppKit, SwiftUI e sintesi neurale Supertonic ONNX a 16-bit. Include supporto nativo <strong>multilingua (5 lingue e oltre 20 profili vocali calibrati)</strong> con cattura istantanea da qualsiasi applicazione e consumo reale inferiore a 80 MB di memoria.
+        </p>
+
+        <div class="hero-cta-group reveal-on-scroll">
+          <a href="#simulatore" class="btn btn-primary btn-lg">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <span>Prova il Simulatore Web</span>
+          </a>
+          <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-secondary btn-lg">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            <span>Scarica v3.0.0</span>
+          </a>
+          <a href="#installazione" class="btn btn-ghost btn-lg">Istruzioni da Terminale</a>
+        </div>
+
+        <!-- Metriche Tecniche Reali -->
+        <div class="metrics-grid stagger-group reveal-on-scroll">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">&lt; 80 MB</span>
+              <span class="metric-pill-tag">RAM</span>
+            </div>
+            <span class="metric-label">Memoria in esecuzione</span>
+            <span class="metric-note">Zero Chromium, zero overhead Electron</span>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">5 Lingue</span>
+              <span class="metric-pill-tag">Poliglotta</span>
+            </div>
+            <span class="metric-label">Sintesi &amp; 20+ Profili</span>
+            <span class="metric-note">IT · EN · ES · FR · DE con voci ♂ e ♀</span>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">&lt; 140 ms</span>
+              <span class="metric-pill-tag">Latenza</span>
+            </div>
+            <span class="metric-label">Avvio della sintesi vocale</span>
+            <span class="metric-note">Streaming audio a chunk senza attese</span>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">100% Locale</span>
+              <span class="metric-pill-tag">Privacy</span>
+            </div>
+            <span class="metric-label">Autonomia e zero cloud</span>
+            <span class="metric-note">Modello neurale ONNX offline su NPU/CPU</span>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-val">Swift 6</span>
+              <span class="metric-pill-tag">Core</span>
+            </div>
+            <span class="metric-label">Architettura Mac pura</span>
+            <span class="metric-note">Concorrenza sicura, AppKit e CoreAudio</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Simulatore Interattivo Desktop (Antigravity Floating Pill) -->
+    <section id="simulatore" class="section simulator-section">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <span class="section-kicker">Esperienza Interattiva Live</span>
+          <h2 class="section-title">La Floating Pill nel tuo browser</h2>
+          <p class="section-desc">
+            Durante la lettura la pillola rimane compatta mostrando unicamente la forma d'onda a 20 Hz. Passa con il mouse sopra la pillola per svelare i controlli completi con fisica a molla di macOS.
+          </p>
+        </div>
+
+        <!-- Simulator Window con retroilluminazione spaziale -->
+        <div class="simulator-wrapper reveal-on-scroll" id="simulatorWrapper">
+          <div class="simulator-window-glow" id="simulatorGlow" aria-hidden="true"></div>
+
+          <div class="simulator-window" id="simulatorWindow">
+            <!-- Titlebar macOS con Traffic Lights funzionali -->
+            <div class="window-titlebar">
+              <div class="traffic-lights" aria-label="Controlli finestra">
+                <button type="button" class="traffic-light close" id="trafficClose" title="Ferma e reimposta audio" aria-label="Ferma riproduzione"></button>
+                <button type="button" class="traffic-light minimize" id="trafficMinimize" title="Riduci/ingrandisci testo" aria-label="Dimensione testo"></button>
+                <button type="button" class="traffic-light zoom" id="trafficZoom" title="Modalità Focus / Zen" aria-label="Modalità lettura Zen"></button>
+              </div>
+              <div class="window-title" id="window-title-text">Documento: Italo Calvino, Lezioni Americane</div>
+              <div class="window-status-pill">
+                <span class="live-dot" id="liveDot"></span>
+                <span id="windowStatusLabel">Pronto</span>
+              </div>
+            </div>
+
+            <!-- Toolbar Selettore Documento -->
+            <div class="doc-toolbar">
+              <span class="doc-toolbar-label">Brano di prova:</span>
+              <div class="doc-chips" role="tablist" aria-label="Seleziona testo da leggere">
+                <button type="button" class="doc-chip is-active" role="tab" aria-selected="true" data-doc="calvino">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                  <span>Italo Calvino</span>
+                </button>
+                <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="neuroscience">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                    <path d="M2 12h20"/>
+                  </svg>
+                  <span>Neuroscienze &amp; Lettura</span>
+                </button>
+                <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="english">
+                  <span class="chip-flag" aria-hidden="true">🇬🇧</span>
+                  <span>Oliver Sacks (EN)</span>
+                </button>
+                <button type="button" class="doc-chip" role="tab" aria-selected="false" data-doc="custom">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  <span>Testo Personalizzato</span>
+                </button>
+              </div>
+
+              <!-- Selettore Voci Neurali Supertonic 3 ONNX -->
+              <div class="voice-selector-bar" role="region" aria-label="Selezione voce neurale Supertonic 3">
+                <label for="voiceSelect" class="voice-select-label">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                  <span>Voce:</span>
+                </label>
+                <div class="voice-select-pill">
+                  <select id="voiceSelect" class="voice-dropdown" aria-label="Scegli voce neurale Supertonic 3">
+                    <optgroup label="Voci Maschili Supertonic 3 ONNX">
+                      <option value="M1" selected>Supertonic M1 · Marco (Maschile · Caldo &amp; Rilassato)</option>
+                      <option value="M2">Supertonic M2 · Luca (Maschile · Dinamico &amp; Chiaro)</option>
+                      <option value="M3">Supertonic M3 · Nico (Maschile · Naturale)</option>
+                      <option value="M4">Supertonic M4 · Leo (Maschile · Profondo)</option>
+                      <option value="M5">Supertonic M5 · Davide (Maschile · Energetico)</option>
+                    </optgroup>
+                    <optgroup label="Voci Femminili Supertonic 3 ONNX">
+                      <option value="F1">Supertonic F1 · Giulia (Femminile · Espressiva &amp; Calda)</option>
+                      <option value="F2">Supertonic F2 · Sofia (Femminile · Cristallina &amp; Fluida)</option>
+                      <option value="F3">Supertonic F3 · Elena (Femminile · Narrativa)</option>
+                      <option value="F4">Supertonic F4 · Aurora (Femminile · Dolce)</option>
+                      <option value="F5">Supertonic F5 · Luna (Femminile · Chiara)</option>
+                    </optgroup>
+                  </select>
+                  <svg class="select-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Area di lettura con Pill fluttuante -->
+            <div class="document-viewport">
+              
+              <!-- FLOATING PILL OVERLAY (Antigravity Dynamic Island) -->
+              <div class="pill-mount-point" id="pillContainer">
+                <div class="dynamic-pill" id="dynamicPill" tabindex="0" role="region" aria-label="Controller vocale Lettore Native (premi Spazio per Play/Pausa)">
+                  
+                  <!-- Traccia di avanzamento integrata nel bordo della pillola -->
+                  <div class="pill-progress-track" aria-hidden="true">
+                    <div class="pill-progress-fill" id="pillProgressFill"></div>
+                  </div>
+
+                  <!-- Stato Collassato: Onda Sonora 20Hz a 9 barre -->
+                  <div class="pill-wave-section" id="pillWaveSection">
+                    <div class="wave-visualizer" id="waveBars" aria-hidden="true">
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                      <span class="wave-bar"></span>
+                    </div>
+                    <span class="pill-status-dot" id="pillStatusDot" title="Stato: pronto"></span>
+                  </div>
+
+                  <!-- Stato Espanso: Controlli Completi -->
+                  <div class="pill-controls-section" id="pillControlsSection">
+                    <button type="button" class="pill-btn" id="btnPrevChunk" aria-label="Frase precedente" title="Frase precedente (Freccia Sinistra)">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                      </svg>
+                    </button>
+
+                    <button type="button" class="pill-btn pill-btn-play" id="btnPlayPause" aria-label="Riproduci o metti in pausa" title="Play / Pausa (Spazio)">
+                      <svg class="icon-play" id="iconPlay" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      <svg class="icon-pause is-hidden" id="iconPause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                      </svg>
+                    </button>
+
+                    <button type="button" class="pill-btn" id="btnNextChunk" aria-label="Frase successiva" title="Frase successiva (Freccia Destra)">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+                      </svg>
+                    </button>
+
+                    <div class="pill-divider" aria-hidden="true"></div>
+
+                    <!-- Selettore di Velocità -->
+                    <button type="button" class="pill-speed-toggle" id="btnSpeed" aria-label="Modifica velocità di riproduzione" title="Velocità: 1.0x, 1.25x, 1.5x, 2.0x">
+                      <span id="speedValue">1.0×</span>
+                    </button>
+
+                    <!-- Toggle Audio / Mute -->
+                    <button type="button" class="pill-btn pill-btn-mute" id="btnMute" aria-label="Disattiva/attiva audio" title="Mute / Unmute (M)">
+                      <svg id="iconVolume" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                      <svg id="iconMuted" class="is-hidden" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M23 9l-6 6"/>
+                      </svg>
+                    </button>
+
+                    <div class="pill-divider" aria-hidden="true"></div>
+
+                    <!-- Badge Voce Neurale Attiva con cambio rapido -->
+                    <button type="button" class="pill-voice-btn" id="btnPillVoice" title="Voce attiva: clicca per cambiare profilo vocale Supertonic 3" aria-label="Cambia voce neurale Supertonic">
+                      <span class="voice-indicator-dot" aria-hidden="true"></span>
+                      <span id="pillVoiceName">Supertonic M1</span>
+                    </button>
+
+                    <span class="pill-timer" id="pillTimer" aria-live="polite">Frase 1/3</span>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Contenuto Editoriale del Documento -->
+              <div class="document-content-paper" id="documentPaper">
+                <!-- Testo Calvino (Predefinito) -->
+                <div class="doc-text-block is-visible" id="doc-calvino">
+                  <p>
+                    <span class="chunk" data-chunk-index="0" tabindex="0" role="button" aria-label="Frase 1: Prendete la vita con leggerezza...">Prendete la vita con leggerezza, che leggerezza non è superficialità, ma planare sulle cose dall'alto, non avere macigni sul cuore.</span>
+                    <span class="chunk" data-chunk-index="1" tabindex="0" role="button" aria-label="Frase 2: La leggerezza per me si associa con la precisione...">La leggerezza per me si associa con la precisione e la determinazione, non con la vaghezza e l'abbandono al caso.</span>
+                    <span class="chunk" data-chunk-index="2" tabindex="0" role="button" aria-label="Frase 3: Nei momenti in cui il regno dell'umano...">Nei momenti in cui il regno dell'umano mi sembra condannato alla pesantezza, penso che dovrei volare in un altro spazio, come Perseo.</span>
+                  </p>
+                </div>
+
+                <!-- Testo Scientifico -->
+                <div class="doc-text-block" id="doc-neuroscience">
+                  <p>
+                    <span class="chunk" data-chunk-index="0" tabindex="0" role="button" aria-label="Frase 1: L'ascolto combinato alla scansione visiva...">L'ascolto combinato alla scansione visiva riduce il carico cognitivo della memoria di lavoro fino al quaranta percento durante lo studio intensivo.</span>
+                    <span class="chunk" data-chunk-index="1" tabindex="0" role="button" aria-label="Frase 2: La segmentazione del discorso in unità sintattiche...">La segmentazione del discorso in unità sintattiche complete consente al cervello di anticipare la struttura della frase senza interruzioni ritmiche.</span>
+                    <span class="chunk" data-chunk-index="2" tabindex="0" role="button" aria-label="Frase 3: Per questo motivo la sincronizzazione istantanea...">Per questo motivo la sincronizzazione istantanea tra voce neurale e marcatore visivo è essenziale per la comprensione profonda.</span>
+                  </p>
+                </div>
+
+                <!-- Testo Letteratura Inglese (Multilingua) -->
+                <div class="doc-text-block" id="doc-english">
+                  <p>
+                    <span class="chunk" data-chunk-index="0" tabindex="0" role="button" aria-label="Sentence 1: There is no doubt that consciousness...">There is no doubt that consciousness is an active, continuous creation of the human mind and memory.</span>
+                    <span class="chunk" data-chunk-index="1" tabindex="0" role="button" aria-label="Sentence 2: Perception is never purely passive;...">Perception is never purely passive; it involves an immediate synthesis of sensory input and narrative focus.</span>
+                    <span class="chunk" data-chunk-index="2" tabindex="0" role="button" aria-label="Sentence 3: Language gives our inner thoughts a lasting architecture...">Language gives our inner thoughts a lasting architecture that transcends the fleeting present moment.</span>
+                  </p>
+                </div>
+
+                <!-- Editor Testo Personalizzato -->
+                <div class="doc-text-block" id="doc-custom">
+                  <div class="custom-input-wrap">
+                    <label for="customTextInput" class="custom-input-label">Incolla o digita un testo per testare la segmentazione sintattica:</label>
+                    <textarea id="customTextInput" class="custom-textarea" rows="4" placeholder="Scrivi o incolla qualsiasi paragrafo qui per testare il motore di suddivisione in frasi (chunking) e l'evidenziatore..."></textarea>
+                    <div class="custom-input-actions">
+                      <button type="button" class="btn btn-primary btn-sm" id="btnApplyCustomText">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Segmenta nel Simulatore</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div id="customChunksContainer" class="custom-chunks-preview"></div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Simulator Footer -->
+            <div class="simulator-footer">
+              <div class="simulator-hints">
+                <span class="hint-item"><kbd>Spazio</kbd> Play / Pausa</span>
+                <span class="hint-item"><kbd>←</kbd> <kbd>→</kbd> Salta Frase</span>
+                <span class="hint-item"><kbd>M</kbd> Mute</span>
+                <span class="hint-item"><kbd>Click Frase</kbd> Ascolta da lì</span>
+              </div>
+              <div class="simulator-engine-tag">
+                <span class="dot-online" aria-hidden="true"></span>
+                <span>Voce Neurale Supertonic 3 ONNX (44.1 kHz, 16-bit)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+
+    <!-- Caratteristiche & Funzionalità -->
+    <section id="funzionalita" class="section architecture-section">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <span class="section-kicker">Semplicità &amp; Immediatezza</span>
+          <h2 class="section-title">Come funziona sul tuo Mac</h2>
+          <p class="section-desc">
+            Nessuna configurazione complessa o schermata superflua. Selezioni ciò che vuoi ascoltare e continui a lavorare senza interruzioni.
+          </p>
+        </div>
+
+        <div class="features-mosaic stagger-group reveal-on-scroll">
+          <!-- Card 1: Cattura Istantanea -->
+          <article class="feature-box">
+            <div class="feature-box-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="4" r="2"/>
+                <path d="M12 7v7"/>
+                <path d="M8 10h8"/>
+                <path d="M9 21l3-7 3 7"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Seleziona e ascolta da qualsiasi app</h3>
+            <p class="feature-box-text">
+              Non serve copiare e incollare. Evidenzia un articolo in Safari, una pagina su Apple Books, un documento Word o un PDF in Anteprima e premi una scorciatoia da tastiera: la lettura inizia all'istante.
+            </p>
+          </article>
+
+          <!-- Card 2: Vision OCR -->
+          <article class="feature-box">
+            <div class="feature-box-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="M21 15l-5-5L5 21"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Legge anche immagini e presentazioni</h3>
+            <p class="feature-box-text">
+              Trovato un documento scansionato, una slide o un grafico con testo non selezionabile? Cattura un riquadro dello schermo: il Mac riconosce subito le parole e te le legge ad alta voce, 100% offline.
+            </p>
+          </article>
+
+          <!-- Card 3: Architettura Multilingua & Voci Neurali -->
+          <article class="feature-box">
+            <div class="feature-box-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Multilingua con oltre 20 voci neurali</h3>
+            <p class="feature-box-text">
+              Supporto nativo per 5 lingue (Italiano, Inglese, Spagnolo, Francese, Tedesco) con profili timbrici maschili e femminili calibrati. Passi da Marco a Giulia o a John in un clic, con fonetica madrelingua fluida ed espansione automatica di date, orari e abbreviazioni per ciascuna lingua.
+            </p>
+            <div class="feature-lang-row" aria-label="Lingue supportate">
+              <span class="f-lang-tag">🇮🇹 IT</span>
+              <span class="f-lang-tag">🇬🇧 EN</span>
+              <span class="f-lang-tag">🇪🇸 ES</span>
+              <span class="f-lang-tag">🇫🇷 FR</span>
+              <span class="f-lang-tag">🇩🇪 DE</span>
+            </div>
+          </article>
+
+          <!-- Card 4: Audio Istantaneo -->
+          <article class="feature-box">
+            <div class="feature-box-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            </div>
+            <h3 class="feature-box-title">Avvio immediato senza attese</h3>
+            <p class="feature-box-text">
+              Non devi attendere che l'intero capitolo venga elaborato prima di iniziare. La voce parte subito fin dalla prima frase, con una pillola fluttuante discreta che non ti toglie mai la concentrazione.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Accessibilità & Inclusione -->
+    <section id="accessibilita" class="section a11y-section">
+      <div class="container">
+        <div class="a11y-card reveal-on-scroll">
+          <div class="a11y-content">
+            <span class="section-kicker">Accessibilità Universale</span>
+            <h2 class="section-title">Costruito per chi legge con le orecchie</h2>
+            <p class="a11y-text">
+              Lettore è nato con un obiettivo chiaro: permettere a chi affronta affaticamento visivo, dislessia o difficoltà di concentrazione di fruire di qualunque testo sullo schermo con la stessa naturalezza di un podcast.
+            </p>
+            <ul class="a11y-list">
+              <li>
+                <strong>Navigazione da tastiera senza mouse:</strong> scorciatoie globali personalizzabili per avviare, mettere in pausa e scorrere i blocchi senza mai togliere le mani dalla tastiera.
+              </li>
+              <li>
+                <strong>Contrasti testati WCAG AAA:</strong> l'evidenziatore di lettura e la Dynamic Island usano colori calibrati per superare comodamente i requisiti di leggibilità sia in modalità scura che in alta luminosità.
+              </li>
+              <li>
+                <strong>Nessun furto di focus (Non-activating NSPanel):</strong> la pillola fluttuante non sottrae il focus all'editor di testo o al documento su cui stai lavorando, mantenendo intatto il tuo flusso di scrittura.
+              </li>
+              <li>
+                <strong>Rispetto delle preferenze di movimento:</strong> supporta nativamente l'opzione di sistema <code>Reduce Motion</code>, disabilitando oscillazioni e animazioni complesse per prevenire il disagio visivo.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download & Guida per Sviluppatori -->
+    <section id="installazione" class="section install-section">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <span class="section-kicker">Disponibilità &amp; Compilazione</span>
+          <h2 class="section-title">Scarica o compila direttamente da sorgente</h2>
+          <p class="section-desc">
+            Sviluppato unicamente per macOS (14 Sonoma o versioni successive). Il runtime ONNX Supertonic sintetizza l'audio a 16-bit direttamente sul tuo Mac, senza telemetria e senza dipendenze cloud.
+          </p>
+        </div>
+
+        <div class="install-grid stagger-group reveal-on-scroll">
+          <!-- Colonna 1: Download Release -->
+          <div class="install-card">
+            <div class="install-card-badge">Esclusiva macOS</div>
+            <h3 class="install-card-title">Pacchetto Applicazione per Mac (.zip)</h3>
+            <p class="install-card-text">
+              Scarica l'applicazione macOS precompilata con supporto nativo per architetture Apple Silicon (M1/M2/M3/M4).
+            </p>
+            <div class="install-card-actions">
+              <a href="https://github.com/P3TERexe/lettore-native/releases/latest" class="btn btn-primary btn-block">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14l-4-4 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 7z"/>
+                </svg>
+                <span>Scarica Lettore Native v3.0.0</span>
+              </a>
+              <span class="install-note">Compatibilità: macOS 14.0+ (Sonoma) e macOS 15.0+ (Sequoia)</span>
+            </div>
+          </div>
+
+          <!-- Colonna 2: Compilazione da Terminale -->
+          <div class="install-card">
+            <div class="install-card-badge">Open Source</div>
+            <h3 class="install-card-title">Compilazione con Swift Package Manager</h3>
+            <p class="install-card-text">
+              Clona la repository ed esegui il target nativo con un singolo comando da terminale:
+            </p>
+
+            <div class="code-block-wrap">
+              <div class="code-block-header">
+                <span>Terminale macOS (Zsh)</span>
+                <button type="button" class="btn-copy" id="btnCopyCode" aria-label="Copia comando negli appunti">Copia</button>
+              </div>
+              <pre class="code-pre"><code id="codeSnippet">git clone https://github.com/P3TERexe/lettore-native.git
+cd lettore-native
+
+# 1. Avvia il backend locale in un terminale
+cd backend &amp;&amp; python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt &amp;&amp; python main.py
+
+# 2. In un altro terminale compila ed esegui l'app nativa
+swift run LettoreApp</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer Minimale, Pulito e Conforme (HTML Corretto) -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-left">
+        <span class="footer-brand">Lettore Native</span>
+        <span class="footer-copy">Progetto open source per macOS rilasciato sotto licenza CC BY-NC-SA 4.0.</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/P3TERexe/lettore-native" target="_blank" rel="noopener noreferrer">Repository GitHub</a>
+        <a href="https://github.com/P3TERexe/lettore-native/releases" target="_blank" rel="noopener noreferrer">Note di Rilascio</a>
+        <a href="https://github.com/P3TERexe/lettore-native/issues" target="_blank" rel="noopener noreferrer">Segnala un Problema</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Pulsante Rapido Torna su (Antigravity Floating Button) -->
+  <button type="button" class="back-to-top-btn" id="btnBackToTop" aria-label="Torna all'inizio della pagina" title="Torna all'inizio">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+      <path d="M18 15l-6-6-6 6"/>
+    </svg>
+  </button>
+
+  <!-- Elementi Audio Supertonic 3 ONNX Reali Precaricati (Tutte le 10 Voci: M1-M5, F1-F5) -->
+  <div class="audio-preload-pool" aria-hidden="true">
+    <!-- Supertonic M1 (Marco) -->
+    <audio id="audio-calvino-M1-0" preload="auto" src="./assets/audio/calvino_M1_0.mp3"></audio>
+    <audio id="audio-calvino-M1-1" preload="auto" src="./assets/audio/calvino_M1_1.mp3"></audio>
+    <audio id="audio-calvino-M1-2" preload="auto" src="./assets/audio/calvino_M1_2.mp3"></audio>
+    <audio id="audio-neuroscience-M1-0" preload="auto" src="./assets/audio/neuroscience_M1_0.mp3"></audio>
+    <audio id="audio-neuroscience-M1-1" preload="auto" src="./assets/audio/neuroscience_M1_1.mp3"></audio>
+    <audio id="audio-neuroscience-M1-2" preload="auto" src="./assets/audio/neuroscience_M1_2.mp3"></audio>
+    <audio id="audio-english-M1-0" preload="auto" src="./assets/audio/english_M1_0.mp3"></audio>
+    <audio id="audio-english-M1-1" preload="auto" src="./assets/audio/english_M1_1.mp3"></audio>
+    <audio id="audio-english-M1-2" preload="auto" src="./assets/audio/english_M1_2.mp3"></audio>
+
+    <!-- Supertonic F1 (Giulia) -->
+    <audio id="audio-calvino-F1-0" preload="auto" src="./assets/audio/calvino_F1_0.mp3"></audio>
+    <audio id="audio-calvino-F1-1" preload="auto" src="./assets/audio/calvino_F1_1.mp3"></audio>
+    <audio id="audio-calvino-F1-2" preload="auto" src="./assets/audio/calvino_F1_2.mp3"></audio>
+    <audio id="audio-neuroscience-F1-0" preload="auto" src="./assets/audio/neuroscience_F1_0.mp3"></audio>
+    <audio id="audio-neuroscience-F1-1" preload="auto" src="./assets/audio/neuroscience_F1_1.mp3"></audio>
+    <audio id="audio-neuroscience-F1-2" preload="auto" src="./assets/audio/neuroscience_F1_2.mp3"></audio>
+    <audio id="audio-english-F1-0" preload="auto" src="./assets/audio/english_F1_0.mp3"></audio>
+    <audio id="audio-english-F1-1" preload="auto" src="./assets/audio/english_F1_1.mp3"></audio>
+    <audio id="audio-english-F1-2" preload="auto" src="./assets/audio/english_F1_2.mp3"></audio>
+
+    <!-- Supertonic M2 (Luca) -->
+    <audio id="audio-calvino-M2-0" preload="auto" src="./assets/audio/calvino_M2_0.mp3"></audio>
+    <audio id="audio-calvino-M2-1" preload="auto" src="./assets/audio/calvino_M2_1.mp3"></audio>
+    <audio id="audio-calvino-M2-2" preload="auto" src="./assets/audio/calvino_M2_2.mp3"></audio>
+    <audio id="audio-neuroscience-M2-0" preload="auto" src="./assets/audio/neuroscience_M2_0.mp3"></audio>
+    <audio id="audio-neuroscience-M2-1" preload="auto" src="./assets/audio/neuroscience_M2_1.mp3"></audio>
+    <audio id="audio-neuroscience-M2-2" preload="auto" src="./assets/audio/neuroscience_M2_2.mp3"></audio>
+    <audio id="audio-english-M2-0" preload="auto" src="./assets/audio/english_M2_0.mp3"></audio>
+    <audio id="audio-english-M2-1" preload="auto" src="./assets/audio/english_M2_1.mp3"></audio>
+    <audio id="audio-english-M2-2" preload="auto" src="./assets/audio/english_M2_2.mp3"></audio>
+
+    <!-- Supertonic F2 (Sofia) -->
+    <audio id="audio-calvino-F2-0" preload="auto" src="./assets/audio/calvino_F2_0.mp3"></audio>
+    <audio id="audio-calvino-F2-1" preload="auto" src="./assets/audio/calvino_F2_1.mp3"></audio>
+    <audio id="audio-calvino-F2-2" preload="auto" src="./assets/audio/calvino_F2_2.mp3"></audio>
+    <audio id="audio-neuroscience-F2-0" preload="auto" src="./assets/audio/neuroscience_F2_0.mp3"></audio>
+    <audio id="audio-neuroscience-F2-1" preload="auto" src="./assets/audio/neuroscience_F2_1.mp3"></audio>
+    <audio id="audio-neuroscience-F2-2" preload="auto" src="./assets/audio/neuroscience_F2_2.mp3"></audio>
+    <audio id="audio-english-F2-0" preload="auto" src="./assets/audio/english_F2_0.mp3"></audio>
+    <audio id="audio-english-F2-1" preload="auto" src="./assets/audio/english_F2_1.mp3"></audio>
+    <audio id="audio-english-F2-2" preload="auto" src="./assets/audio/english_F2_2.mp3"></audio>
+
+    <!-- Supertonic M3 (Nico) -->
+    <audio id="audio-calvino-M3-0" preload="auto" src="./assets/audio/calvino_M3_0.mp3"></audio>
+    <audio id="audio-calvino-M3-1" preload="auto" src="./assets/audio/calvino_M3_1.mp3"></audio>
+    <audio id="audio-calvino-M3-2" preload="auto" src="./assets/audio/calvino_M3_2.mp3"></audio>
+    <audio id="audio-neuroscience-M3-0" preload="auto" src="./assets/audio/neuroscience_M3_0.mp3"></audio>
+    <audio id="audio-neuroscience-M3-1" preload="auto" src="./assets/audio/neuroscience_M3_1.mp3"></audio>
+    <audio id="audio-neuroscience-M3-2" preload="auto" src="./assets/audio/neuroscience_M3_2.mp3"></audio>
+    <audio id="audio-english-M3-0" preload="auto" src="./assets/audio/english_M3_0.mp3"></audio>
+    <audio id="audio-english-M3-1" preload="auto" src="./assets/audio/english_M3_1.mp3"></audio>
+    <audio id="audio-english-M3-2" preload="auto" src="./assets/audio/english_M3_2.mp3"></audio>
+
+    <!-- Supertonic M4 (Leo) -->
+    <audio id="audio-calvino-M4-0" preload="auto" src="./assets/audio/calvino_M4_0.mp3"></audio>
+    <audio id="audio-calvino-M4-1" preload="auto" src="./assets/audio/calvino_M4_1.mp3"></audio>
+    <audio id="audio-calvino-M4-2" preload="auto" src="./assets/audio/calvino_M4_2.mp3"></audio>
+    <audio id="audio-neuroscience-M4-0" preload="auto" src="./assets/audio/neuroscience_M4_0.mp3"></audio>
+    <audio id="audio-neuroscience-M4-1" preload="auto" src="./assets/audio/neuroscience_M4_1.mp3"></audio>
+    <audio id="audio-neuroscience-M4-2" preload="auto" src="./assets/audio/neuroscience_M4_2.mp3"></audio>
+    <audio id="audio-english-M4-0" preload="auto" src="./assets/audio/english_M4_0.mp3"></audio>
+    <audio id="audio-english-M4-1" preload="auto" src="./assets/audio/english_M4_1.mp3"></audio>
+    <audio id="audio-english-M4-2" preload="auto" src="./assets/audio/english_M4_2.mp3"></audio>
+
+    <!-- Supertonic M5 (Davide) -->
+    <audio id="audio-calvino-M5-0" preload="auto" src="./assets/audio/calvino_M5_0.mp3"></audio>
+    <audio id="audio-calvino-M5-1" preload="auto" src="./assets/audio/calvino_M5_1.mp3"></audio>
+    <audio id="audio-calvino-M5-2" preload="auto" src="./assets/audio/calvino_M5_2.mp3"></audio>
+    <audio id="audio-neuroscience-M5-0" preload="auto" src="./assets/audio/neuroscience_M5_0.mp3"></audio>
+    <audio id="audio-neuroscience-M5-1" preload="auto" src="./assets/audio/neuroscience_M5_1.mp3"></audio>
+    <audio id="audio-neuroscience-M5-2" preload="auto" src="./assets/audio/neuroscience_M5_2.mp3"></audio>
+    <audio id="audio-english-M5-0" preload="auto" src="./assets/audio/english_M5_0.mp3"></audio>
+    <audio id="audio-english-M5-1" preload="auto" src="./assets/audio/english_M5_1.mp3"></audio>
+    <audio id="audio-english-M5-2" preload="auto" src="./assets/audio/english_M5_2.mp3"></audio>
+
+    <!-- Supertonic F3 (Elena) -->
+    <audio id="audio-calvino-F3-0" preload="auto" src="./assets/audio/calvino_F3_0.mp3"></audio>
+    <audio id="audio-calvino-F3-1" preload="auto" src="./assets/audio/calvino_F3_1.mp3"></audio>
+    <audio id="audio-calvino-F3-2" preload="auto" src="./assets/audio/calvino_F3_2.mp3"></audio>
+    <audio id="audio-neuroscience-F3-0" preload="auto" src="./assets/audio/neuroscience_F3_0.mp3"></audio>
+    <audio id="audio-neuroscience-F3-1" preload="auto" src="./assets/audio/neuroscience_F3_1.mp3"></audio>
+    <audio id="audio-neuroscience-F3-2" preload="auto" src="./assets/audio/neuroscience_F3_2.mp3"></audio>
+    <audio id="audio-english-F3-0" preload="auto" src="./assets/audio/english_F3_0.mp3"></audio>
+    <audio id="audio-english-F3-1" preload="auto" src="./assets/audio/english_F3_1.mp3"></audio>
+    <audio id="audio-english-F3-2" preload="auto" src="./assets/audio/english_F3_2.mp3"></audio>
+
+    <!-- Supertonic F4 (Aurora) -->
+    <audio id="audio-calvino-F4-0" preload="auto" src="./assets/audio/calvino_F4_0.mp3"></audio>
+    <audio id="audio-calvino-F4-1" preload="auto" src="./assets/audio/calvino_F4_1.mp3"></audio>
+    <audio id="audio-calvino-F4-2" preload="auto" src="./assets/audio/calvino_F4_2.mp3"></audio>
+    <audio id="audio-neuroscience-F4-0" preload="auto" src="./assets/audio/neuroscience_F4_0.mp3"></audio>
+    <audio id="audio-neuroscience-F4-1" preload="auto" src="./assets/audio/neuroscience_F4_1.mp3"></audio>
+    <audio id="audio-neuroscience-F4-2" preload="auto" src="./assets/audio/neuroscience_F4_2.mp3"></audio>
+    <audio id="audio-english-F4-0" preload="auto" src="./assets/audio/english_F4_0.mp3"></audio>
+    <audio id="audio-english-F4-1" preload="auto" src="./assets/audio/english_F4_1.mp3"></audio>
+    <audio id="audio-english-F4-2" preload="auto" src="./assets/audio/english_F4_2.mp3"></audio>
+
+    <!-- Supertonic F5 (Luna) -->
+    <audio id="audio-calvino-F5-0" preload="auto" src="./assets/audio/calvino_F5_0.mp3"></audio>
+    <audio id="audio-calvino-F5-1" preload="auto" src="./assets/audio/calvino_F5_1.mp3"></audio>
+    <audio id="audio-calvino-F5-2" preload="auto" src="./assets/audio/calvino_F5_2.mp3"></audio>
+    <audio id="audio-neuroscience-F5-0" preload="auto" src="./assets/audio/neuroscience_F5_0.mp3"></audio>
+    <audio id="audio-neuroscience-F5-1" preload="auto" src="./assets/audio/neuroscience_F5_1.mp3"></audio>
+    <audio id="audio-neuroscience-F5-2" preload="auto" src="./assets/audio/neuroscience_F5_2.mp3"></audio>
+    <audio id="audio-english-F5-0" preload="auto" src="./assets/audio/english_F5_0.mp3"></audio>
+    <audio id="audio-english-F5-1" preload="auto" src="./assets/audio/english_F5_1.mp3"></audio>
+    <audio id="audio-english-F5-2" preload="auto" src="./assets/audio/english_F5_2.mp3"></audio>
+
+    <!-- Fallback generici -->
+    <audio id="audio-calvino-0" preload="auto" src="./assets/audio/calvino_0.mp3"></audio>
+    <audio id="audio-calvino-1" preload="auto" src="./assets/audio/calvino_1.mp3"></audio>
+    <audio id="audio-calvino-2" preload="auto" src="./assets/audio/calvino_2.mp3"></audio>
+    <audio id="audio-neuroscience-0" preload="auto" src="./assets/audio/neuroscience_0.mp3"></audio>
+    <audio id="audio-neuroscience-1" preload="auto" src="./assets/audio/neuroscience_1.mp3"></audio>
+    <audio id="audio-neuroscience-2" preload="auto" src="./assets/audio/neuroscience_2.mp3"></audio>
+    <audio id="audio-english-0" preload="auto" src="./assets/audio/english_0.mp3"></audio>
+    <audio id="audio-english-1" preload="auto" src="./assets/audio/english_1.mp3"></audio>
+    <audio id="audio-english-2" preload="auto" src="./assets/audio/english_2.mp3"></audio>
+  </div>
+
+  <script src="./app.js?v=supertonic-v14"></script>
+</body>
+</html>

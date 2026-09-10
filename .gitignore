@@ -70,6 +70,7 @@ Icon\r\r
 # Audio & Temporary Test Artifacts
 *.wav
 *.mp3
+!assets/audio/*.mp3
 !docs/assets/audio/*.mp3
 tests/test_output/
 backend_tests/test_output/
