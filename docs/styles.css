@@ -1350,18 +1350,7 @@ body {
    SCROLL-DRIVEN ANIMATIONS & SPATIAL MOTION (Antigravity & Taste Skill)
    ========================================================================== */
 
-/* Barra di avanzamento scroll in testata */
-.scroll-progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 2px;
-  width: 0%;
-  background: linear-gradient(90deg, var(--accent-audio), var(--accent-highlight));
-  transition: width 0.08s linear;
-  z-index: 1001;
-  box-shadow: 0 0 10px var(--accent-audio);
-}
+
 
 /* Base per reveal su scroll */
 .reveal-on-scroll {
@@ -1515,10 +1504,6 @@ body {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
-  }
-
-  .scroll-progress-bar {
-    display: none !important;
   }
 }
 

@@ -504,7 +504,6 @@
 
   // Animazioni di Scroll Spaziali & Reveal (Antigravity & Taste Skill)
   function initScrollDrivenMotion() {
-    const progressBar = document.getElementById('scrollProgressBar');
     const heroGlow = document.getElementById('heroAmbientGlow');
     const btnBackToTop = document.getElementById('btnBackToTop');
     const sections = document.querySelectorAll('section[id]');
@@ -540,13 +539,6 @@
       if (!isTicking) {
         requestAnimationFrame(() => {
           const scrollY = window.scrollY;
-          const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-
-          // Aggiorna progress bar in testata
-          if (progressBar && maxScroll > 0) {
-            const progress = Math.min(100, Math.max(0, (scrollY / maxScroll) * 100));
-            progressBar.style.width = `${progress}%`;
-          }
 
           // Parallasse sull'ambient glow dell'hero
           if (heroGlow && !prefersReducedMotion && scrollY < 800) {
