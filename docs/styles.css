@@ -1040,82 +1040,6 @@ body {
 }
 
 /* ==========================================================================
-   BENCHMARK & CONFRONTO ARCHITETTURALE (Taste Skill & System Profiler)
-   ========================================================================== */
-
-.benchmark-section {
-  background: var(--bg-canvas);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.benchmark-table-wrapper {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-window);
-  overflow-x: auto;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-}
-
-.benchmark-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 14px;
-}
-
-.benchmark-table th,
-.benchmark-table td {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.benchmark-table thead th {
-  background: #131622;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.benchmark-table thead th.th-native {
-  color: var(--accent-audio);
-  background: rgba(16, 185, 129, 0.08);
-}
-
-.metric-name strong {
-  display: block;
-  font-size: 15px;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.metric-name span {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.val-legacy {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
-.val-native {
-  color: #ffffff;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  background: rgba(16, 185, 129, 0.08);
-}
-
-.val-advantage strong {
-  color: var(--accent-audio);
-  background: rgba(16, 185, 129, 0.12);
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-/* ==========================================================================
    SEZIONE ARCHITETTURA (MOSAICO A CARATTERISTICHE REALI)
    ========================================================================== */
 
@@ -1501,12 +1425,6 @@ body {
   .footer-inner {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .benchmark-table th,
-  .benchmark-table td {
-    padding: 12px 14px;
-    font-size: 13px;
   }
 }
 

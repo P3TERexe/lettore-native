@@ -7,7 +7,7 @@
   <meta name="description" content="Lettore vocale neurale nativo per macOS in Swift 6. Si integra a livello di sistema con Accessibility AX e Apple Vision OCR. Consumo inferiore a 80 MB di RAM.">
   <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=apple-badge-fix-v5">
+  <link rel="stylesheet" href="./styles.css?v=clean-v6">
 </head>
 <body>
 
@@ -31,7 +31,6 @@
 
       <nav class="site-nav" aria-label="Navigazione principale">
         <a href="#simulatore" class="nav-link">Simulatore</a>
-        <a href="#benchmark" class="nav-link">Benchmark</a>
         <a href="#funzionalita" class="nav-link">Architettura</a>
         <a href="#accessibilita" class="nav-link">Accessibilità</a>
         <a href="#installazione" class="nav-link">Sorgenti & Build</a>
@@ -331,78 +330,7 @@
       </div>
     </section>
 
-    <!-- Benchmark & Confronto Architetturale (Nuovo: Taste Skill & Production Invariants) -->
-    <section id="benchmark" class="section benchmark-section">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-kicker">Benchmark &amp; Profiling macOS</span>
-          <h2 class="section-title">Web Wrapper contro Architettura Nativa</h2>
-          <p class="section-desc">
-            Perché abbiamo riscritto Lettore da zero abbandonando lo stack ibrido (Tauri/HTML/JS) in favore di Swift 6 puro e ONNX Runtime.
-          </p>
-        </div>
 
-        <div class="benchmark-table-wrapper">
-          <table class="benchmark-table" aria-label="Tabella comparativa prestazioni">
-            <thead>
-              <tr>
-                <th scope="col" class="th-metric">Metrica di Sistema</th>
-                <th scope="col" class="th-legacy">Architettura Ibrida / Electron</th>
-                <th scope="col" class="th-native">Lettore Native (Swift 6)</th>
-                <th scope="col" class="th-advantage">Vantaggio Reale</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="metric-name">
-                  <strong>Memoria RAM Occupata</strong>
-                  <span>Consumo a riposo e in riproduzione</span>
-                </td>
-                <td class="val-legacy">450 – 680 MB</td>
-                <td class="val-native">&lt; 80 MB</td>
-                <td class="val-advantage"><strong>-85% memoria</strong></td>
-              </tr>
-              <tr>
-                <td class="metric-name">
-                  <strong>Latenza di Primo Audio (TTFA)</strong>
-                  <span>Tempo tra selezione testo e avvio voce</span>
-                </td>
-                <td class="val-legacy">1.200 – 2.400 ms</td>
-                <td class="val-native">&lt; 140 ms</td>
-                <td class="val-advantage"><strong>10× più reattivo</strong></td>
-              </tr>
-              <tr>
-                <td class="metric-name">
-                  <strong>Integrazione con il Sistema Operativo</strong>
-                  <span>Cattura testo da qualsiasi app senza clipboard</span>
-                </td>
-                <td class="val-legacy">Simulazione tasti Cmd+C (fragile)</td>
-                <td class="val-native"><code>AXUIElement</code> nativo macOS</td>
-                <td class="val-advantage"><strong>Zero collisioni</strong></td>
-              </tr>
-              <tr>
-                <td class="metric-name">
-                  <strong>Privacy &amp; Telemetria Cloud</strong>
-                  <span>Elaborazione del testo e sintesi vocale</span>
-                </td>
-                <td class="val-legacy">Chiamate API verso server esterni</td>
-                <td class="val-native">100% Offline (ONNX locale)</td>
-                <td class="val-advantage"><strong>Zero fughe dati</strong></td>
-              </tr>
-              <tr>
-                <td class="metric-name">
-                  <strong>Impatto su Batteria (MacBook)</strong>
-                  <span>Cicli di calcolo su Apple Silicon</span>
-                </td>
-                <td class="val-legacy">Rendering continuo del DOM web</td>
-                <td class="val-native">CoreAudio &amp; SwiftUI leggero</td>
-                <td class="val-advantage"><strong>Massima autonomia</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
 
     <!-- Architettura & Caratteristiche Tecniche -->
     <section id="funzionalita" class="section architecture-section">
