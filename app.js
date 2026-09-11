@@ -29,16 +29,16 @@
 
   // Catalogo Ufficiale Voci Neurali Supertonic 3 ONNX (M1-M5, F1-F5)
   const voicesCatalog = {
-    'M1': { name: 'Supertonic M1 (Marco)', shortName: 'Supertonic M1', gender: 'male', desc: 'Maschile · Caldo & Rilassato' },
-    'M2': { name: 'Supertonic M2 (Luca)', shortName: 'Supertonic M2', gender: 'male', desc: 'Maschile · Dinamico & Chiaro' },
-    'M3': { name: 'Supertonic M3 (Nico)', shortName: 'Supertonic M3', gender: 'male', desc: 'Maschile · Naturale' },
-    'M4': { name: 'Supertonic M4 (Leo)', shortName: 'Supertonic M4', gender: 'male', desc: 'Maschile · Profondo' },
-    'M5': { name: 'Supertonic M5 (Davide)', shortName: 'Supertonic M5', gender: 'male', desc: 'Maschile · Energetico' },
-    'F1': { name: 'Supertonic F1 (Giulia)', shortName: 'Supertonic F1', gender: 'female', desc: 'Femminile · Espressiva & Calda' },
-    'F2': { name: 'Supertonic F2 (Sofia)', shortName: 'Supertonic F2', gender: 'female', desc: 'Femminile · Cristallina & Fluida' },
-    'F3': { name: 'Supertonic F3 (Elena)', shortName: 'Supertonic F3', gender: 'female', desc: 'Femminile · Narrativa' },
-    'F4': { name: 'Supertonic F4 (Aurora)', shortName: 'Supertonic F4', gender: 'female', desc: 'Femminile · Dolce' },
-    'F5': { name: 'Supertonic F5 (Luna)', shortName: 'Supertonic F5', gender: 'female', desc: 'Femminile · Chiara' }
+    'M1': { name: 'Supertonic M1 (Marco)', shortName: 'M1 · Marco', gender: 'male', desc: 'Maschile · Caldo & Rilassato' },
+    'M2': { name: 'Supertonic M2 (Luca)', shortName: 'M2 · Luca', gender: 'male', desc: 'Maschile · Dinamico & Chiaro' },
+    'M3': { name: 'Supertonic M3 (Nico)', shortName: 'M3 · Nico', gender: 'male', desc: 'Maschile · Naturale' },
+    'M4': { name: 'Supertonic M4 (Leo)', shortName: 'M4 · Leo', gender: 'male', desc: 'Maschile · Profondo' },
+    'M5': { name: 'Supertonic M5 (Davide)', shortName: 'M5 · Davide', gender: 'male', desc: 'Maschile · Energetico' },
+    'F1': { name: 'Supertonic F1 (Giulia)', shortName: 'F1 · Giulia', gender: 'female', desc: 'Femminile · Espressiva & Calda' },
+    'F2': { name: 'Supertonic F2 (Sofia)', shortName: 'F2 · Sofia', gender: 'female', desc: 'Femminile · Cristallina & Fluida' },
+    'F3': { name: 'Supertonic F3 (Elena)', shortName: 'F3 · Elena', gender: 'female', desc: 'Femminile · Narrativa' },
+    'F4': { name: 'Supertonic F4 (Aurora)', shortName: 'F4 · Aurora', gender: 'female', desc: 'Femminile · Dolce' },
+    'F5': { name: 'Supertonic F5 (Luna)', shortName: 'F5 · Luna', gender: 'female', desc: 'Femminile · Chiara' }
   };
 
   // Titoli delle finestre simulate
@@ -828,9 +828,9 @@
       }
     });
 
-    // Chiudi al ridimensionamento verso desktop
+    // Chiudi al ridimensionamento verso desktop (> 1024px)
     window.addEventListener('resize', () => {
-      if (window.innerWidth > 860 && mobileNavDrawer.classList.contains('is-open')) {
+      if (window.innerWidth > 1024 && mobileNavDrawer.classList.contains('is-open')) {
         toggleMenu(false);
       }
     });

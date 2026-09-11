@@ -65,6 +65,9 @@
 html {
   scroll-behavior: smooth;
   color-scheme: dark;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 body {
@@ -76,6 +79,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
   position: relative;
 }
 
@@ -1320,6 +1325,10 @@ body.mobile-menu-lock {
   color: var(--text-primary);
 }
 
+.hint-touch {
+  display: none;
+}
+
 .simulator-engine-tag {
   font-size: 12px;
   color: var(--text-muted);
@@ -1831,74 +1840,7 @@ body.mobile-menu-lock {
     padding: 0 24px;
   }
 
-  .header-inner {
-    padding: 12px 20px;
-  }
-
-  .site-nav {
-    gap: 16px;
-  }
-
-  .nav-link {
-    font-size: 13px;
-    padding: 4px 6px;
-  }
-
-  .hero-section {
-    padding: 72px 0 54px;
-  }
-
-  .hero-title {
-    font-size: clamp(2.4rem, 5.5vw, 3.6rem);
-  }
-
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
-
-  .metric-card {
-    padding: 24px 20px;
-  }
-
-  .metric-val {
-    font-size: 32px;
-  }
-
-  .features-mosaic {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-  }
-
-  .feature-box {
-    padding: 26px 22px;
-  }
-
-  .a11y-card {
-    padding: 36px 28px;
-  }
-
-  .install-grid {
-    gap: 24px;
-  }
-
-  .install-card {
-    padding: 28px 24px;
-  }
-
-  .dynamic-pill:hover,
-  .dynamic-pill.is-expanded,
-  .dynamic-pill:focus-within {
-    width: 400px;
-    max-width: calc(100% - 32px);
-  }
-}
-
-/* ==========================================================================
-   BREAKPOINT: IPAD PORTRAIT & MEDIUM MOBILE (max-width: 860px)
-   ========================================================================== */
-@media (max-width: 860px) {
-  /* Navigazione Header */
+  /* Header Tablet / iPad */
   .site-nav {
     display: none;
   }
@@ -1911,18 +1853,133 @@ body.mobile-menu-lock {
     display: flex;
   }
 
-  .section {
-    padding: 64px 0;
+  .header-inner {
+    padding: 12px 20px;
   }
 
-  /* Toolbar Documento e Chip scrollabili */
+  /* Drawer per Tablet & iPad */
+  .mobile-nav-drawer {
+    position: fixed;
+    top: 58px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(100dvh - 58px);
+    background: rgba(8, 9, 13, 0.95);
+    backdrop-filter: blur(32px) saturate(190%);
+    -webkit-backdrop-filter: blur(32px) saturate(190%);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    max-height: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-6px);
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-y: auto;
+    z-index: 9999;
+  }
+
+  .mobile-nav-drawer.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .mobile-drawer-nav {
+    gap: 10px;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto 20px;
+  }
+
+  .mobile-nav-link {
+    padding: 14px 18px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  .mobile-drawer-actions {
+    max-width: 480px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .section {
+    padding: 60px 0;
+  }
+
+  /* Hero Tablet / iPad */
+  .hero-section {
+    padding: 54px 0 44px;
+  }
+
+  .platform-notice-banner {
+    padding: 6px 14px;
+    font-size: 12.5px;
+    gap: 8px;
+  }
+
+  .hero-multilang-badge {
+    padding: 6px 14px;
+    margin-bottom: 20px;
+    gap: 8px;
+  }
+
+  .hero-title {
+    font-size: clamp(30px, 4.4vw, 42px);
+    line-height: 1.18;
+    letter-spacing: -0.03em;
+    max-width: 720px;
+    margin-bottom: 18px;
+  }
+
+  .hero-lead {
+    font-size: 16.5px;
+    line-height: 1.6;
+    max-width: 660px;
+    margin-bottom: 32px;
+  }
+
+  .hero-cta-group {
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+
+  /* Metriche Bilanciate su iPad (3 su riga 1, 2 centrate su riga 2) */
+  .metrics-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    max-width: 840px;
+    margin: 0 auto;
+  }
+
+  .metric-card {
+    flex: 1 1 230px;
+    max-width: 260px;
+    padding: 20px 16px;
+  }
+
+  .metric-val {
+    font-size: 28px;
+  }
+
+  /* Toolbar Documento e Chip su iPad */
   .doc-toolbar {
-    padding: 10px 16px;
+    padding: 10px 18px;
     gap: 12px;
   }
 
   .doc-chips {
-    width: 100%;
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
@@ -1940,34 +1997,43 @@ body.mobile-menu-lock {
   }
 
   .voice-selector-bar {
-    margin-left: 0;
-    width: 100%;
-    justify-content: space-between;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-left: auto;
   }
 
-  .voice-select-pill {
-    flex: 1;
-    max-width: 320px;
-  }
-
-  .voice-dropdown {
-    width: 100%;
-  }
-
-  .features-mosaic {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .install-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
+  /* Simulatore iPad: NESSUNA SOVRAPPOSIZIONE CON IL TESTO */
   .document-viewport {
-    padding: 72px 20px 36px 20px;
+    padding: 92px 28px 36px 28px;
+  }
+
+  .pill-mount-point {
+    top: 14px;
+  }
+
+  /* Pill sempre aperta e accessibile su tablet touch */
+  .dynamic-pill {
+    width: 440px !important;
+    max-width: calc(100% - 24px);
+    padding: 0 12px;
+  }
+
+  .pill-voice-btn {
+    max-width: 120px;
+    flex-shrink: 0;
+  }
+
+  .pill-btn-mute {
+    display: none !important;
+  }
+
+  .pill-controls-section {
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+  }
+
+  .pill-btn-play {
+    background: var(--accent-audio);
+    color: #000000;
   }
 
   .document-content-paper {
@@ -1975,89 +2041,184 @@ body.mobile-menu-lock {
     line-height: 1.75;
   }
 
-  .dynamic-pill:hover,
-  .dynamic-pill.is-expanded,
-  .dynamic-pill:focus-within {
-    width: 360px;
-    max-width: calc(100% - 24px);
+  /* Hint footer touch */
+  .hint-kbd {
+    display: none;
   }
 
-  .pill-timer {
-    display: none;
+  .hint-touch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--accent-audio);
+    font-weight: 500;
+  }
+
+  /* Funzionalità su iPad: 2 Colonne Pulite */
+  .features-mosaic {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .feature-box {
+    padding: 26px 22px;
+  }
+
+  .a11y-card {
+    padding: 32px 24px;
+  }
+
+  /* Installazione su iPad: 2 Colonne Pulite */
+  .install-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .install-card {
+    padding: 26px 22px;
   }
 }
 
 /* ==========================================================================
-   BREAKPOINT: SMARTPHONE STANDARD (max-width: 600px)
+   BREAKPOINT: SMARTPHONE STANDARD (max-width: 680px)
    ========================================================================== */
-@media (max-width: 600px) {
+@media (max-width: 680px) {
   .container {
     padding: 0 16px;
   }
 
   .header-inner {
     padding: 10px 14px;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .brand-name {
+    font-size: 15px;
   }
 
   .brand-tag {
-    display: none; /* Risparmia spazio nell'header per smartphone */
+    display: none;
   }
 
   .header-btn-download {
     padding: 6px 12px;
     font-size: 12px;
+    border-radius: 6px;
   }
 
+  /* Hero Smartphone */
   .hero-section {
-    padding: 44px 0 36px;
+    padding: 36px 0 28px;
+  }
+
+  .hero-badge-wrap {
+    margin-bottom: 14px;
   }
 
   .platform-notice-banner {
-    padding: 6px 12px;
+    flex-direction: column;
+    padding: 8px 14px;
+    border-radius: 14px;
+    gap: 4px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .platform-apple-badge {
     font-size: 12px;
+  }
+
+  .platform-notice-desc {
+    font-size: 11.5px;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  .hero-multilang-badge {
+    padding: 6px 10px;
+    border-radius: 20px;
+    margin-bottom: 18px;
     gap: 6px;
-    border-radius: 16px;
+  }
+
+  .multilang-lead {
+    font-size: 12px;
+  }
+
+  .multilang-chips-row {
+    gap: 5px;
+    justify-content: center;
+  }
+
+  .m-lang-chip {
+    padding: 2px 7px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+
+  .m-lang-count {
+    font-size: 10px;
+    padding: 2px 6px;
   }
 
   .hero-title {
-    font-size: clamp(1.95rem, 8vw, 2.6rem);
+    font-size: clamp(23px, 6.8vw, 30px);
+    line-height: 1.2;
     letter-spacing: -0.025em;
+    margin-bottom: 14px;
+    max-width: 96%;
   }
 
   .hero-lead {
-    font-size: 16px;
-    line-height: 1.55;
+    font-size: 14.5px;
+    line-height: 1.58;
     margin-bottom: 24px;
+    max-width: 96%;
   }
 
   .hero-cta-group {
     flex-direction: column;
     width: 100%;
+    max-width: 320px;
+    margin: 0 auto 36px;
     gap: 10px;
   }
 
   .hero-cta-group .btn {
     width: 100%;
     height: 46px;
+    font-size: 14.5px;
     justify-content: center;
-    font-size: 15px;
   }
 
-  /* Griglia Metriche 2x2 compatta e pulita su smartphone */
+  /* Metriche 2x2 con ultima card centrate a piena larghezza */
   .metrics-grid {
+    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    margin-top: 36px;
+    max-width: 100%;
   }
 
   .metric-card {
-    padding: 16px 12px;
+    flex: none;
+    max-width: none;
+    padding: 14px 12px;
     border-radius: 12px;
   }
 
+  .metric-card:last-child {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  .metric-card:last-child .metric-header {
+    justify-content: center;
+    gap: 8px;
+  }
+
   .metric-val {
-    font-size: 24px;
+    font-size: 22px;
     margin-bottom: 2px;
   }
 
@@ -2065,88 +2226,159 @@ body.mobile-menu-lock {
     font-size: 12px;
   }
 
-  .metric-desc {
+  .metric-note {
     font-size: 11px;
-    line-height: 1.4;
+    line-height: 1.35;
   }
 
   /* Finestra Simulatore su Smartphone */
   .simulator-window {
-    border-radius: 14px;
+    border-radius: 12px;
   }
 
-  .window-header {
+  .window-titlebar {
     height: 38px;
-    padding: 0 12px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .traffic-lights {
+    width: 44px;
+    gap: 5px;
+  }
+
+  .traffic-light {
+    width: 9px;
+    height: 9px;
   }
 
   .window-title {
     font-size: 11px;
   }
 
+  .window-status-pill {
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+
+  .doc-toolbar {
+    padding: 8px 10px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .doc-toolbar-label {
+    font-size: 11.5px;
+  }
+
+  .doc-chips {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .doc-chip {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .voice-selector-bar {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .voice-select-label {
+    font-size: 11px;
+  }
+
+  .voice-select-pill {
+    flex: 1;
+    max-width: 220px;
+  }
+
+  .voice-dropdown {
+    font-size: 11.5px;
+    padding: 4px 24px 4px 8px;
+    min-height: 28px;
+    width: 100%;
+  }
+
+  /* Document Viewport & Pill su Smartphone: NESSUNA SOVRAPPOSIZIONE */
   .document-viewport {
-    padding: 66px 14px 24px 14px;
-    min-height: 320px;
+    padding: 82px 14px 24px 14px;
+    min-height: 280px;
   }
 
-  .document-content-paper {
-    font-size: 16px;
-    line-height: 1.65;
-    max-height: 340px;
-    overflow-y: auto;
-  }
-
-  .chunk {
-    padding: 3px 5px;
-    font-size: 15.5px;
-  }
-
-  /* Floating Pill su Smartphone */
   .pill-mount-point {
     top: 12px;
+    width: calc(100% - 20px);
+    max-width: 350px;
   }
 
   .dynamic-pill {
-    height: 42px;
-    min-height: 42px;
-    padding: 0 10px;
-    gap: 8px;
+    width: 100% !important;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 8px;
+    gap: 6px;
   }
 
-  .dynamic-pill:hover,
-  .dynamic-pill.is-expanded,
-  .dynamic-pill:focus-within {
-    width: min(340px, calc(100vw - 32px));
-    padding: 0 8px;
+  .pill-wave-section {
+    gap: 5px;
+  }
+
+  .wave-visualizer {
+    gap: 2px;
+    height: 18px;
+  }
+
+  .wave-bar {
+    width: 2px;
+  }
+
+  .wave-bar:nth-child(n+6) {
+    display: none;
   }
 
   .pill-controls-section {
+    opacity: 1 !important;
+    transform: none !important;
+    pointer-events: auto !important;
     gap: 4px;
   }
 
   .pill-btn {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 
   .pill-btn-play {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
+    background: var(--accent-audio);
+    color: #000000;
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
   }
 
   .pill-speed-toggle {
-    padding: 3px 6px;
+    padding: 3px 5px;
     font-size: 10px;
   }
 
-  .pill-btn-mute {
-    display: none; /* Mute nascosto sotto 600px per fare spazio ai controlli essenziali */
+  .pill-btn-mute,
+  .pill-timer {
+    display: none !important;
   }
 
   .pill-voice-btn {
-    padding: 3px 6px;
-    max-width: 105px;
-    font-size: 10.5px;
+    padding: 2px 6px;
+    max-width: 88px;
+    font-size: 10px;
   }
 
   #pillVoiceName {
@@ -2155,87 +2387,120 @@ body.mobile-menu-lock {
     white-space: nowrap;
   }
 
-  /* Schede & Contenuto */
+  .document-content-paper {
+    font-size: 16px;
+    line-height: 1.68;
+    max-height: 360px;
+  }
+
+  .chunk {
+    padding: 2px 4px;
+    font-size: 15.5px;
+  }
+
+  .simulator-footer {
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .simulator-engine-tag {
+    font-size: 11px;
+  }
+
+  /* Funzionalità & Sorgenti su Smartphone */
+  .features-mosaic {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
   .feature-box {
-    padding: 20px 16px;
-    border-radius: 14px;
+    padding: 18px 14px;
+    border-radius: 12px;
   }
 
   .feature-box-title {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .feature-box-text {
-    font-size: 14px;
+    font-size: 13.5px;
   }
 
   .a11y-card {
-    padding: 22px 16px;
-    border-radius: 14px;
+    padding: 20px 16px;
+    border-radius: 12px;
   }
 
   .a11y-text {
-    font-size: 15px;
+    font-size: 14.5px;
   }
 
   .a11y-list li {
-    font-size: 14px;
+    font-size: 13.5px;
+  }
+
+  .install-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .install-card {
-    padding: 20px 16px;
-    border-radius: 14px;
+    padding: 18px 14px;
+    border-radius: 12px;
   }
 
   .install-card-title {
-    font-size: 18px;
+    font-size: 17px;
   }
 
-  .code-block-header {
-    padding: 6px 10px;
-  }
-
-  .code-block-code {
-    padding: 12px 10px;
-    font-size: 12px;
+  .code-pre {
+    padding: 10px;
+    font-size: 11.5px;
   }
 
   .footer-inner {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
+    gap: 14px;
   }
 
   .footer-links {
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .back-to-top-btn {
+    width: 40px;
+    height: 40px;
+    bottom: 14px;
+    right: 14px;
   }
 }
 
 /* ==========================================================================
-   BREAKPOINT: ULTRA-COMPACT (max-width: 380px — es. iPhone SE / mini)
+   BREAKPOINT: ULTRA-COMPACT (max-width: 360px)
    ========================================================================== */
-@media (max-width: 380px) {
+@media (max-width: 360px) {
   .container {
-    padding: 0 12px;
+    padding: 0 10px;
   }
 
   .hero-title {
-    font-size: 1.85rem;
+    font-size: 21px;
   }
 
-  .dynamic-pill:hover,
-  .dynamic-pill.is-expanded,
-  .dynamic-pill:focus-within {
-    width: calc(100vw - 20px);
-    padding: 0 6px;
+  .dynamic-pill {
+    padding: 0 4px;
+    gap: 3px;
   }
 
   .pill-voice-btn {
-    max-width: 85px;
+    max-width: 72px;
   }
 
   .metric-val {
-    font-size: 21px;
+    font-size: 20px;
   }
 }

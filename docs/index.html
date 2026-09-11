@@ -13,7 +13,7 @@
   <meta property="og:title" content="Lettore Native: Sintesi Vocale Neurale per macOS">
   <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
-  <link rel="stylesheet" href="./styles.css?v=mobile-v15">
+  <link rel="stylesheet" href="./styles.css?v=mobile-v16">
 </head>
 <body>
 
@@ -211,7 +211,7 @@
           <span class="section-kicker">Esperienza Interattiva Live</span>
           <h2 class="section-title">La Floating Pill nel tuo browser</h2>
           <p class="section-desc">
-            Durante la lettura la pillola rimane compatta mostrando unicamente la forma d'onda a 20 Hz. Passa con il mouse sopra la pillola per svelare i controlli completi con fisica a molla di macOS.
+            Sintesi neurale locale a 44.1 kHz in tempo reale. Tocca una frase o usa la Floating Pill per controllare la riproduzione, regolare la velocità e alternare tra oltre 20 profili vocali.
           </p>
         </div>
 
@@ -377,7 +377,7 @@
                     <!-- Badge Voce Neurale Attiva con cambio rapido -->
                     <button type="button" class="pill-voice-btn" id="btnPillVoice" title="Voce attiva: clicca per cambiare profilo vocale Supertonic 3" aria-label="Cambia voce neurale Supertonic">
                       <span class="voice-indicator-dot" aria-hidden="true"></span>
-                      <span id="pillVoiceName">Supertonic M1</span>
+                      <span id="pillVoiceName">M1 · Marco</span>
                     </button>
 
                     <span class="pill-timer" id="pillTimer" aria-live="polite">Frase 1/3</span>
@@ -438,10 +438,11 @@
             <!-- Simulator Footer -->
             <div class="simulator-footer">
               <div class="simulator-hints">
-                <span class="hint-item"><kbd>Spazio</kbd> Play / Pausa</span>
-                <span class="hint-item"><kbd>←</kbd> <kbd>→</kbd> Salta Frase</span>
-                <span class="hint-item"><kbd>M</kbd> Mute</span>
-                <span class="hint-item"><kbd>Click Frase</kbd> Ascolta da lì</span>
+                <span class="hint-item hint-kbd"><kbd>Spazio</kbd> Play / Pausa</span>
+                <span class="hint-item hint-kbd"><kbd>←</kbd> <kbd>→</kbd> Salta Frase</span>
+                <span class="hint-item hint-kbd"><kbd>M</kbd> Mute</span>
+                <span class="hint-item hint-kbd"><kbd>Click Frase</kbd> Ascolta da lì</span>
+                <span class="hint-item hint-touch"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg> Tocca un paragrafo per ascoltare</span>
               </div>
               <div class="simulator-engine-tag">
                 <span class="dot-online" aria-hidden="true"></span>
