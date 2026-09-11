@@ -1487,8 +1487,10 @@ body.mobile-menu-lock {
 
 .install-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 32px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .install-card {
@@ -1499,6 +1501,11 @@ body.mobile-menu-lock {
   display: flex;
   flex-direction: column;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .install-card-badge {
@@ -1520,6 +1527,8 @@ body.mobile-menu-lock {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 12px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .install-card-text {
@@ -1527,6 +1536,8 @@ body.mobile-menu-lock {
   color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 24px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .install-card-actions {
@@ -1534,11 +1545,23 @@ body.mobile-menu-lock {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.install-card-actions .btn {
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: normal;
+  text-align: center;
 }
 
 .install-note {
   font-size: 12px;
   color: var(--text-muted);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Code Block */
@@ -1549,6 +1572,10 @@ body.mobile-menu-lock {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .code-block-header {
@@ -1582,10 +1609,20 @@ body.mobile-menu-lock {
 .code-pre {
   padding: 16px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.65;
   color: #e5e7eb;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.code-pre code {
+  min-width: 0;
+  display: inline-block;
 }
 
 /* ==========================================================================
@@ -2071,12 +2108,14 @@ body.mobile-menu-lock {
 
   /* Installazione su iPad: 2 Colonne Pulite */
   .install-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .install-card {
-    padding: 26px 22px;
+    padding: 26px 20px;
   }
 }
 
@@ -2442,22 +2481,42 @@ body.mobile-menu-lock {
   }
 
   .install-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .install-card {
-    padding: 18px 14px;
-    border-radius: 12px;
+    padding: 20px 16px;
+    border-radius: 14px;
   }
 
   .install-card-title {
     font-size: 17px;
   }
 
-  .code-pre {
-    padding: 10px;
+  .install-card-text {
+    font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+
+  .install-card-actions .btn {
+    font-size: 13.5px;
+    padding: 10px 14px;
+    min-height: 42px;
+  }
+
+  .install-note {
     font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .code-pre {
+    padding: 12px 10px;
+    font-size: 11.5px;
+    line-height: 1.6;
   }
 
   .footer-inner {
@@ -2502,5 +2561,23 @@ body.mobile-menu-lock {
 
   .metric-val {
     font-size: 20px;
+  }
+
+  .install-card {
+    padding: 16px 12px;
+  }
+
+  .install-card-title {
+    font-size: 16px;
+  }
+
+  .install-card-actions .btn {
+    font-size: 12.5px;
+    padding: 8px 10px;
+  }
+
+  .code-pre {
+    padding: 10px 8px;
+    font-size: 11px;
   }
 }
