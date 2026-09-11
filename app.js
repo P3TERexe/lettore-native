@@ -548,13 +548,14 @@
     });
   }
 
-  // Antigravity Spatial 3D Tilt (Dinamica fluida con mousemove su desktop)
+  // Antigravity Spatial 3D Tilt (Dinamica fluida con mousemove su desktop; disattivato su touch/mobile)
   function initSpatialTilt() {
     if (!simulatorWrapper || !simulatorWindow) return;
     
-    // Controlla preferenza reduced motion
+    // Controlla preferenza reduced motion e dispositivi touch (iPad / smartphone)
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion || window.innerWidth < 900) return;
+    const isTouch = window.matchMedia('(hover: none)').matches || 'ontouchstart' in window;
+    if (prefersReducedMotion || isTouch || window.innerWidth < 1024) return;
 
     simulatorWrapper.addEventListener('mousemove', (e) => {
       const rect = simulatorWrapper.getBoundingClientRect();
@@ -777,8 +778,9 @@
     }
   }
 
-  // Effetto Spotlight sulle card con tracciamento del cursore
+  // Effetto Spotlight sulle card con tracciamento del cursore (solo dispositivi con puntatore)
   function initCardSpotlight() {
+    if (window.matchMedia('(hover: none)').matches) return;
     const cards = document.querySelectorAll('.feature-box, .metric-card');
     cards.forEach(card => {
       card.addEventListener('mousemove', (e) => {
@@ -791,6 +793,49 @@
     });
   }
 
+  // Menu Mobile Drawer per Smartphone & iPad
+  function initMobileMenu() {
+    const btnMobileMenu = document.getElementById('btnMobileMenu');
+    const mobileNavDrawer = document.getElementById('mobileNavDrawer');
+    if (!btnMobileMenu || !mobileNavDrawer) return;
+
+    function toggleMenu(forceOpen) {
+      const isOpen = typeof forceOpen === 'boolean' ? forceOpen : !mobileNavDrawer.classList.contains('is-open');
+      btnMobileMenu.classList.toggle('is-active', isOpen);
+      btnMobileMenu.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      btnMobileMenu.setAttribute('aria-label', isOpen ? 'Chiudi menu di navigazione' : 'Apri menu di navigazione');
+      mobileNavDrawer.classList.toggle('is-open', isOpen);
+      mobileNavDrawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+      document.body.classList.toggle('mobile-menu-lock', isOpen);
+    }
+
+    btnMobileMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    // Chiudi al click su ciascun link della navigazione mobile
+    mobileNavDrawer.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        toggleMenu(false);
+      });
+    });
+
+    // Chiudi premendo Escape
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mobileNavDrawer.classList.contains('is-open')) {
+        toggleMenu(false);
+      }
+    });
+
+    // Chiudi al ridimensionamento verso desktop
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 860 && mobileNavDrawer.classList.contains('is-open')) {
+        toggleMenu(false);
+      }
+    });
+  }
+
   // Inizializzazione pagina
   updateChunkHighlight();
   attachChunkClickListeners();
@@ -799,5 +844,6 @@
   initTrafficLights();
   initScrollDrivenMotion();
   initCardSpotlight();
+  initMobileMenu();
 
 })();

@@ -194,6 +194,134 @@ body {
   gap: 12px;
 }
 
+/* Pulsante Hamburger Mobile & iPad */
+.mobile-menu-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 38px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 0;
+  gap: 4px;
+  transition: background 0.2s ease, transform 0.15s ease;
+  touch-action: manipulation;
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.mobile-menu-btn:active {
+  transform: scale(0.92);
+}
+
+.menu-bar {
+  width: 18px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 2px;
+  transition: all 0.25s var(--spring-snappy);
+}
+
+.mobile-menu-btn.is-active .menu-bar:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.mobile-menu-btn.is-active .menu-bar:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.mobile-menu-btn.is-active .menu-bar:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Drawer Menu Mobile (Glassmorphic) */
+.mobile-nav-drawer {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(10, 11, 16, 0.94);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+  padding: 0 20px;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, padding 0.35s ease;
+  z-index: 999;
+}
+
+.mobile-nav-drawer.is-open {
+  max-height: 480px;
+  opacity: 1;
+  pointer-events: auto;
+  padding: 20px;
+}
+
+.mobile-drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.18s ease;
+  touch-action: manipulation;
+}
+
+.mobile-nav-link svg {
+  color: var(--accent-audio);
+  flex-shrink: 0;
+}
+
+.mobile-nav-link:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.98);
+}
+
+.mobile-drawer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-mobile {
+  width: 100%;
+  height: 44px;
+  justify-content: center;
+  font-size: 14px;
+}
+
+body.mobile-menu-lock {
+  overflow: hidden;
+}
+
 /* Pulsanti con Stati Tattili Reali */
 .btn {
   display: inline-flex;
@@ -1670,106 +1798,444 @@ body {
 }
 
 /* ==========================================================================
-   RESPONSIVE DESIGN (Breakpoints WCAG / Mobile Ergonomics)
+   TOUCH DEVICES & MOBILE ERGONOMICS (iPad & Mobile)
    ========================================================================== */
 
-@media (max-width: 900px) {
+/* Ottimizzazioni per schermi Touch (iPad, iPhone, Android) */
+@media (hover: none) {
+  .simulator-window {
+    transform: none !important;
+  }
+
+  .feature-box:hover,
+  .install-card:hover {
+    transform: none !important;
+  }
+
+  /* Feedback tattile elastico su tap nativo */
+  .btn:active,
+  .doc-chip:active,
+  .pill-btn:active,
+  .chunk:active,
+  .mobile-menu-btn:active {
+    transform: scale(0.96);
+    opacity: 0.88;
+  }
+}
+
+/* ==========================================================================
+   BREAKPOINT: TABLET & IPAD (max-width: 1024px)
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 24px;
+  }
+
+  .header-inner {
+    padding: 12px 20px;
+  }
+
+  .site-nav {
+    gap: 16px;
+  }
+
+  .nav-link {
+    font-size: 13px;
+    padding: 4px 6px;
+  }
+
+  .hero-section {
+    padding: 72px 0 54px;
+  }
+
+  .hero-title {
+    font-size: clamp(2.4rem, 5.5vw, 3.6rem);
+  }
+
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .metric-card {
+    padding: 24px 20px;
+  }
+
+  .metric-val {
+    font-size: 32px;
   }
 
   .features-mosaic {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .feature-box {
+    padding: 26px 22px;
+  }
+
+  .a11y-card {
+    padding: 36px 28px;
   }
 
   .install-grid {
-    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .install-card {
+    padding: 28px 24px;
   }
 
   .dynamic-pill:hover,
   .dynamic-pill.is-expanded,
   .dynamic-pill:focus-within {
-    width: 370px;
+    width: 400px;
+    max-width: calc(100% - 32px);
   }
 }
 
-@media (max-width: 768px) {
+/* ==========================================================================
+   BREAKPOINT: IPAD PORTRAIT & MEDIUM MOBILE (max-width: 860px)
+   ========================================================================== */
+@media (max-width: 860px) {
+  /* Navigazione Header */
   .site-nav {
     display: none;
+  }
+
+  .header-btn-github {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
   }
 
   .section {
     padding: 64px 0;
   }
 
-  .platform-notice-banner {
-    flex-direction: column;
+  /* Toolbar Documento e Chip scrollabili */
+  .doc-toolbar {
     padding: 10px 16px;
-    gap: 8px;
-    border-radius: 20px;
-    text-align: center;
+    gap: 12px;
+  }
+
+  .doc-chips {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .doc-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .doc-chip {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .voice-selector-bar {
     margin-left: 0;
     width: 100%;
     justify-content: space-between;
-    padding-top: 6px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .voice-select-pill {
+    flex: 1;
+    max-width: 320px;
+  }
+
+  .voice-dropdown {
+    width: 100%;
+  }
+
+  .features-mosaic {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .install-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 
   .document-viewport {
-    padding: 70px 20px 32px 20px;
+    padding: 72px 20px 36px 20px;
+  }
+
+  .document-content-paper {
+    font-size: 18px;
+    line-height: 1.75;
   }
 
   .dynamic-pill:hover,
   .dynamic-pill.is-expanded,
   .dynamic-pill:focus-within {
-    width: 340px;
+    width: 360px;
+    max-width: calc(100% - 24px);
   }
 
   .pill-timer {
     display: none;
   }
-
-  .footer-inner {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
-@media (max-width: 480px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
+/* ==========================================================================
+   BREAKPOINT: SMARTPHONE STANDARD (max-width: 600px)
+   ========================================================================== */
+@media (max-width: 600px) {
+  .container {
+    padding: 0 16px;
   }
 
-  .dynamic-pill:hover,
-  .dynamic-pill.is-expanded,
-  .dynamic-pill:focus-within {
-    width: 300px;
-    padding: 0 10px;
+  .header-inner {
+    padding: 10px 14px;
+    gap: 10px;
   }
 
-  .pill-btn {
-    width: 28px;
-    height: 28px;
+  .brand-tag {
+    display: none; /* Risparmia spazio nell'header per smartphone */
   }
 
-  .pill-speed-toggle {
-    padding: 2px 6px;
-    font-size: 10px;
+  .header-btn-download {
+    padding: 6px 12px;
+    font-size: 12px;
   }
 
-  .pill-btn-mute {
-    display: none;
+  .hero-section {
+    padding: 44px 0 36px;
+  }
+
+  .platform-notice-banner {
+    padding: 6px 12px;
+    font-size: 12px;
+    gap: 6px;
+    border-radius: 16px;
+  }
+
+  .hero-title {
+    font-size: clamp(1.95rem, 8vw, 2.6rem);
+    letter-spacing: -0.025em;
+  }
+
+  .hero-lead {
+    font-size: 16px;
+    line-height: 1.55;
+    margin-bottom: 24px;
   }
 
   .hero-cta-group {
     flex-direction: column;
     width: 100%;
+    gap: 10px;
   }
 
   .hero-cta-group .btn {
     width: 100%;
+    height: 46px;
+    justify-content: center;
+    font-size: 15px;
+  }
+
+  /* Griglia Metriche 2x2 compatta e pulita su smartphone */
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 36px;
+  }
+
+  .metric-card {
+    padding: 16px 12px;
+    border-radius: 12px;
+  }
+
+  .metric-val {
+    font-size: 24px;
+    margin-bottom: 2px;
+  }
+
+  .metric-label {
+    font-size: 12px;
+  }
+
+  .metric-desc {
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  /* Finestra Simulatore su Smartphone */
+  .simulator-window {
+    border-radius: 14px;
+  }
+
+  .window-header {
+    height: 38px;
+    padding: 0 12px;
+  }
+
+  .window-title {
+    font-size: 11px;
+  }
+
+  .document-viewport {
+    padding: 66px 14px 24px 14px;
+    min-height: 320px;
+  }
+
+  .document-content-paper {
+    font-size: 16px;
+    line-height: 1.65;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+
+  .chunk {
+    padding: 3px 5px;
+    font-size: 15.5px;
+  }
+
+  /* Floating Pill su Smartphone */
+  .pill-mount-point {
+    top: 12px;
+  }
+
+  .dynamic-pill {
+    height: 42px;
+    min-height: 42px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .dynamic-pill:hover,
+  .dynamic-pill.is-expanded,
+  .dynamic-pill:focus-within {
+    width: min(340px, calc(100vw - 32px));
+    padding: 0 8px;
+  }
+
+  .pill-controls-section {
+    gap: 4px;
+  }
+
+  .pill-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .pill-btn-play {
+    width: 32px;
+    height: 32px;
+  }
+
+  .pill-speed-toggle {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .pill-btn-mute {
+    display: none; /* Mute nascosto sotto 600px per fare spazio ai controlli essenziali */
+  }
+
+  .pill-voice-btn {
+    padding: 3px 6px;
+    max-width: 105px;
+    font-size: 10.5px;
+  }
+
+  #pillVoiceName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Schede & Contenuto */
+  .feature-box {
+    padding: 20px 16px;
+    border-radius: 14px;
+  }
+
+  .feature-box-title {
+    font-size: 18px;
+  }
+
+  .feature-box-text {
+    font-size: 14px;
+  }
+
+  .a11y-card {
+    padding: 22px 16px;
+    border-radius: 14px;
+  }
+
+  .a11y-text {
+    font-size: 15px;
+  }
+
+  .a11y-list li {
+    font-size: 14px;
+  }
+
+  .install-card {
+    padding: 20px 16px;
+    border-radius: 14px;
+  }
+
+  .install-card-title {
+    font-size: 18px;
+  }
+
+  .code-block-header {
+    padding: 6px 10px;
+  }
+
+  .code-block-code {
+    padding: 12px 10px;
+    font-size: 12px;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .footer-links {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* ==========================================================================
+   BREAKPOINT: ULTRA-COMPACT (max-width: 380px — es. iPhone SE / mini)
+   ========================================================================== */
+@media (max-width: 380px) {
+  .container {
+    padding: 0 12px;
+  }
+
+  .hero-title {
+    font-size: 1.85rem;
+  }
+
+  .dynamic-pill:hover,
+  .dynamic-pill.is-expanded,
+  .dynamic-pill:focus-within {
+    width: calc(100vw - 20px);
+    padding: 0 6px;
+  }
+
+  .pill-voice-btn {
+    max-width: 85px;
+  }
+
+  .metric-val {
+    font-size: 21px;
   }
 }
