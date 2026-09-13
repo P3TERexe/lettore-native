@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   build: {
-    outDir: path.resolve(import.meta.dirname, '../docs'),
-    emptyOutDir: false,
+    outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/app-[hash].js',
