@@ -1,9 +1,0 @@
-{
-  "name": "lettore-native",
-  "version": "3.0.0",
-  "private": true,
-  "scripts": {
-    "dev": "npm --prefix website run dev",
-    "build": "npm --prefix website run build"
-  }
-}
