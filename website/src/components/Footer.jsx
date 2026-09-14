@@ -66,6 +66,18 @@ export default function Footer() {
                     Versioni Rilasciate
                   </a>
                 </li>
+                <li>
+                  <a
+                    href="https://github.com/supertone-inc/supertonic"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="nav-link"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <span>Supertonic TTS</span>
+                    <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-sky)' }}>Engine</span>
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
@@ -84,7 +96,7 @@ export default function Footer() {
           color: 'var(--text-tertiary)'
         }}>
           <div>
-            © {new Date().getFullYear()} Lettore Native. Rilasciato con Licenza Open Source MIT.
+            © {new Date().getFullYear()} Lettore Native · Sintesi neurale basata su <a href="https://github.com/supertone-inc/supertonic" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>Supertonic</a> (Supertone Inc. · MIT / OpenRAIL-M).
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>Fatto con dedizione per l'accessibilità universale</span>

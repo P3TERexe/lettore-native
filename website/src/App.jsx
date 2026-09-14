@@ -6,6 +6,7 @@ import Hero from './components/Hero';
 import AudioSimulator from './components/AudioSimulator';
 import FeaturesBento from './components/FeaturesBento';
 import ArchitectureComparison from './components/ArchitectureComparison';
+import VoiceEngineSection from './components/VoiceEngineSection';
 import RoadmapSection from './components/RoadmapSection';
 import DownloadSection from './components/DownloadSection';
 import Footer from './components/Footer';
@@ -32,6 +33,7 @@ export default function App() {
             <AudioSimulator />
             <FeaturesBento />
             <ArchitectureComparison />
+            <VoiceEngineSection />
             <RoadmapSection onOpenProposalModal={() => setProposalModalOpen(true)} />
             <DownloadSection />
           </main>
