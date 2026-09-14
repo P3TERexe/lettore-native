@@ -27,7 +27,7 @@ export default function Navbar() {
             <ul className="nav-links">
               <li><a href="#simulatore" className="nav-link">Simulatore</a></li>
               <li><a href="#funzionalita" className="nav-link">Funzionalità</a></li>
-              <li><a href="#motore-vocale" className="nav-link">Motore Vocale</a></li>
+              <li><a href="#motore-vocale" className="nav-link">La Voce</a></li>
               <li><a href="#roadmap" className="nav-link">Roadmap</a></li>
             </ul>
           </nav>
@@ -109,7 +109,7 @@ export default function Navbar() {
               ⚡ Prestazioni Swift 6
             </a>
             <a href="#motore-vocale" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              🔊 Motore Supertonic
+              🔊 La Voce Naturale
             </a>
             <a href="#roadmap" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
               🗺️ Novità & Roadmap

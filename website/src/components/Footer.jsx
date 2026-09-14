@@ -42,6 +42,7 @@ export default function Footer() {
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <li><a href="#simulatore" className="nav-link">Simulatore Web</a></li>
                 <li><a href="#funzionalita" className="nav-link">Caratteristiche</a></li>
+                <li><a href="#motore-vocale" className="nav-link">La Voce Supertonic</a></li>
                 <li><a href="#roadmap" className="nav-link">Novità & Roadmap</a></li>
               </ul>
             </div>
@@ -74,8 +75,8 @@ export default function Footer() {
                     className="nav-link"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    <span>Supertonic TTS</span>
-                    <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-sky)' }}>Engine</span>
+                    <span>Supertonic</span>
+                    <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-sky)' }}>Voce Aperta</span>
                   </a>
                 </li>
               </ul>
@@ -96,7 +97,7 @@ export default function Footer() {
           color: 'var(--text-tertiary)'
         }}>
           <div>
-            © {new Date().getFullYear()} Lettore Native · Sintesi neurale basata su <a href="https://github.com/supertone-inc/supertonic" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>Supertonic</a> (Supertone Inc. · MIT / OpenRAIL-M).
+            © {new Date().getFullYear()} Lettore Native · Voce naturale alimentata da <a href="https://github.com/supertone-inc/supertonic" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>Supertonic</a> (Supertone Inc. · MIT / OpenRAIL).
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>Fatto con dedizione per l'accessibilità universale</span>
