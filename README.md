@@ -1,6 +1,6 @@
 # Lettore Native 🎙️🍏
 
-> **Lettore Native** è un'applicazione macOS nativa progettata per l'accessibilità e l'inclusione. Legge ad alta voce i tuoi testi selezionati ovunque nel sistema usando il motore vocale neurale Supertonic 3 (basato su ONNX Runtime).
+> **Lettore Native** è un'applicazione macOS nativa progettata per l'accessibilità e l'inclusione. Legge ad alta voce i tuoi testi selezionati ovunque nel sistema usando il motore vocale neurale [Supertonic](https://github.com/supertone-inc/supertonic) (sviluppato da [Supertone Inc.](https://github.com/supertone-inc) e basato su ONNX Runtime).
 
 > ⚠️ **Disponibilità della Piattaforma:** Per il momento il progetto è sviluppato e disponibile **esclusivamente per macOS** (14.0 Sonoma o superiore). Non è al momento supportato su Windows o Linux.
 
@@ -24,11 +24,19 @@
 *   **Normalizzazione Intelligente**: Espande automaticamente abbreviazioni italiane ("Dott.", "Sig.ra"), date, valute e URL *prima* della sintesi vocale.
 *   **Interfaccia Minimalista e Accessibile**: Include un *Floating Pill* stile Dynamic Island, widget per la Menubar, e un profilo WCAG AAA per la lettura immersiva (High Contrast, font OpenDyslexic).
 
+## 🎙️ Motore Vocale Neurale (Supertonic)
+
+La sintesi vocale di Lettore Native è interamente basata su **[Supertonic](https://github.com/supertone-inc/supertonic)** (v3), modello neurale ad altissima efficienza sviluppato da **[Supertone Inc.](https://github.com/supertone-inc)**:
+* **Architettura On-Device**: Modello compatto (~99M parametri, ~400MB) eseguito localmente tramite ONNX Runtime con accelerazione CoreML su Apple Silicon e fallback CPU/CUDA.
+* **Supporto Multilingua**: Oltre 30 lingue supportate nativamente con rilevamento automatico del testo.
+* **Profili Vocali Neurali**: 10 voci predefinite (5 maschili `M1`–`M5` e 5 femminili `F1`–`F5`) calibrate per una dizione chiara, naturale e a basso affaticamento cognitivo.
+* **Latenza Ultra-bassa**: Tempo di sintesi <30ms per frase su Mac Apple Silicon, ideale per la lettura continua in streaming.
+
 ## 🏗️ Architettura Ibrida (Fase 3.0)
 
 Attualmente il progetto si trova nella **Fase 3.0** (Transizione al Nativo). 
 L'interfaccia utente, la gestione audio, la cattura del testo e la logica di normalizzazione sono **100% in Swift**.
-Il motore neurale di sintesi vocale (Supertonic) risiede ancora in un backend locale in Python (`backend/`) gestito come sidecar.
+Il motore neurale di sintesi vocale ([Supertonic](https://github.com/supertone-inc/supertonic)) risiede ancora in un backend locale in Python (`backend/`) gestito come sidecar.
 
 *Roadmap futura (M4):* Integrazione del modello ONNX direttamente in Swift tramite C-API per eliminare definitivamente il processo Python.
 
@@ -123,11 +131,18 @@ Se il Click Destro non mostra il pulsante "Apri" e il Terminale non funziona (su
 
 Le Pull Request sono benvenute! Assicurati di eseguire `swift test` prima di proporre modifiche alla logica core, e di testare a fondo il comportamento dell'audio su diverse frequenze di campionamento.
 
-## 📄 Licenza
+## 📄 Licenza & Riconoscimenti
 
+### Lettore Native
 Questo progetto è distribuito con licenza **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)**. 
 Questo significa che sei libero di utilizzare e modificare il codice, ma:
 1. **Non puoi utilizzarlo per scopi commerciali**.
 2. **Devi mantenere il progetto open source** (le tue modifiche devono essere distribuite sotto la stessa licenza).
 
 Vedi il file `LICENSE.md` per ulteriori dettagli.
+
+### Motore Vocale Supertonic
+Il motore vocale neurale utilizzato è **[Supertonic](https://github.com/supertone-inc/supertonic)** (sviluppato da [Supertone Inc.](https://github.com/supertone-inc)), con il seguente schema di licenze:
+* **Codice sorgente & SDK**: Rilasciato sotto licenza **[MIT](https://github.com/supertone-inc/supertonic/blob/main/LICENSE)** (Copyright © 2024 Supertone Inc.).
+* **Pesi del Modello Vocale (Model Weights)**: Distribuiti sotto licenza **[OpenRAIL-M](https://github.com/supertone-inc/supertonic#license)** (Open Responsible AI License).
+
