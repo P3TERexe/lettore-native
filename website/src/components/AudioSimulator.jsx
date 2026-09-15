@@ -54,15 +54,28 @@ export default function AudioSimulator() {
   const activeSentenceRef = useRef(null);
   const highlightsDeckRef = useRef(null);
 
-  // Auto-scroll active sentence smoothly into view inside reader box
+  // Auto-scroll active sentence smoothly into view inside reader box ONLY during playback
   useEffect(() => {
+    if (!isPlaying) return;
     if (activeSentenceRef.current && readerRef.current) {
-      activeSentenceRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest'
-      });
+      const container = readerRef.current;
+      const element = activeSentenceRef.current;
+
+      // Only scroll internal container if it has overflow
+      if (container.scrollHeight > container.clientHeight) {
+        const elemOffsetTop = element.offsetTop - container.offsetTop;
+        const elemHeight = element.offsetHeight;
+        const containerScroll = container.scrollTop;
+        const containerHeight = container.clientHeight;
+
+        if (elemOffsetTop < containerScroll) {
+          container.scrollTo({ top: elemOffsetTop - 8, behavior: 'smooth' });
+        } else if (elemOffsetTop + elemHeight > containerScroll + containerHeight) {
+          container.scrollTo({ top: elemOffsetTop + elemHeight - containerHeight + 8, behavior: 'smooth' });
+        }
+      }
     }
-  }, [currentSentenceIndex]);
+  }, [currentSentenceIndex, isPlaying]);
 
   const HIGHLIGHTS = [
     {
