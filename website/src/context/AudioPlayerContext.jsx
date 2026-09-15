@@ -10,7 +10,7 @@ const DOC_SAMPLES = {
     sentences: [
       "Prendete la vita con leggerezza, che leggerezza non è superficialità, ma planare sulle cose dall'alto, non avere macigni sul cuore.",
       "La leggerezza per me si associa con la precisione e la determinazione, non con la vaghezza e l'abbandono al caso.",
-      "Cavalcanti si libera dal peso della materia con un salto agile e sale leggero verso l'alto."
+      "Nei momenti in cui il regno dell'umano mi sembra condannato alla pesantezza, penso che dovrei volare in un altro spazio, come Perseo."
     ]
   },
   neuroscience: {
@@ -20,9 +20,9 @@ const DOC_SAMPLES = {
     hasAudioSamples: true,
     steps: 16,
     sentences: [
-      "La plasticità neurale è la straordinaria capacità del cervello umano di riorganizzare le proprie connessioni sinaptiche in risposta all'esperienza.",
-      "Ascoltare una voce naturale a velocità calibrate attiva le aree temporali del linguaggio senza sovraccaricare la memoria di lavoro.",
-      "Per gli studenti con dislessia o ADHD, la combinazione di tracciamento visivo e voce fluida raddoppia la velocità di comprensione."
+      "L'ascolto combinato alla scansione visiva riduce il carico cognitivo della memoria di lavoro fino al quaranta percento durante lo studio intensivo.",
+      "La segmentazione del discorso in unità sintattiche complete consente al cervello di anticipare la struttura della frase senza interruzioni ritmiche.",
+      "Per questo motivo la sincronizzazione istantanea tra voce neurale e marcatore visivo è essenziale per la comprensione profonda."
     ]
   },
   english: {
@@ -32,9 +32,9 @@ const DOC_SAMPLES = {
     hasAudioSamples: true,
     steps: 16,
     sentences: [
-      "Reading text with neural voice synthesis bridges the gap between written symbols and auditory comprehension.",
-      "By offloading mechanical decoding, the mind focuses entirely on conceptual synthesis and deep retention.",
-      "Instant on-device speech processing guarantees complete privacy with zero latency."
+      "There is no doubt that consciousness is an active, continuous creation of the human mind and memory.",
+      "Perception is never purely passive; it involves an immediate synthesis of sensory input and narrative focus.",
+      "Language gives our inner thoughts a lasting architecture that transcends the fleeting present moment."
     ]
   },
   custom: {
@@ -50,11 +50,16 @@ const DOC_SAMPLES = {
 };
 
 const VOICES = [
-  { id: 'M1', name: 'Matteo', desc: 'Calda, naturale e autorevole (M)' },
-  { id: 'F1', name: 'Chiara', desc: 'Limpida, empatica e rilassante (F)' },
-  { id: 'F2', name: 'Sofia', desc: 'Narrativa e ritmata per lunghi testi (F)' },
-  { id: 'M2', name: 'Leonardo', desc: 'Profonda ed accademica (M)' },
-  { id: 'F3', name: 'Elena', desc: 'Fluida ed espressiva per lo studio (F)' }
+  { id: 'M1', name: 'Supertonic M1 (Marco)', desc: 'Maschile · Caldo & Rilassato (IT/EN)' },
+  { id: 'F1', name: 'Supertonic F1 (Giulia)', desc: 'Femminile · Espressiva & Calda (IT/EN)' },
+  { id: 'M2', name: 'Supertonic M2 (Luca)', desc: 'Maschile · Dinamico & Chiaro' },
+  { id: 'F2', name: 'Supertonic F2 (Sofia)', desc: 'Femminile · Cristallina & Fluida' },
+  { id: 'M3', name: 'Supertonic M3 (Nico)', desc: 'Maschile · Naturale & Morbido' },
+  { id: 'F3', name: 'Supertonic F3 (Elena)', desc: 'Femminile · Narrativa & Ritmata' },
+  { id: 'M4', name: 'Supertonic M4 (Leo)', desc: 'Maschile · Profondo & Autorevole' },
+  { id: 'F4', name: 'Supertonic F4 (Aurora)', desc: 'Femminile · Dolce & Rilassante' },
+  { id: 'M5', name: 'Supertonic M5 (Davide)', desc: 'Maschile · Energetico & Aperto' },
+  { id: 'F5', name: 'Supertonic F5 (Luna)', desc: 'Femminile · Chiara & Fluida' }
 ];
 
 const AudioPlayerContext = createContext(null);
@@ -149,11 +154,33 @@ export function AudioPlayerProvider({ children }) {
     setCurrentSentenceIndex(index);
     setIsPlaying(true);
 
-    // If sample document, try neural sample audio first (16 steps on-device quality)
+    // Helper per risoluzione robusta dell'URL audio su qualsiasi hosting/subpath
+    function resolveAudioUrl(filename) {
+      try {
+        const base = new URL(document.baseURI || window.location.href);
+        let pathname = base.pathname;
+        if (!pathname.endsWith('/') && !pathname.endsWith('.html')) {
+          pathname += '/';
+        } else if (pathname.endsWith('.html')) {
+          pathname = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+        }
+        return new URL(`assets/audio/${filename}`, `${base.origin}${pathname}`).href;
+      } catch (e) {
+        return `./assets/audio/${filename}`;
+      }
+    }
+
+    // Se testo personalizzato, tenta sintesi istantanea 16-step via backend locale prima di SpeechSynthesis
+    if (currentDocKey === 'custom') {
+      playCustomSentence(activeSentences[index], index);
+      return;
+    }
+
+    // Se documento campione, riproduci audio neurale 16 step Supertonic reale
     const sampleDocs = ['calvino', 'neuroscience', 'english'];
     if (sampleDocs.includes(currentDocKey)) {
-      const audioUrl = `./assets/audio/${currentDocKey}_${selectedVoice}_${index}.mp3`;
-      const fallbackAudioUrl = `./assets/audio/${currentDocKey}_${index}.mp3`;
+      const audioUrl = resolveAudioUrl(`${currentDocKey}_${selectedVoice}_${index}.mp3`);
+      const fallbackAudioUrl = resolveAudioUrl(`${currentDocKey}_${index}.mp3`);
 
       if (audioRef.current) {
         audioRef.current.pause();
@@ -170,7 +197,7 @@ export function AudioPlayerProvider({ children }) {
       };
 
       audio.onerror = () => {
-        // Fallback to base audio filename or Web Speech API
+        // Fallback su variante standard M1 o Web Speech API
         const fallbackAudio = new Audio(fallbackAudioUrl);
         fallbackAudio.playbackRate = rate;
         audioRef.current = fallbackAudio;
@@ -196,6 +223,39 @@ export function AudioPlayerProvider({ children }) {
     } else {
       fallbackToSpeechSynthesis(activeSentences[index], index);
     }
+  };
+
+  const playCustomSentence = async (text, index) => {
+    try {
+      const resp = await fetch('http://127.0.0.1:7788/v1/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text,
+          voice: selectedVoice,
+          lang: 'it',
+          steps: 16,
+          speed: rate
+        }),
+        signal: AbortSignal.timeout(4000)
+      });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        if (audioRef.current) audioRef.current.pause();
+        const audio = new Audio(url);
+        audio.playbackRate = rate;
+        audioRef.current = audio;
+        audio.onended = () => {
+          setTimeout(() => playSentence(index + 1), pauseDuration);
+        };
+        await audio.play();
+        return;
+      }
+    } catch (e) {
+      // Backend locale non disponibile o timeout -> usa fallback vocale
+    }
+    fallbackToSpeechSynthesis(text, index);
   };
 
   const fallbackToSpeechSynthesis = (text, index) => {

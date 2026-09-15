@@ -321,6 +321,18 @@ export default function AudioSimulator() {
             {/* Custom Text Area (when custom mode active) */}
             {currentDocKey === 'custom' && (
               <div style={{ marginBottom: 18 }}>
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-sm, 6px)',
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  fontSize: '0.84rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                  marginBottom: 12
+                }}>
+                  <strong style={{ color: 'var(--accent-sky)' }}>Sintesi a 16 Step:</strong> I campioni vocali ufficiali Supertonic 3 ONNX a 16 step reali (44.1 kHz) sono attivi e riproducibili all'istante sui tre brani in alto (Calvino, Neuroscienze, English) con tutte le 10 voci. Sul testo libero, la sintesi neurale a 16 step si collega al backend locale se attivo, oppure alla voce di sistema.
+                </div>
                 <label htmlFor="custom-text-input" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
                   Digita o incolla qualsiasi testo:
                 </label>
