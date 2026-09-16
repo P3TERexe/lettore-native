@@ -11,6 +11,7 @@ import {
   Grid, 
   List 
 } from 'lucide-react';
+import EarlyStageSection from './EarlyStageSection';
 
 const ROADMAP_ITEMS = [
   {
@@ -587,41 +588,8 @@ export default function RoadmapSection({ onOpenProposalModal }) {
           </div>
         )}
 
-        {/* Community Proposals Banner */}
-        <div className="glass-panel roadmap-proposal-banner">
-          <div style={{ maxWidth: 640 }}>
-            <span className="section-kicker" style={{ color: 'var(--accent-sky)' }}>
-              La tua voce conta
-            </span>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', margin: '6px 0 10px' }}>
-              Hai una difficoltà di lettura che vorresti risolvere?
-            </h3>
-            <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Lettore Native è un progetto aperto nato per aiutare chi affronta dislessia, ADHD o affaticamento visivo. Raccontaci la tua esperienza o proponi un'idea: ogni suggerimento guida lo sviluppo.
-            </p>
-          </div>
-
-          <div className="roadmap-proposal-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onOpenProposalModal}
-            >
-              <PlusCircle size={16} />
-              <span>Proponi un'Idea con Modulo</span>
-            </button>
-
-            <a
-              href="https://github.com/P3TERexe/lettore-native/issues/new?template=proposta_idea.md&title=%5BIdea%5D+"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary"
-            >
-              <ExternalLink size={16} />
-              <span>Apri su GitHub Issues</span>
-            </a>
-          </div>
-        </div>
+        {/* Progetto in Fase Iniziale & Proposte della Community */}
+        <EarlyStageSection onOpenProposalModal={onOpenProposalModal} />
       </div>
     </section>
   );

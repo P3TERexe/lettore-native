@@ -7,7 +7,6 @@ import AudioSimulator from './components/AudioSimulator';
 import FeaturesBento from './components/FeaturesBento';
 import ArchitectureComparison from './components/ArchitectureComparison';
 import VoiceEngineSection from './components/VoiceEngineSection';
-import EarlyStageSection from './components/EarlyStageSection';
 import RoadmapSection from './components/RoadmapSection';
 import DownloadSection from './components/DownloadSection';
 import Footer from './components/Footer';
@@ -35,7 +34,6 @@ export default function App() {
             <FeaturesBento />
             <ArchitectureComparison />
             <VoiceEngineSection />
-            <EarlyStageSection onOpenProposalModal={() => setProposalModalOpen(true)} />
             <RoadmapSection onOpenProposalModal={() => setProposalModalOpen(true)} />
             <DownloadSection />
           </main>
