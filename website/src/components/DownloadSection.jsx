@@ -78,43 +78,70 @@ swift run LettoreApp`;
                 {isEnglish ? '100% open source on GitHub. You can compile and run directly from the terminal with one command:' : 'Progetto 100% trasparente su GitHub. Puoi avviare il codice sorgente con un solo comando dal terminale:'}
               </p>
 
-              {/* Code snippet */}
+              {/* Terminal Code snippet with dedicated macOS titlebar header */}
               <div style={{
-                background: 'rgba(0, 0, 0, 0.4)',
+                background: 'rgba(0, 0, 0, 0.55)',
                 border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.82rem',
-                color: 'var(--accent-emerald)',
-                lineHeight: 1.5,
-                position: 'relative',
+                borderRadius: 'var(--radius-sm, 8px)',
+                overflow: 'hidden',
                 marginBottom: 20
               }}>
-                <pre style={{ margin: 0 }}>{terminalCmd}</pre>
-                <button
-                  type="button"
-                  onClick={handleCopyCmd}
-                  style={{
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '4px 8px',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: '0.75rem'
-                  }}
-                  title={d.copyCmd}
-                >
-                  {copied ? <Check size={12} color="var(--accent-emerald)" /> : <Copy size={12} />}
-                  <span>{copied ? d.copied : d.copyCmd}</span>
-                </button>
+                {/* Terminal Header */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  fontSize: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+                    <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                      zsh · terminal
+                    </span>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleCopyCmd}
+                    style={{
+                      background: copied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid ' + (copied ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.12)'),
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      color: copied ? 'var(--accent-emerald)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: '0.74rem',
+                      fontWeight: 500,
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={d.copyCmd}
+                    aria-label={d.copyCmd}
+                  >
+                    {copied ? <Check size={12} color="var(--accent-emerald)" /> : <Copy size={12} />}
+                    <span>{copied ? d.copied : d.copyCmd}</span>
+                  </button>
+                </div>
+
+                {/* Terminal Code Body */}
+                <div style={{
+                  padding: '12px 14px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.82rem',
+                  color: 'var(--accent-emerald)',
+                  lineHeight: 1.6,
+                  overflowX: 'auto',
+                  whiteSpace: 'pre'
+                }}>
+                  {terminalCmd}
+                </div>
               </div>
             </div>
 
