@@ -78,6 +78,7 @@ La community denuncia costantemente:
 | 🔴 **P1** | **DSA-1** | **Smart Academic Skip** | Eliminazione sovraccarico cognitivo da citazioni/note in paper scientifici | `LettoreCore/TextNormalizer` |
 | 🔴 **P1** | **DSA-2** | **Pausa Inter-Frase Regolabile** | Micro-gap per elaborazione concettuale ad alte velocità di ascolto | `LettoreEngine/PlaybackCoordinator` |
 | 🔴 **P1** | **DSA-11** | **Lettura Continua da Cursore (Read-From-Here)** | Zero selezione manuale: avvio con un clic e streaming fino a fine documento | `LettoreSystem/AXCaptureService` |
+| 🔴 **P1** | **AUDIO-MP3** | **Esportazione Audio MP3 / M4A (Personal Audiobooks)** | Salvataggio su disco del testo sintetizzato in file MP3/M4A per ascolto e ripasso offline in mobilità | `LettoreEngine/AudioExportService` |
 | 🔴 **P1** | **PERF-1** | **Metal/FP16 Acceleration & Zero-Copy Audio Streaming** | Inferenza hardware su GPU/ANE in FP16 con streaming campioni float32 diretto a CoreAudio (`AVAudioSourceNode`): 16 step pieni in <40ms | `LettoreEngine/NativeSpeechEngine` |
 | 🔴 **P1** | **PERF-2** | **Deep Preload Ring Buffer (N+2 Prefetching)** | Buffer rotativo a 2-3 chunk per riproduzione fluida gapless senza attese tra frasi | `LettoreEngine/PlaybackCoordinator` |
 | 🔴 **P1** | **UX-1** | **Doppio Tap Modificatore & Supporto AirPods** | Scorciatoia rapida (doppio Option/Ctrl) e controllo da tasti F7/F8/F9 o sensore cuffie | `LettoreSystem/GlobalShortcutManager` |
@@ -110,6 +111,20 @@ La community denuncia costantemente:
   - Citazioni autore-anno: `\((?:[A-Z][A-Za-z]+(?:\s+et\s+al\.)?,?\s*\d{4}[^)]*)\)`
   - Note a piè di pagina: `\[\d+\]` o cifre a esponente antecedenti la punteggiatura.
   - Sostituzione con micro-pausa invece della vocalizzazione dei metadati.
+
+---
+
+#### `AUDIO-MP3` · Esportazione Audio in File MP3 / M4A (Personal Audiobooks)
+> **Priorità**: `P1` · **Focus Clinico / UX**: Studio in mobilità senza schermi (*screen-free learning*), ripasso per studenti e audiolibri personali da dispense/paper · **Modulo**: [AudioExportService.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreEngine/AudioExportService.swift)
+
+* 🚨 **Il Problema Reale:**
+  Gli studenti universitari, i pendolari e chi affronta lunghe sessioni di studio hanno spesso bisogno di assimilare decine di pagine mentre viaggiano in treno, camminano o si allenano lontano dalla scrivania. Attualmente i software TTS costringono a tenere il laptop aperto con lo schermo acceso per poter ascoltare il testo. Le app commerciali chiuse fanno pagare abbonamenti esorbitanti per permettere il download offline dei file audio sintetizzati.
+* 💡 **La Soluzione in Lettore Native:**
+  Un comando rapido ("Esporta come MP3" / "Salva come Audiolibro") accessibile direttamente dalla Floating Pill o dal menu contestuale. Con un clic, Lettore sintetizza l'intero documento o la selezione ed esporta un file compresso standard (`.mp3` o `.m4a` a 192/256 kbps), completo di capitoli e tag ID3 (titolo, voce, data), pronto per essere sincronizzato con iPhone, Android, cuffie o qualsiasi lettore portatile.
+* 🛠️ **Implementazione Tecnica:**
+  - `AudioExportService.swift` in `LettoreEngine`: generazione batch offline disaccoppiata dal clock di riproduzione audio in tempo reale (sfruttando l'accelerazione Metal/FP16 su Apple Silicon, un intero capitolo di 30 minuti viene generato e codificato in meno di 60-90 secondi).
+  - Pipeline di encoding CoreAudio via `AVAssetWriter` con compressione AAC/MP3 ottimizzata per parlato ad alta fedeltà.
+  - Generazione automatica di copertina e indice capitoli per fruizione ideale nelle app Podcast o Libri.
 
 ---
 

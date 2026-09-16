@@ -44,6 +44,20 @@ const ROADMAP_ITEMS = [
     icon: '🖱️'
   },
   {
+    id: 'export-mp3',
+    category: 'dsa',
+    title: 'Salva audio in file MP3 (Audiolibri personali)',
+    title_en: 'Export audio as MP3 files (Personal Audiobooks)',
+    desc: 'Esporta qualsiasi testo, dispensa o articolo in un file audio MP3 con un clic, pronto da trasferire su smartphone o cuffie.',
+    desc_en: 'Export any text, study notes, or article to an MP3 audio file with one click, ready to transfer to your phone or headphones.',
+    benefit: 'Ripassi e studi mentre passeggi, viaggi o ti alleni senza tenere acceso il Mac e a schermo spento, risparmiando batteria e dati.',
+    benefit_en: 'Review study notes and papers while walking, commuting, or exercising with screen off, saving battery and mobile data.',
+    platform: 'Mac, iPhone & Windows',
+    status: 'in-progress',
+    statusLabel: 'In sviluppo',
+    icon: '💾'
+  },
+  {
     id: 'inter-sentence-pause',
     category: 'dsa',
     title: 'Una pausa di respiro regolabile tra le frasi',
