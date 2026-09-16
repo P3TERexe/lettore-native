@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { AudioPlayerProvider } from './context/AudioPlayerContext';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -17,8 +18,9 @@ export default function App() {
   const [proposalModalOpen, setProposalModalOpen] = useState(false);
 
   return (
-    <AccessibilityProvider>
-      <AudioPlayerProvider>
+    <LanguageProvider>
+      <AccessibilityProvider>
+        <AudioPlayerProvider>
         <div style={{ position: 'relative', overflow: 'hidden' }}>
           {/* Ambient Glows */}
           <div className="ambient-glow-top" />
@@ -49,5 +51,6 @@ export default function App() {
         </div>
       </AudioPlayerProvider>
     </AccessibilityProvider>
+  </LanguageProvider>
   );
 }

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Download, Terminal, Copy, Check, Apple, Sparkles, FolderGit2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DownloadSection() {
+  const { t, isEnglish } = useLanguage();
+  const d = t.download;
   const [copied, setCopied] = useState(false);
   const terminalCmd = `git clone https://github.com/P3TERexe/lettore-native.git
 cd lettore-native
@@ -18,11 +21,11 @@ swift run LettoreApp`;
       <div className="container">
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <span className="section-kicker sky">
-            <Download size={14} /> Download Gratuito
+            <Download size={14} /> {d.kicker}
           </span>
-          <h2 className="section-title">Inizia subito sul tuo Mac</h2>
+          <h2 className="section-title">{d.title}</h2>
           <p className="section-subtitle" style={{ margin: '0 auto' }}>
-            Scarica l'applicazione pronta all'uso per il tuo computer oppure esplora il codice sorgente su GitHub.
+            {d.subtitle}
           </p>
         </div>
 
@@ -40,13 +43,13 @@ swift run LettoreApp`;
                 <Apple size={24} />
               </div>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
-                Scarica per Mac
+                {isEnglish ? 'Download for Mac' : 'Scarica per Mac'}
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-                Pronto per tutti i modelli di Mac (Apple Silicon M1/M2/M3/M4 e Intel). Facile da installare e subito pronto all'uso.
+                {isEnglish ? 'Ready for all Mac models (Apple Silicon M1/M2/M3/M4 & Intel). Fast to install and runs immediately.' : 'Pronto per tutti i modelli di Mac (Apple Silicon M1/M2/M3/M4 e Intel). Facile da installare e subito pronto all\'uso.'}
               </p>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 24 }}>
-                Versione 3.0.0 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo
+                {isEnglish ? 'Version 3.0.0 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 3.0.0 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
               </div>
             </div>
 
@@ -58,7 +61,7 @@ swift run LettoreApp`;
               style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
             >
               <Download size={16} />
-              <span>Scarica Release da GitHub</span>
+              <span>{isEnglish ? 'Download Release from GitHub' : 'Scarica Release da GitHub'}</span>
             </a>
           </div>
 
@@ -69,38 +72,62 @@ swift run LettoreApp`;
                 <Terminal size={24} />
               </div>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
-                Per Sviluppatori (Open Source)
+                {isEnglish ? 'For Developers (Open Source)' : 'Per Sviluppatori (Open Source)'}
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
-                Progetto 100% trasparente su GitHub. Puoi avviare il codice sorgente con un solo comando dal terminale:
+                {isEnglish ? '100% open source on GitHub. You can compile and run directly from the terminal with one command:' : 'Progetto 100% trasparente su GitHub. Puoi avviare il codice sorgente con un solo comando dal terminale:'}
               </p>
 
-              {/* Code Box */}
+              {/* Code snippet */}
               <div style={{
-                background: 'var(--bg-base)',
+                background: 'rgba(0, 0, 0, 0.4)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-sm)',
                 padding: '12px 14px',
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                color: 'var(--accent-sky)',
-                lineHeight: 1.6,
-                marginBottom: 16,
-                position: 'relative'
+                fontSize: '0.82rem',
+                color: 'var(--accent-emerald)',
+                lineHeight: 1.5,
+                position: 'relative',
+                marginBottom: 20
               }}>
-                <pre style={{ margin: 0, overflowX: 'auto' }}>{terminalCmd}</pre>
+                <pre style={{ margin: 0 }}>{terminalCmd}</pre>
+                <button
+                  type="button"
+                  onClick={handleCopyCmd}
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: '0.75rem'
+                  }}
+                  title={d.copyCmd}
+                >
+                  {copied ? <Check size={12} color="var(--accent-emerald)" /> : <Copy size={12} />}
+                  <span>{copied ? d.copied : d.copyCmd}</span>
+                </button>
               </div>
             </div>
 
-            <button
-              type="button"
+            <a
+              href="https://github.com/P3TERexe/lettore-native"
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn btn-secondary"
-              onClick={handleCopyCmd}
               style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
             >
-              {copied ? <Check size={16} style={{ color: 'var(--accent-emerald)' }} /> : <Copy size={16} />}
-              <span>{copied ? 'Comandi Copiati!' : 'Copia Comandi da Terminale'}</span>
-            </button>
+              <FolderGit2 size={16} />
+              <span>{isEnglish ? 'Explore Source Code' : 'Esplora il Codice Sorgente'}</span>
+            </a>
           </div>
         </div>
       </div>

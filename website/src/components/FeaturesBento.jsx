@@ -1,17 +1,21 @@
 import React from 'react';
 import { Zap, Eye, BatteryCharging, ShieldCheck, Sparkles } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function FeaturesBento() {
+  const { t } = useLanguage();
+  const f = t.features;
+
   return (
     <section id="funzionalita" style={{ padding: '80px 0', position: 'relative' }}>
       <div className="container">
         <div style={{ textAlign: 'center', marginBottom: 44 }}>
           <span className="section-kicker">
-            <Sparkles size={14} /> Semplicità & Comfort
+            <Sparkles size={14} /> {f.kicker}
           </span>
-          <h2 className="section-title">Tutto ciò che serve per leggere senza fatica</h2>
+          <h2 className="section-title">{f.title}</h2>
           <p className="section-subtitle" style={{ margin: '0 auto' }}>
-            Dallo studio agli articoli online: trasforma testi lunghi e PDF in un ascolto rilassante, per non stancare gli occhi e capire meglio.
+            {f.subtitle}
           </p>
         </div>
 
@@ -24,15 +28,15 @@ export default function FeaturesBento() {
                 <Zap size={22} />
               </div>
               <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 10, color: 'var(--text-primary)' }}>
-                Parte subito, senza attese
+                {f.card1Title}
               </h3>
               <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-                Premi Play o usa la scorciatoia da tastiera e la voce inizia a parlare immediatamente. Nessun caricamento fastidioso né attese per ascoltare i tuoi brani.
+                {f.card1Desc}
               </p>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-              <span className="badge-pill">Avvio Istantaneo</span>
-              <span className="badge-pill">Audio Naturale ad Alta Fedeltà</span>
+              <span className="badge-pill">{f.card1Badge1}</span>
+              <span className="badge-pill">{f.card1Badge2}</span>
             </div>
           </div>
 
@@ -43,14 +47,14 @@ export default function FeaturesBento() {
                 <Eye size={22} />
               </div>
               <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 10, color: 'var(--text-primary)' }}>
-                Legge da qualsiasi applicazione
+                {f.card2Title}
               </h3>
               <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-                Seleziona il testo su Safari, un documento PDF, Word o le tue note personali: il lettore lo riconosce all'istante senza bisogno di estensioni o copia-incolla.
+                {f.card2Desc}
               </p>
             </div>
             <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-              <span className="badge-pill">Funziona ovunque sul Mac</span>
+              <span className="badge-pill">{f.card2Badge}</span>
             </div>
           </div>
 
@@ -61,14 +65,14 @@ export default function FeaturesBento() {
                 <BatteryCharging size={22} />
               </div>
               <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 10, color: 'var(--text-primary)' }}>
-                Leggerissimo sulla batteria
+                {f.card3Title}
               </h3>
               <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-                Consuma pochissima memoria e non rallenta il Mac. Puoi tenerlo sempre aperto in sottofondo mentre studi o lavori senza scaldare il portatile.
+                {f.card3Desc}
               </p>
             </div>
             <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-              <span className="badge-pill">Zero consumo a riposo</span>
+              <span className="badge-pill">{f.card3Badge}</span>
             </div>
           </div>
 
@@ -79,15 +83,15 @@ export default function FeaturesBento() {
                 <ShieldCheck size={22} />
               </div>
               <h3 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 10, color: 'var(--text-primary)' }}>
-                100% Privato e sicuro sul tuo Mac
+                {f.card4Title}
               </h3>
               <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-                I tuoi appunti, le email e i libri personali non lasciano mai il computer. Funziona ovunque anche senza connessione internet, in treno o in aereo.
+                {f.card4Desc}
               </p>
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-              <span className="badge-pill">Nessun abbonamento</span>
-              <span className="badge-pill">Funziona Offline</span>
+              <span className="badge-pill">{f.card4Badge1}</span>
+              <span className="badge-pill">{f.card4Badge2}</span>
             </div>
           </div>
         </div>

@@ -1,7 +1,11 @@
 import React from 'react';
 import { Compass, Brain, MessageSquare, Lightbulb, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function EarlyStageSection({ onOpenProposalModal }) {
+  const { t, isEnglish } = useLanguage();
+  const e = t.earlyStage;
+
   return (
     <div className="early-stage-card" style={{ marginTop: 48 }}>
       <div className="card-ambient-sprout" />
@@ -10,16 +14,20 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
       <div>
         <span className="section-kicker" style={{ color: '#34d399', marginBottom: 14 }}>
           <span className="pulse-dot-emerald" />
-          Fase Iniziale · Costruito Insieme
+          {e.kicker}
         </span>
       </div>
 
       {/* Title & Subtitle */}
       <h3 style={{ fontSize: 'clamp(1.5rem, 2.5vw, 2rem)', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 12px', lineHeight: 1.25 }}>
-        Siamo solo all'inizio.<br />E la tua opinione può cambiare tutto.
+        {isEnglish ? (
+          <>We are just getting started.<br />And your feedback can change everything.</>
+        ) : (
+          <>Siamo solo all'inizio.<br />E la tua opinione può cambiare tutto.</>
+        )}
       </h3>
       <p style={{ fontSize: '0.98rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 780, margin: 0 }}>
-        Lettore Native è nelle sue prime settimane di vita. Non abbiamo decisioni scolpite nella pietra né interfacce intoccabili: stiamo definendo ogni dettaglio ascoltando chi legge, studia e lavora davvero ogni giorno sul Mac.
+        {e.subtitle}
       </p>
 
       {/* 3 Pillars */}
@@ -30,12 +38,12 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
             <div className="early-stage-icon-wrap emerald">
               <Compass size={22} />
             </div>
-            <h4 className="early-stage-pillar-title">Zero Dogmi, Massima Libertà</h4>
+            <h4 className="early-stage-pillar-title">{e.pillar1Title}</h4>
             <p className="early-stage-pillar-desc">
-              Scorciatoie da tastiera, espansione della pillola fluttuante o controlli di velocità: se pensi che un'interazione debba funzionare diversamente, siamo pronti a ridisegnarla.
+              {e.pillar1Desc}
             </p>
           </div>
-          <span className="early-stage-pillar-tag">Interfaccia & Flussi Aperti</span>
+          <span className="early-stage-pillar-tag">{e.pillar1Tag}</span>
         </div>
 
         {/* Pillar 2 */}
@@ -44,12 +52,12 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
             <div className="early-stage-icon-wrap amber">
               <Brain size={22} />
             </div>
-            <h4 className="early-stage-pillar-title">Guidato da Bisogni Reali</h4>
+            <h4 className="early-stage-pillar-title">{e.pillar2Title}</h4>
             <p className="early-stage-pillar-desc">
-              Chi convive con dislessia (DSA), ADHD o deve assimilare centinaia di pagine accademiche sa meglio di chiunque cosa aiuta e cosa distrae. Le tue richieste guidano le priorità.
+              {e.pillar2Desc}
             </p>
           </div>
-          <span className="early-stage-pillar-tag">Accessibilità & Focus</span>
+          <span className="early-stage-pillar-tag">{e.pillar2Tag}</span>
         </div>
 
         {/* Pillar 3 */}
@@ -58,12 +66,12 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
             <div className="early-stage-icon-wrap sky">
               <MessageSquare size={22} />
             </div>
-            <h4 className="early-stage-pillar-title">Trasparenza & Filo Diretto</h4>
+            <h4 className="early-stage-pillar-title">{e.pillar3Title}</h4>
             <p className="early-stage-pillar-desc">
-              Nessun modulo burocratico o risposta automatica. Puoi proporre un'idea al volo dal sito, votarla sulla roadmap o parlarne direttamente con noi su GitHub.
+              {e.pillar3Desc}
             </p>
           </div>
-          <span className="early-stage-pillar-tag">Sviluppo 100% Aperto</span>
+          <span className="early-stage-pillar-tag">{e.pillar3Tag}</span>
         </div>
       </div>
 
@@ -71,7 +79,7 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
       <div className="early-stage-action-bar">
         <div className="early-stage-status-badge">
           <span className="status-dot" />
-          <span>Roadmap pubblica attiva · Aggiornamenti frequenti</span>
+          <span>{e.status}</span>
         </div>
 
         <div className="early-stage-buttons">
@@ -81,7 +89,7 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
             onClick={onOpenProposalModal}
           >
             <Lightbulb size={16} />
-            <span>Proponi un'idea o modifica</span>
+            <span>{e.proposeBtn}</span>
           </button>
 
           <a
@@ -91,7 +99,7 @@ export default function EarlyStageSection({ onOpenProposalModal }) {
             className="btn btn-secondary"
           >
             <ExternalLink size={16} />
-            <span>Discussioni GitHub</span>
+            <span>{e.discussionsBtn}</span>
           </a>
         </div>
       </div>

@@ -1,8 +1,11 @@
 import React from 'react';
 import { Volume2, Heart } from 'lucide-react';
 import GithubIcon from './GithubIcon';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Footer() {
+  const { t, isEnglish } = useLanguage();
+
   return (
     <footer style={{
       borderTop: '1px solid var(--border-subtle)',
@@ -29,7 +32,9 @@ export default function Footer() {
               <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>Lettore Native</strong>
             </div>
             <p style={{ lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-              Sintesi vocale neurale 100% nativa macOS in Swift 6. Progettata per abbattere le barriere di lettura, dislessia e affaticamento visivo.
+              {isEnglish 
+                ? '100% native macOS neural text-to-speech in Swift 6. Built to overcome reading barriers, dyslexia, and eye strain.'
+                : 'Sintesi vocale neurale 100% nativa macOS in Swift 6. Progettata per abbattere le barriere di lettura, dislessia e affaticamento visivo.'}
             </p>
           </div>
 
@@ -37,34 +42,34 @@ export default function Footer() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 48 }}>
             <div>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: 12 }}>
-                Navigazione
+                {isEnglish ? 'Navigation' : 'Navigazione'}
               </div>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <li><a href="#simulatore" className="nav-link">Simulatore Web</a></li>
-                <li><a href="#funzionalita" className="nav-link">Caratteristiche</a></li>
-                <li><a href="#motore-vocale" className="nav-link">La Voce Supertonic</a></li>
-                <li><a href="#roadmap" className="nav-link">Novità & Roadmap</a></li>
+                <li><a href="#simulatore" className="nav-link">{t.nav.simulator}</a></li>
+                <li><a href="#funzionalita" className="nav-link">{t.nav.features}</a></li>
+                <li><a href="#motore-vocale" className="nav-link">{t.nav.voice}</a></li>
+                <li><a href="#roadmap" className="nav-link">{t.nav.roadmap}</a></li>
               </ul>
             </div>
 
             <div>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-primary)', marginBottom: 12 }}>
-                Community & Codice
+                {isEnglish ? 'Community & Code' : 'Community & Codice'}
               </div>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <li>
                   <a href="https://github.com/P3TERexe/lettore-native" target="_blank" rel="noopener noreferrer" className="nav-link">
-                    Repository GitHub
+                    {isEnglish ? 'GitHub Repository' : 'Repository GitHub'}
                   </a>
                 </li>
                 <li>
                   <a href="https://github.com/P3TERexe/lettore-native/issues" target="_blank" rel="noopener noreferrer" className="nav-link">
-                    Segnala o Proponi Idee
+                    {isEnglish ? 'Report or Propose Ideas' : 'Segnala o Proponi Idee'}
                   </a>
                 </li>
                 <li>
                   <a href="https://github.com/P3TERexe/lettore-native/releases" target="_blank" rel="noopener noreferrer" className="nav-link">
-                    Versioni Rilasciate
+                    {isEnglish ? 'Releases & Changelog' : 'Versioni Rilasciate'}
                   </a>
                 </li>
                 <li>
@@ -76,7 +81,9 @@ export default function Footer() {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
                     <span>Supertonic</span>
-                    <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-sky)' }}>Voce Aperta</span>
+                    <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-sky)' }}>
+                      {isEnglish ? 'Open Voice' : 'Voce Aperta'}
+                    </span>
                   </a>
                 </li>
               </ul>
@@ -97,10 +104,13 @@ export default function Footer() {
           color: 'var(--text-tertiary)'
         }}>
           <div>
-            © {new Date().getFullYear()} Lettore Native · Voce naturale alimentata da <a href="https://github.com/supertone-inc/supertonic" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>Supertonic</a> (Supertone Inc. · MIT / OpenRAIL).
+            © {new Date().getFullYear()} Lettore Native · {isEnglish ? 'Natural voice powered by ' : 'Voce naturale alimentata da '}
+            <a href="https://github.com/supertone-inc/supertonic" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', textDecoration: 'underline' }}>
+              Supertonic
+            </a> (Supertone Inc. · MIT / OpenRAIL).
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>Fatto con dedizione per l'accessibilità universale</span>
+            <span>{isEnglish ? 'Crafted with passion for universal accessibility' : "Fatto con dedizione per l'accessibilità universale"}</span>
             <Heart size={13} style={{ color: '#ef4444', marginLeft: 4 }} />
           </div>
         </div>

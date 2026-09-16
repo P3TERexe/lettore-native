@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Volume2, Sun, Moon, Eye, Menu, X, Download } from 'lucide-react';
+import { Volume2, Sun, Moon, Eye, Menu, X, Download, Globe } from 'lucide-react';
 import GithubIcon from './GithubIcon';
 import { useAccessibility } from '../context/AccessibilityContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Navbar() {
   const { theme, toggleTheme, dyslexiaFont, toggleDyslexiaFont } = useAccessibility();
+  const { language, toggleLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -25,10 +27,10 @@ export default function Navbar() {
           {/* Desktop Nav Links */}
           <nav className="desktop-nav" aria-label="Navigazione principale">
             <ul className="nav-links">
-              <li><a href="#simulatore" className="nav-link">Simulatore</a></li>
-              <li><a href="#funzionalita" className="nav-link">Funzionalità</a></li>
-              <li><a href="#motore-vocale" className="nav-link">La Voce</a></li>
-              <li><a href="#roadmap" className="nav-link">Roadmap</a></li>
+              <li><a href="#simulatore" className="nav-link">{t.nav.simulator}</a></li>
+              <li><a href="#funzionalita" className="nav-link">{t.nav.features}</a></li>
+              <li><a href="#motore-vocale" className="nav-link">{t.nav.voice}</a></li>
+              <li><a href="#roadmap" className="nav-link">{t.nav.roadmap}</a></li>
             </ul>
           </nav>
 
@@ -36,15 +38,29 @@ export default function Navbar() {
           <div className="nav-actions">
             {/* Accessibility Group */}
             <div className="a11y-toolbar" role="toolbar" aria-label="Accessibilità rapida">
+              {/* Language Switcher */}
+              <button
+                type="button"
+                className="a11y-toggle-btn active"
+                onClick={toggleLanguage}
+                title={t.nav.langToggleTitle}
+                aria-label="Cambia lingua / Switch language"
+              >
+                <span className="a11y-pill-tag" style={{ fontSize: '0.85rem' }}>
+                  {language === 'it' ? '🇮🇹' : '🇬🇧'}
+                </span>
+                <span className="a11y-pill-label">{language === 'it' ? 'IT' : 'EN'}</span>
+              </button>
+
               <button
                 type="button"
                 className={`a11y-toggle-btn ${dyslexiaFont ? 'active' : ''}`}
                 onClick={toggleDyslexiaFont}
-                title="Attiva/Disattiva font per dislessia (Lexend)"
+                title={t.nav.dyslexiaTitle}
                 aria-pressed={dyslexiaFont}
               >
                 <span className="a11y-pill-tag">Aa</span>
-                <span className="a11y-pill-label">Dislessia</span>
+                <span className="a11y-pill-label">{t.nav.dyslexia}</span>
               </button>
 
               <button
@@ -52,7 +68,7 @@ export default function Navbar() {
                 className="a11y-icon-btn"
                 onClick={toggleTheme}
                 title={`Tema attuale: ${theme}. Clicca per cambiare.`}
-                aria-label="Cambia tema colore"
+                aria-label={t.nav.themeTitle}
               >
                 {theme === 'dark' ? <Sun size={15} /> : theme === 'light' ? <Moon size={15} /> : <Eye size={15} />}
               </button>
@@ -100,34 +116,43 @@ export default function Navbar() {
         <div className="mobile-drawer" role="dialog" aria-label="Menu mobile">
           <nav className="mobile-nav-links">
             <a href="#simulatore" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              🎙️ Simulatore Web
+              🎙️ {t.nav.simulator}
             </a>
             <a href="#funzionalita" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              ✨ Funzionalità & Comfort
+              ✨ {t.nav.features}
             </a>
             <a href="#prestazioni" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              ⚡ Prestazioni Swift 6
+              ⚡ {language === 'en' ? 'Swift 6 Performance' : 'Prestazioni Swift 6'}
             </a>
             <a href="#motore-vocale" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              🔊 La Voce Naturale
+              🔊 {t.nav.voice}
             </a>
             <a href="#roadmap" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-              🗺️ Novità & Roadmap
+              🗺️ {t.nav.roadmap}
             </a>
             <a href="#download" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
-               Scarica per Mac
+               {language === 'en' ? 'Download for Mac' : 'Scarica per Mac'}
             </a>
           </nav>
 
           <div className="mobile-drawer-footer">
-            <div className="mobile-drawer-a11y">
+            <div className="mobile-drawer-a11y" style={{ flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="a11y-btn active"
+                onClick={toggleLanguage}
+                style={{ flex: 1, padding: '10px 14px', fontSize: '0.88rem', justifyContent: 'center' }}
+              >
+                <span>{language === 'it' ? '🇮🇹 Lingua: Italiano' : '🇬🇧 Language: English'}</span>
+              </button>
+
               <button
                 type="button"
                 className={`a11y-btn ${dyslexiaFont ? 'active' : ''}`}
                 onClick={toggleDyslexiaFont}
                 style={{ flex: 1, padding: '10px 14px', fontSize: '0.88rem', justifyContent: 'center' }}
               >
-                <span style={{ fontWeight: 800 }}>Aa</span> Font Dislessia: {dyslexiaFont ? 'Attivo' : 'Disattivo'}
+                <span style={{ fontWeight: 800 }}>Aa</span> {language === 'en' ? `Dyslexia: ${dyslexiaFont ? 'On' : 'Off'}` : `Font Dislessia: ${dyslexiaFont ? 'Attivo' : 'Disattivo'}`}
               </button>
 
               <button
@@ -135,7 +160,7 @@ export default function Navbar() {
                 className="a11y-btn"
                 onClick={toggleTheme}
                 style={{ padding: '10px 14px', fontSize: '0.88rem' }}
-                title="Cambia tema"
+                title={t.nav.themeTitle}
               >
                 {theme === 'dark' ? <Sun size={16} /> : theme === 'light' ? <Moon size={16} /> : <Eye size={16} />}
                 <span style={{ textTransform: 'capitalize' }}>{theme}</span>

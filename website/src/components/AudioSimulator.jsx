@@ -17,8 +17,10 @@ import {
   Info
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AudioSimulator() {
+  const { isEnglish } = useLanguage();
   const {
     DOC_SAMPLES,
     VOICES,
@@ -77,7 +79,20 @@ export default function AudioSimulator() {
     }
   }, [currentSentenceIndex, isPlaying]);
 
-  const HIGHLIGHTS = [
+  const HIGHLIGHTS = isEnglish ? [
+    {
+      title: 'No Invasive Windows',
+      desc: 'The floating pill overlay hovers gently above Safari, Preview PDF or Word without blocking the text you are reading.'
+    },
+    {
+      title: 'System-Wide Global Hotkeys',
+      desc: 'Select any text across macOS and hit the global shortcut (or tap your bluetooth headphones) to listen instantly.'
+    },
+    {
+      title: '60 Hz CoreAudio Decibel Meter',
+      desc: 'The pill voice waves react in real time to phonetic modulation with virtually zero CPU impact (<0.1%).'
+    }
+  ] : [
     {
       title: 'Nessuna Finestra Invasiva',
       desc: 'L\'overlay a pillola fluttua leggero sopra Safari, Anteprima PDF o Word senza coprire i testi che stai consultando.'
@@ -125,11 +140,15 @@ export default function AudioSimulator() {
         {/* Section Header */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <span className="section-kicker">
-            <Sparkles size={14} /> Prova dal vivo
+            <Sparkles size={14} /> {isEnglish ? 'Live Demo' : 'Prova dal vivo'}
           </span>
-          <h2 className="section-title">Ascolta come legge e prova i controlli</h2>
+          <h2 className="section-title">
+            {isEnglish ? 'Hear how it reads and test the controls' : 'Ascolta come legge e prova i controlli'}
+          </h2>
           <p className="section-subtitle" style={{ margin: '0 auto' }}>
-            Scegli un testo d'esempio o incolla il tuo: ascolta la qualità della voce, segui le parole riga per riga e scopri la comodità della pillola fluttuante.
+            {isEnglish 
+              ? "Choose a sample text or paste your own: hear the voice quality, follow the words line by line, and experience the convenience of the floating pill."
+              : "Scegli un testo d'esempio o incolla il tuo: ascolta la qualità della voce, segui le parole riga per riga e scopri la comodità della pillola fluttuante."}
           </p>
         </div>
 
@@ -161,7 +180,7 @@ export default function AudioSimulator() {
                 className={`btn simulator-tab-btn ${currentDocKey === 'calvino' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => selectDoc('calvino')}
               >
-                <span className="desktop-tab-label">📖 Calvino (Voci Reali)</span>
+                <span className="desktop-tab-label">{isEnglish ? '📖 Calvino (Real Voice)' : '📖 Calvino (Voci Reali)'}</span>
                 <span className="mobile-tab-label">📖 Calvino</span>
               </button>
               <button
@@ -169,8 +188,8 @@ export default function AudioSimulator() {
                 className={`btn simulator-tab-btn ${currentDocKey === 'neuroscience' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => selectDoc('neuroscience')}
               >
-                <span className="desktop-tab-label">🔬 Neuroscienze</span>
-                <span className="mobile-tab-label">🔬 Scienza</span>
+                <span className="desktop-tab-label">{isEnglish ? '🔬 Neuroscience' : '🔬 Neuroscienze'}</span>
+                <span className="mobile-tab-label">{isEnglish ? '🔬 Science' : '🔬 Scienza'}</span>
               </button>
               <button
                 type="button"
@@ -185,30 +204,30 @@ export default function AudioSimulator() {
                 className={`btn simulator-tab-btn ${currentDocKey === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => selectDoc('custom')}
               >
-                <span className="desktop-tab-label">✍️ Scrivi Testo Tuo</span>
-                <span className="mobile-tab-label">✍️ Tuo Testo</span>
+                <span className="desktop-tab-label">{isEnglish ? '✍️ Your Custom Text' : '✍️ Scrivi Testo Tuo'}</span>
+                <span className="mobile-tab-label">{isEnglish ? '✍️ Custom' : '✍️ Tuo Testo'}</span>
               </button>
             </div>
 
             {/* Document Stats & Pin Controller */}
             <div className="simulator-stats-bar">
               <div className="simulator-stats-info">
-                <span><FileText size={13} /> {activeSentences.length} frasi</span>
+                <span><FileText size={13} /> {activeSentences.length} {isEnglish ? (activeSentences.length === 1 ? 'sentence' : 'sentences') : 'frasi'}</span>
                 <span className="stat-separator">·</span>
                 <span><Clock size={13} /> ~{estimatedSeconds}s</span>
                 <span className="stat-separator">·</span>
-                <span className="simulator-stat-accent"><Sparkles size={13} /> {steps || 16} step</span>
+                <span className="simulator-stat-accent"><Sparkles size={13} /> {steps || 16} {isEnglish ? 'steps' : 'step'}</span>
               </div>
 
               <button
                 type="button"
                 onClick={() => setPinExpanded(prev => !prev)}
                 className={`a11y-btn simulator-pin-toggle-btn ${pinExpanded ? 'active' : ''}`}
-                title="Tieni i controlli della pillola sempre aperti oppure espandili al passaggio del mouse"
+                title={isEnglish ? 'Keep pill controls always open or expand on hover' : 'Tieni i controlli della pillola sempre aperti oppure espandili al passaggio del mouse'}
               >
                 <Maximize2 size={12} />
-                <span className="desktop-pin-text">{pinExpanded ? 'Pillola Fissata Espansa' : 'Espansione al Passaggio'}</span>
-                <span className="mobile-pin-text">{pinExpanded ? 'Fissa' : 'Auto'}</span>
+                <span className="desktop-pin-text">{pinExpanded ? (isEnglish ? 'Pill Fixed Open' : 'Pillola Fissata Espansa') : (isEnglish ? 'Expand on Hover' : 'Espansione al Passaggio')}</span>
+                <span className="mobile-pin-text">{pinExpanded ? (isEnglish ? 'Fixed' : 'Fissa') : 'Auto'}</span>
               </button>
             </div>
 
@@ -250,7 +269,7 @@ export default function AudioSimulator() {
                       type="button"
                       className="pill-capsule-btn"
                       onClick={skipPrev}
-                      title="Torna alla frase precedente (↺ 5s)"
+                      title={isEnglish ? 'Previous sentence (↺ 5s)' : 'Torna alla frase precedente (↺ 5s)'}
                     >
                       ↺ 5s
                     </button>
@@ -260,8 +279,8 @@ export default function AudioSimulator() {
                       type="button"
                       className="pill-play-btn"
                       onClick={isPlaying ? pause : play}
-                      title={isPlaying ? 'Metti in pausa' : 'Riproduci testo'}
-                      aria-label={isPlaying ? 'Pausa' : 'Riproduci'}
+                      title={isPlaying ? (isEnglish ? 'Pause playback' : 'Metti in pausa') : (isEnglish ? 'Play text' : 'Riproduci testo')}
+                      aria-label={isPlaying ? (isEnglish ? 'Pause' : 'Pausa') : (isEnglish ? 'Play' : 'Riproduci')}
                     >
                       {isPlaying ? <Pause size={13} fill="#000" /> : <Play size={13} fill="#000" style={{ marginLeft: 2 }} />}
                     </button>
@@ -271,7 +290,7 @@ export default function AudioSimulator() {
                       type="button"
                       className="pill-capsule-btn"
                       onClick={skipNext}
-                      title="Salta alla frase successiva (15s ↻)"
+                      title={isEnglish ? 'Next sentence (15s ↻)' : 'Salta alla frase successiva (15s ↻)'}
                     >
                       15s ↻
                     </button>
@@ -281,7 +300,7 @@ export default function AudioSimulator() {
                       type="button"
                       className="pill-speed-btn"
                       onClick={handleCycleSpeed}
-                      title="Clicca per cambiare velocità"
+                      title={isEnglish ? 'Click to change speed' : 'Clicca per cambiare velocità'}
                     >
                       {rate.toFixed(2)}×
                     </button>
@@ -292,7 +311,7 @@ export default function AudioSimulator() {
                         type="button"
                         className="pill-icon-nav"
                         onClick={skipPrev}
-                        title="Frase precedente"
+                        title={isEnglish ? 'Previous sentence' : 'Frase precedente'}
                       >
                         <ChevronLeft size={16} />
                       </button>
@@ -300,7 +319,7 @@ export default function AudioSimulator() {
                         type="button"
                         className="pill-icon-nav"
                         onClick={skipNext}
-                        title="Frase successiva"
+                        title={isEnglish ? 'Next sentence' : 'Frase successiva'}
                       >
                         <ChevronRight size={16} />
                       </button>
@@ -331,10 +350,15 @@ export default function AudioSimulator() {
                   lineHeight: 1.5,
                   marginBottom: 12
                 }}>
-                  <strong style={{ color: 'var(--accent-sky)' }}>Sintesi a 16 Step:</strong> I campioni vocali ufficiali Supertonic 3 ONNX a 16 step reali (44.1 kHz) sono attivi e riproducibili all'istante sui tre brani in alto (Calvino, Neuroscienze, English) con tutte le 10 voci. Sul testo libero, la sintesi neurale a 16 step si collega al backend locale se attivo, oppure alla voce di sistema.
+                  <strong style={{ color: 'var(--accent-sky)' }}>
+                    {isEnglish ? '16-Step Synthesis:' : 'Sintesi a 16 Step:'}
+                  </strong>{' '}
+                  {isEnglish 
+                    ? "Official Supertonic 3 ONNX 16-step neural audio samples (44.1 kHz) are active and instantly playable on the three sample texts above (Calvino, Neuroscience, English) across all 10 voices. On custom text, 16-step neural synthesis connects to the local backend if active, or falls back to system voice."
+                    : "I campioni vocali ufficiali Supertonic 3 ONNX a 16 step reali (44.1 kHz) sono attivi e riproducibili all'istante sui tre brani in alto (Calvino, Neuroscienze, English) con tutte le 10 voci. Sul testo libero, la sintesi neurale a 16 step si collega al backend locale se attivo, oppure alla voce di sistema."}
                 </div>
                 <label htmlFor="custom-text-input" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                  Digita o incolla qualsiasi testo:
+                  {isEnglish ? 'Type or paste any text:' : 'Digita o incolla qualsiasi testo:'}
                 </label>
                 <textarea
                   id="custom-text-input"
@@ -368,7 +392,7 @@ export default function AudioSimulator() {
                     ref={idx === currentSentenceIndex ? activeSentenceRef : null}
                     onClick={() => playSentence(idx)}
                     className={`simulator-sentence ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
-                    title="Clicca su questa riga per ascoltarla con la Floating Pill"
+                    title={isEnglish ? 'Click this line to listen with the Floating Pill' : 'Clicca su questa riga per ascoltarla con la Floating Pill'}
                   >
                     {sentence}
                   </p>
@@ -381,9 +405,11 @@ export default function AudioSimulator() {
               {/* Top Row: Voice & Precision Badge */}
               <div className="simulator-toolbar-top-row">
                 <div className="simulator-voice-selector">
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Voce:</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    {isEnglish ? 'Voice:' : 'Voce:'}
+                  </span>
                   <select
-                    aria-label="Seleziona voce neurale"
+                    aria-label={isEnglish ? 'Select neural voice' : 'Seleziona voce neurale'}
                     value={selectedVoice}
                     onChange={(e) => setSelectedVoice(e.target.value)}
                     className="simulator-voice-select"
@@ -398,7 +424,7 @@ export default function AudioSimulator() {
 
                 <div className="simulator-precision-wrap">
                   <span className="badge-pill simulator-precision-badge">
-                    <Sparkles size={11} /> {steps || 16} Step
+                    <Sparkles size={11} /> {steps || 16} {isEnglish ? 'Steps' : 'Step'}
                   </span>
                 </div>
               </div>
@@ -407,13 +433,15 @@ export default function AudioSimulator() {
               <div className="simulator-sliders-compact-grid">
                 <div className="simulator-slider-col">
                   <div className="simulator-slider-label-row">
-                    <span style={{ color: 'var(--text-secondary)' }}>Velocità</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {isEnglish ? 'Speed' : 'Velocità'}
+                    </span>
                     <strong style={{ color: 'var(--accent-sky)', fontFamily: 'var(--font-mono)' }}>
                       {rate.toFixed(2)}x
                     </strong>
                   </div>
                   <input
-                    aria-label="Velocità vocale fine"
+                    aria-label={isEnglish ? 'Fine speech speed' : 'Velocità vocale fine'}
                     type="range"
                     min="0.75"
                     max="2.0"
@@ -427,13 +455,15 @@ export default function AudioSimulator() {
 
                 <div className="simulator-slider-col">
                   <div className="simulator-slider-label-row">
-                    <span style={{ color: 'var(--text-secondary)' }}>Pausa frasi</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {isEnglish ? 'Sentence pause' : 'Pausa frasi'}
+                    </span>
                     <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
                       {pauseDuration}ms
                     </strong>
                   </div>
                   <input
-                    aria-label="Pausa tra le frasi"
+                    aria-label={isEnglish ? 'Pause between sentences' : 'Pausa tra le frasi'}
                     type="range"
                     min="0"
                     max="800"
@@ -461,9 +491,13 @@ export default function AudioSimulator() {
                     <Info size={15} />
                   </div>
                   <div className="simulator-web-notice-title" style={{ margin: 0 }}>
-                    <span>Precisione {steps || 16} step · Mac zero latenza</span>
+                    <span>
+                      {isEnglish 
+                        ? `Precision ${steps || 16} steps · Mac zero latency`
+                        : `Precisione ${steps || 16} step · Mac zero latenza`}
+                    </span>
                     <span className="badge-pill simulator-fidelity-badge">
-                      Alta Fedeltà
+                      {isEnglish ? 'High Fidelity' : 'Alta Fedeltà'}
                     </span>
                   </div>
                 </div>
@@ -471,9 +505,11 @@ export default function AudioSimulator() {
                 <button
                   type="button"
                   className="simulator-web-notice-toggle-btn"
-                  aria-label="Mostra dettagli latenza"
+                  aria-label={isEnglish ? 'Toggle latency details' : 'Mostra dettagli latenza'}
                 >
-                  <span className="toggle-text">{isNoticeOpen ? 'Meno' : 'Dettagli'}</span>
+                  <span className="toggle-text">
+                    {isNoticeOpen ? (isEnglish ? 'Less' : 'Meno') : (isEnglish ? 'Details' : 'Dettagli')}
+                  </span>
                   <ChevronDown 
                     size={13} 
                     style={{ 
@@ -487,11 +523,23 @@ export default function AudioSimulator() {
               {/* Full explanation text */}
               <div className={`simulator-web-notice-body ${isNoticeOpen ? 'is-visible' : ''}`}>
                 <p className="simulator-web-notice-text">
-                  La precisione della generazione della voce nella versione web è calibrata a <strong>{steps || 16} step</strong> per garantire la massima fedeltà e naturalezza dell'audio.
-                  La possibile latenza nella generazione o nell'avvio della voce può essere data dalla versione web del generatore e dalla velocità della connessione dell'utente.
-                  <span className="simulator-web-notice-native">
-                    {' '}Nella versione installata per Mac questa latenza non sarà presente
-                  </span>: la sintesi vocale avviene direttamente sul tuo computer a livello di sistema operativo (&lt;15 ms), al 100% in locale senza alcun ritardo di rete né dipendenza dal cloud.
+                  {isEnglish ? (
+                    <>
+                      The speech synthesis precision in the web simulator is calibrated at <strong>{steps || 16} steps</strong> to deliver maximum naturalness and acoustic fidelity.
+                      Any slight start latency can stem from browser-side generation and network transfer speed.
+                      <span className="simulator-web-notice-native">
+                        {' '}In the installed native Mac application, this latency does not exist
+                      </span>: neural synthesis takes place directly on your computer at the operating system level (&lt;15 ms), 100% locally with zero network delays or cloud dependency.
+                    </>
+                  ) : (
+                    <>
+                      La precisione della generazione della voce nella versione web è calibrata a <strong>{steps || 16} step</strong> per garantire la massima fedeltà e naturalezza dell'audio.
+                      La possibile latenza nella generazione o nell'avvio della voce può essere data dalla versione web del generatore e dalla velocità della connessione dell'utente.
+                      <span className="simulator-web-notice-native">
+                        {' '}Nella versione installata per Mac questa latenza non sarà presente
+                      </span>: la sintesi vocale avviene direttamente sul tuo computer a livello di sistema operativo (&lt;15 ms), al 100% in locale senza alcun ritardo di rete né dipendenza dal cloud.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
