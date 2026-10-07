@@ -32,10 +32,25 @@ public final class AppState: @unchecked Sendable {
         return availableVoices.filter { $0.language == selectedLanguage }
     }
     
+    // MARK: - Performance Vocale & Telemetria (PERF-1, PERF-2, PERF-3)
+    /// Precisione di generazione Supertonic (default: 8 step, turbo: 5-6 step, hi-fi: 10-12 step)
+    public var synthesisSteps: Int = 8
+    /// Attiva la sintesi a bassa latenza per il primo frammento audio (chunk 0) per avvio istantaneo
+    public var isFirstChunkBoostEnabled: Bool = true
+    /// Profondità del buffer circolare di pre-caricamento (2 = precarica N+1 e N+2)
+    public var preloadDepth: Int = 2
+    /// Latenza effettiva in millisecondi registrata tra il comando Play e l'emissione del primo audio
+    public var lastFirstChunkLatencyMs: Double? = nil
+    /// Ultimo Real-Time Factor misurato (durata_audio / tempo_sintesi; > 1.0 significa più veloce del tempo reale)
+    public var lastRealTimeFactor: Double? = nil
+    /// Ultimo tempo di sintesi per chunk in ms
+    public var lastSynthesisLatencyMs: Double? = nil
+    
     // MARK: - Finestre & Modalità
     public var presentationMode: WindowPresentationMode = .floatingPill
     public var accessibilityProfile: AccessibilityProfile = .standard
     public var isAlwaysOnTop: Bool = true
+    public var isFloatingPillVisible: Bool = false
     public var isPillExpanded: Bool = false
     public var pillOrientation: PillOrientation = .horizontal
     public var pillDockSide: PillDockSide = .center

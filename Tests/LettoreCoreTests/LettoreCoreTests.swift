@@ -95,6 +95,13 @@ final class LettoreCoreTests: XCTestCase {
         let state = AppState()
         XCTAssertEqual(state.pillOrientation, .horizontal)
         XCTAssertEqual(state.pillDockSide, .center)
+        XCTAssertFalse(state.isFloatingPillVisible)
+        XCTAssertFalse(state.isPillExpanded)
+        
+        state.isFloatingPillVisible = true
+        state.isPillExpanded = true
+        XCTAssertTrue(state.isFloatingPillVisible)
+        XCTAssertTrue(state.isPillExpanded)
         
         state.pillOrientation = .vertical
         state.pillDockSide = .left

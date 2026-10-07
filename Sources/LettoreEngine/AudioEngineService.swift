@@ -5,6 +5,7 @@ import LettoreCore
 /// Servizio audio basato su AVAudioPlayer.
 /// Riproduce WAV data direttamente, senza bisogno di AVAudioEngine
 /// (che non funziona da processi swift run / CLI su macOS).
+@MainActor
 public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
     
     private var player: AVAudioPlayer?
@@ -34,8 +35,9 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         super.init()
     }
     
-    deinit {
-        stop()
+    isolated deinit {
+        meteringTimer?.invalidate()
+        player?.stop()
     }
     
     // MARK: - Controlli Riproduzione
@@ -101,10 +103,8 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         let completion = onPlaybackComplete
         onPlaybackComplete = nil
         self.player = nil
-        DispatchQueue.main.async {
-            self.onProgressUpdate?(1.0)
-            completion?()
-        }
+        self.onProgressUpdate?(1.0)
+        completion?()
     }
     
     public func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
@@ -113,9 +113,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         let completion = onPlaybackComplete
         onPlaybackComplete = nil
         self.player = nil
-        DispatchQueue.main.async {
-            completion?()
-        }
+        completion?()
     }
     
     // MARK: - Metering per Waveform
@@ -123,27 +121,27 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     private func startMetering() {
         meteringTimer?.invalidate()
         meteringTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
-            guard let self = self, let player = self.player, player.isPlaying else { return }
-            player.updateMeters()
-            let power = player.averagePower(forChannel: 0)
-            // power è in dB (-160 ... 0). Normalizziamo a 0.0 - 1.0
-            let normalized = max(0.0, min(1.0, (power + 50.0) / 50.0))
-            
-            // Aggiungi variazione organica per le 7 barre
-            let t = CFAbsoluteTimeGetCurrent()
-            let levels: [Float] = [
-                normalized * Float(0.45 + 0.15 * sin(t * 3.1)),
-                normalized * Float(0.70 + 0.10 * cos(t * 2.7)),
-                normalized * Float(0.90 + 0.10 * sin(t * 4.3)),
-                normalized * 1.0,
-                normalized * Float(0.85 + 0.10 * cos(t * 3.8)),
-                normalized * Float(0.60 + 0.15 * sin(t * 2.2)),
-                normalized * Float(0.35 + 0.10 * cos(t * 5.1))
-            ]
-            
-            let chunkProgress = player.duration > 0 ? max(0.0, min(1.0, player.currentTime / player.duration)) : 0.0
-            
-            DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                guard let self = self, let player = self.player, player.isPlaying else { return }
+                player.updateMeters()
+                let power = player.averagePower(forChannel: 0)
+                // power è in dB (-160 ... 0). Normalizziamo a 0.0 - 1.0
+                let normalized = max(0.0, min(1.0, (power + 50.0) / 50.0))
+                
+                // Aggiungi variazione organica per le 7 barre
+                let t = CFAbsoluteTimeGetCurrent()
+                let levels: [Float] = [
+                    normalized * Float(0.45 + 0.15 * sin(t * 3.1)),
+                    normalized * Float(0.70 + 0.10 * cos(t * 2.7)),
+                    normalized * Float(0.90 + 0.10 * sin(t * 4.3)),
+                    normalized * 1.0,
+                    normalized * Float(0.85 + 0.10 * cos(t * 3.8)),
+                    normalized * Float(0.60 + 0.15 * sin(t * 2.2)),
+                    normalized * Float(0.35 + 0.10 * cos(t * 5.1))
+                ]
+                
+                let chunkProgress = player.duration > 0 ? max(0.0, min(1.0, player.currentTime / player.duration)) : 0.0
+                
                 self.onAudioLevelsUpdate?(levels)
                 self.onProgressUpdate?(chunkProgress)
             }
@@ -153,8 +151,6 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     private func stopMetering() {
         meteringTimer?.invalidate()
         meteringTimer = nil
-        DispatchQueue.main.async { [weak self] in
-            self?.onAudioLevelsUpdate?([0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15])
-        }
+        self.onAudioLevelsUpdate?([0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15])
     }
 }

@@ -8,6 +8,13 @@ public protocol TTSPipelineProtocol: Sendable {
     var isModelLoaded: Bool { get }
     func loadModel() async throws
     func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data
+    func synthesize(text: String, voice: VoiceProfile, speed: Float, steps: Int) async throws -> Data
+}
+
+public extension TTSPipelineProtocol {
+    func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data {
+        try await synthesize(text: text, voice: voice, speed: speed, steps: 8)
+    }
 }
 
 /// Pipeline di test e mock per eseguire unit tests e sviluppo UI offline senza dipendere dai pesi ONNX.
@@ -24,6 +31,10 @@ public final class MockTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
     }
     
     public func synthesize(text: String, voice: VoiceProfile, speed: Float) async throws -> Data {
+        try await synthesize(text: text, voice: voice, speed: speed, steps: 8)
+    }
+    
+    public func synthesize(text: String, voice: VoiceProfile, speed: Float, steps: Int) async throws -> Data {
         if !isModelLoaded {
             try await loadModel()
         }

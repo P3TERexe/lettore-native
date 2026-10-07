@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if window.title == "Lettore Studio" {
                     window.makeKeyAndOrderFront(nil)
                     window.orderFrontRegardless()
+                    window.isMovableByWindowBackground = true
                 }
             }
         }
@@ -39,7 +40,11 @@ struct LettoreApp: App {
     @State private var isCaptureLogicSetup = false
     
     init() {
+        let chunker = SentenceChunker()
+        let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
+        let chunks = chunker.chunk(text: sample)
         let state = AppState()
+        state.setQueue(chunks)
         _appState = State(initialValue: state)
         
         self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
@@ -121,7 +126,7 @@ struct LettoreApp: App {
         // Finestra Principale Studio / Super Accessibile
         WindowGroup("Lettore Studio", id: "studio-window") {
             if appState.accessibilityProfile == .lowVision {
-                SuperAccessibleView(appState: appState, audioEngine: audioEngine)
+                SuperAccessibleView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
                     .frame(minWidth: 960, minHeight: 640)
                     .task { setupCaptureLogic(state: appState) }
             } else {
@@ -135,14 +140,14 @@ struct LettoreApp: App {
                 .task { setupCaptureLogic(state: appState) }
             }
         }
-        .windowToolbarStyle(.unified)
+        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("Informazioni su Lettore Native") {
                     NSApplication.shared.orderFrontStandardAboutPanel(
                         options: [
                             .applicationName: "Lettore Native",
-                            .applicationVersion: "3.0.0",
+                            .applicationVersion: "0.3.0",
                             .version: "Native macOS Edition",
                             .credits: NSAttributedString(
                                 string: "Applicazione 100% nativa progettata per l'accessibilità.\nSintesi neurale locale potenziata da Supertonic ONNX.",

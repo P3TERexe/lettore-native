@@ -7,10 +7,12 @@ import LettoreEngine
 public struct SuperAccessibleView: View {
     @Bindable public var appState: AppState
     public var audioEngine: AudioEngineService
+    public var coordinator: PlaybackCoordinator?
     
-    public init(appState: AppState, audioEngine: AudioEngineService) {
+    public init(appState: AppState, audioEngine: AudioEngineService, coordinator: PlaybackCoordinator? = nil) {
         self.appState = appState
         self.audioEngine = audioEngine
+        self.coordinator = coordinator
     }
     
     private let solarAmber = Color(red: 1.0, green: 0.72, blue: 0.01) // #FFB703
@@ -65,16 +67,37 @@ public struct SuperAccessibleView: View {
             .background(solarAmber.opacity(0.12))
             .overlay(Capsule().strokeBorder(solarAmber, lineWidth: 1.5))
             
+            Button(action: {
+                appState.accessibilityProfile = .standard
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.left")
+                    Text("Studio")
+                }
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(cardSurface)
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .buttonStyle(.plain)
+            
             Spacer()
             
             // Pulsante Riproduci / Sospendi Tattile
             Button(action: {
-                if appState.playbackState == .playing {
-                    audioEngine.pause()
-                    appState.playbackState = .paused
+                if let coordinator = coordinator {
+                    coordinator.togglePlayPause()
                 } else {
-                    audioEngine.play()
-                    appState.playbackState = .playing
+                    if appState.playbackState == .playing {
+                        audioEngine.pause()
+                        appState.playbackState = .paused
+                    } else {
+                        audioEngine.play()
+                        appState.playbackState = .playing
+                    }
                 }
             }) {
                 HStack(spacing: 10) {
@@ -99,8 +122,12 @@ public struct SuperAccessibleView: View {
             
             // Pulsante Ferma
             Button(action: {
-                audioEngine.stop()
-                appState.playbackState = .idle
+                if let coordinator = coordinator {
+                    coordinator.stop()
+                } else {
+                    audioEngine.stop()
+                    appState.playbackState = .idle
+                }
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "stop.fill")
@@ -139,7 +166,7 @@ public struct SuperAccessibleView: View {
                     .frame(minWidth: 55)
                 
                 Button("+") {
-                    let newSpeed = min(3.0, appState.playbackSpeed + 0.1)
+                    let newSpeed = min(2.0, appState.playbackSpeed + 0.1)
                     appState.setSpeed(newSpeed)
                     audioEngine.setSpeed(newSpeed)
                 }
@@ -160,11 +187,29 @@ public struct SuperAccessibleView: View {
     private var readingRunwayArea: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                // Paragrafo precedente attenuato
-                Text("Il sole tramontava oltre le colline dell'Umbria, proiettando lunghe ombre d'ambra sui vigneti antichi. L'aria era limpida e silenziosa.")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.4))
-                    .lineSpacing(10)
+                let currentIndex = appState.currentChunk.flatMap { current in
+                    appState.readingQueue.firstIndex(where: { $0.id == current.id })
+                } ?? 0
+                
+                // Paragrafo precedente attenuato dalla coda reale
+                if currentIndex > 0 && currentIndex < appState.readingQueue.count {
+                    let prevChunk = appState.readingQueue[currentIndex - 1]
+                    Button(action: {
+                        coordinator?.jumpToChunk(prevChunk)
+                    }) {
+                        Text(prevChunk.text)
+                            .font(.system(size: 22, weight: .regular))
+                            .foregroundStyle(Color.white.opacity(0.4))
+                            .lineSpacing(10)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Salta alla frase precedente")
+                } else if !appState.readingQueue.isEmpty {
+                    Text("— Inizio del testo —")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.25))
+                }
                 
                 // Active Reading Runway Card
                 HStack(spacing: 18) {
@@ -175,7 +220,7 @@ public struct SuperAccessibleView: View {
                         .shadow(color: solarAmber.opacity(0.5), radius: 5)
                     
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(appState.currentChunk?.text ?? "La tecnologia vocale moderna rende accessibile qualsiasi informazione a chiunque, senza barriere visive.")
+                        Text(appState.currentChunk?.text ?? (appState.readingQueue.first?.text ?? "Nessun testo in riproduzione. Incolla un testo o catturalo con ⌥+C."))
                             .font(.system(size: 25, weight: .bold))
                             .foregroundStyle(.white)
                             .lineSpacing(12)
@@ -191,11 +236,25 @@ public struct SuperAccessibleView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: Color.black.opacity(0.5), radius: 20, y: 8)
                 
-                // Paragrafo successivo attenuato
-                Text("Ogni carattere deve essere scolpito con precisione e distinzione: l'occhio non deve compiere sforzi inutili per distinguere lettere simili.")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(Color.white.opacity(0.4))
-                    .lineSpacing(10)
+                // Paragrafo successivo attenuato dalla coda reale
+                if currentIndex + 1 < appState.readingQueue.count {
+                    let nextChunk = appState.readingQueue[currentIndex + 1]
+                    Button(action: {
+                        coordinator?.jumpToChunk(nextChunk)
+                    }) {
+                        Text(nextChunk.text)
+                            .font(.system(size: 22, weight: .regular))
+                            .foregroundStyle(Color.white.opacity(0.4))
+                            .lineSpacing(10)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Salta alla frase successiva")
+                } else if !appState.readingQueue.isEmpty {
+                    Text("— Fine del testo —")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.25))
+                }
             }
             .padding(40)
         }

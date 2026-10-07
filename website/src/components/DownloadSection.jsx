@@ -49,7 +49,7 @@ swift run LettoreApp`;
                 {isEnglish ? 'Ready for all Mac models (Apple Silicon M1/M2/M3/M4 & Intel). Fast to install and runs immediately.' : 'Pronto per tutti i modelli di Mac (Apple Silicon M1/M2/M3/M4 e Intel). Facile da installare e subito pronto all\'uso.'}
               </p>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 24 }}>
-                {isEnglish ? 'Version 3.0.0 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 3.0.0 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
+                {isEnglish ? 'Version 0.3.0 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 0.3.0 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
               </div>
             </div>
 

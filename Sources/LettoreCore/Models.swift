@@ -54,6 +54,7 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
     public let rawText: String
     public var isSpoken: Bool
     public var durationSeconds: Double?
+    public var synthesisLatencyMs: Double?
     
     public init(
         id: UUID = UUID(),
@@ -61,7 +62,8 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         text: String,
         rawText: String? = nil,
         isSpoken: Bool = false,
-        durationSeconds: Double? = nil
+        durationSeconds: Double? = nil,
+        synthesisLatencyMs: Double? = nil
     ) {
         self.id = id
         self.index = index
@@ -69,6 +71,7 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         self.rawText = rawText ?? text
         self.isSpoken = isSpoken
         self.durationSeconds = durationSeconds
+        self.synthesisLatencyMs = synthesisLatencyMs
     }
 }
 

@@ -13,7 +13,7 @@
 > 🚀 **Prova subito la simulazione nel browser:** [**p3terexe.github.io/lettore-native/#hero**](https://p3terexe.github.io/lettore-native/#hero) (include la Floating Pill interattiva e la sintesi vocale di prova).
 
 ### 🌐 [👉 Prova la Demo Interattiva nel Browser](https://p3terexe.github.io/lettore-native/#hero)
-### 📥 [Scarica l'Ultima Versione per macOS (v3.0.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
+### 📥 [Scarica l'Ultima Versione per macOS (v0.3.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
 
 ## 🚀 Funzionalità Chiave
 

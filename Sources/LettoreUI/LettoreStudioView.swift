@@ -61,6 +61,7 @@ public struct LettoreStudioView: View {
             }
         }
         .background(bgDark)
+        .ignoresSafeArea(edges: .top)
         .preferredColorScheme(.dark)
         .onAppear {
             NSApp.setActivationPolicy(.regular)
@@ -74,7 +75,7 @@ public struct LettoreStudioView: View {
     // MARK: - Header Toolbar
     
     private var headerToolbar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             // Logo & Badge Versione
             HStack(spacing: 10) {
                 ZStack {
@@ -95,30 +96,27 @@ public struct LettoreStudioView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Lettore Studio")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
                     
                     Text("100% Native Swift 6 · ANE")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(brandCyan)
+                        .lineLimit(1)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
             
             Spacer()
             
-            // Switcher Modalità di Presentazione
-            HStack(spacing: 6) {
-                modeButton(title: "Studio", icon: "macwindow", isSelected: true) {}
-                
-                modeButton(title: "Pillola Libera", icon: "capsule.portrait", isSelected: false) {
-                    FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+            // Switcher Profilo di Vista (Mutuamente esclusivo: Studio vs Bassa Visione)
+            HStack(spacing: 4) {
+                modeButton(title: "Studio", icon: "macwindow", isSelected: appState.accessibilityProfile == .standard) {
+                    appState.accessibilityProfile = .standard
                 }
                 
-                modeButton(title: "Tacca Notch", icon: "menubar.arrow.up.rectangle", isSelected: false) {
-                    showingNotchPreview = true
-                }
-                
-                modeButton(title: "Bassa Visione", icon: "eye.fill", isSelected: false) {
+                modeButton(title: "Bassa Visione", icon: "eye.fill", isSelected: appState.accessibilityProfile == .lowVision) {
                     appState.accessibilityProfile = .lowVision
                 }
             }
@@ -128,11 +126,28 @@ public struct LettoreStudioView: View {
             
             Spacer()
             
-            // Pulsanti Cattura Rapida e Pin
+            // Strumenti & Finestre Ausiliarie
             HStack(spacing: 8) {
                 actionButton(
+                    icon: "capsule.portrait",
+                    title: "Pillola",
+                    isActive: appState.isFloatingPillVisible
+                ) {
+                    FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                }
+                
+                actionButton(
+                    icon: "menubar.arrow.up.rectangle",
+                    title: "Notch",
+                    isActive: false
+                ) {
+                    showingNotchPreview = true
+                }
+                
+                actionButton(
                     icon: appState.isAlwaysOnTop ? "pin.fill" : "pin",
-                    title: appState.isAlwaysOnTop ? "Sempre Sopra: ON" : "Sempre Sopra: OFF"
+                    title: "Sempre Sopra",
+                    isActive: appState.isAlwaysOnTop
                 ) {
                     appState.isAlwaysOnTop.toggle()
                     for window in NSApp.windows {
@@ -141,18 +156,12 @@ public struct LettoreStudioView: View {
                         }
                     }
                 }
-                
-                actionButton(icon: "bolt.fill", title: "App AX") {
-                    captureFromFrontmostApp()
-                }
-                
-                actionButton(icon: "doc.on.clipboard", title: "Appunti") {
-                    pasteFromClipboard()
-                }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.leading, 80) // Spazio FISSO e NON comprimibile per i semafori macOS
+        .padding(.trailing, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
         .background(Color(red: 0.08, green: 0.09, blue: 0.12))
     }
     
@@ -228,10 +237,15 @@ public struct LettoreStudioView: View {
                 }
                 .padding(.horizontal, 8)
                 
-                // Centratura Pillola
+                // Centratura Pillola (Modalità incorporata nello Studio: orizzontale fissa)
                 HStack {
                     Spacer()
-                    FloatingPillView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                    FloatingPillView(
+                        appState: appState,
+                        audioEngine: audioEngine,
+                        coordinator: coordinator,
+                        isStandalone: false
+                    )
                     Spacer()
                 }
                 .padding(.vertical, 8)
@@ -315,13 +329,33 @@ public struct LettoreStudioView: View {
             )
             
             // Box di Input Rapido per Nuovo Testo
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 TextField("Scrivi o incolla nuovo testo da ascoltare...", text: $inputText)
                     .textFieldStyle(.plain)
                     .padding(12)
                     .background(Color.black.opacity(0.4))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .foregroundStyle(.white)
+                    .onSubmit {
+                        processNewInput()
+                    }
+                
+                Button(action: {
+                    pasteFromClipboard()
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc.on.clipboard")
+                        Text("Incolla")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.08))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .help("Incolla dagli appunti di sistema e avvia la lettura")
                 
                 Button(action: {
                     processNewInput()
@@ -349,113 +383,158 @@ public struct LettoreStudioView: View {
     // MARK: - Sidebar Parametri & Voci
     
     private var sidebarControls: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            // Sezione Lingua & Voci Neurali
-            VStack(alignment: .leading, spacing: 10) {
-                Text("LINGUA & VOCE")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.5))
-                
-                // Picker Lingua
-                Picker("", selection: $appState.selectedLanguage) {
-                    ForEach(VoiceProfile.supportedLanguages, id: \.code) { lang in
-                        Text(lang.name).tag(lang.code)
-                    }
-                }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 4)
-                
-                // Lista Voci Filtrate
-                VStack(spacing: 8) {
-                    ForEach(appState.filteredVoices) { voice in
-                        voiceRow(id: voice.id, name: "\(voice.name)", isSelected: appState.selectedVoice.id == voice.id)
-                    }
-                }
-            }
-            
-            // Sezione Velocità Riproduzione
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("VELOCITÀ")
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                // Sezione Lingua & Voci Neurali
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("LINGUA & VOCE")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.5))
                     
-                    Spacer()
+                    // Picker Lingua
+                    Picker("", selection: $appState.selectedLanguage) {
+                        ForEach(VoiceProfile.supportedLanguages, id: \.code) { lang in
+                            Text(lang.name).tag(lang.code)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 4)
                     
-                    Text("\(String(format: "%.2f", appState.playbackSpeed))×")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundStyle(brandCyan)
-                }
-                
-                Slider(value: Binding(
-                    get: { Double(appState.playbackSpeed) },
-                    set: { newVal in
-                        let floatVal = Float(newVal)
-                        appState.playbackSpeed = floatVal
-                        audioEngine.setSpeed(floatVal)
+                    // Lista Voci Filtrate
+                    VStack(spacing: 8) {
+                        ForEach(appState.filteredVoices) { voice in
+                            voiceRow(id: voice.id, name: "\(voice.name)", isSelected: appState.selectedVoice.id == voice.id)
+                        }
                     }
-                ), in: 0.5...2.5, step: 0.05)
-                .tint(brandCyan)
-                
-                HStack(spacing: 6) {
-                    speedPresetButton(0.75)
-                    speedPresetButton(1.0)
-                    speedPresetButton(1.25)
-                    speedPresetButton(1.5)
-                    speedPresetButton(2.0)
                 }
-            }
-            
-            // Monitor Spettro Audio
-            VStack(alignment: .leading, spacing: 10) {
-                Text("MONITOR LIVE")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.5))
                 
-                HStack(spacing: 5) {
-                    ForEach(0..<appState.liveWaveformLevels.count, id: \.self) { idx in
-                        let level = CGFloat(appState.liveWaveformLevels[idx])
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(
-                                LinearGradient(
-                                    colors: [brandCyan, brandGreen],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                // Sezione Velocità Riproduzione
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("VELOCITÀ")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.5))
+                        
+                        Spacer()
+                        
+                        Text("\(String(format: "%.2f", appState.playbackSpeed))×")
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundStyle(brandCyan)
+                    }
+                    
+                    Slider(value: Binding(
+                        get: { Double(appState.playbackSpeed) },
+                        set: { newVal in
+                            let floatVal = Float(newVal)
+                            appState.playbackSpeed = floatVal
+                            audioEngine.setSpeed(floatVal)
+                        }
+                    ), in: 0.5...2.5, step: 0.05)
+                    .tint(brandCyan)
+                    
+                    HStack(spacing: 6) {
+                        speedPresetButton(0.75)
+                        speedPresetButton(1.0)
+                        speedPresetButton(1.25)
+                        speedPresetButton(1.5)
+                        speedPresetButton(2.0)
+                    }
+                }
+                
+                // Monitor Spettro Audio
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("MONITOR LIVE")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                    
+                    HStack(spacing: 5) {
+                        ForEach(0..<appState.liveWaveformLevels.count, id: \.self) { idx in
+                            let level = CGFloat(appState.liveWaveformLevels[idx])
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [brandCyan, brandGreen],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
                                 )
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: max(6, level * 40))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: max(6, level * 40))
+                        }
                     }
+                    .frame(height: 44, alignment: .bottom)
+                    .padding(10)
+                    .background(Color.black.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(height: 44, alignment: .bottom)
-                .padding(10)
-                .background(Color.black.opacity(0.35))
+                
+                // Configurazione Performance & Latenza Vocale (PERF-1, PERF-2, PERF-3)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "bolt.fill")
+                            .foregroundStyle(brandGreen)
+                        Text("VELOCITÀ & PERFORMANCE")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    
+                    // Selettore Step Qualità/Latenza
+                    HStack(spacing: 6) {
+                        stepOptionButton(title: "Turbo (5)", steps: 5)
+                        stepOptionButton(title: "Bilanciato (8)", steps: 8)
+                        stepOptionButton(title: "Hi-Fi (12)", steps: 12)
+                    }
+                    
+                    Toggle(isOn: $appState.isFirstChunkBoostEnabled) {
+                        Text("First-Chunk Boost (<150ms)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: brandGreen))
+                    .padding(.top, 2)
+                    
+                    // Telemetria Reale Misurata
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let latency = appState.lastFirstChunkLatencyMs {
+                            HStack {
+                                Text("Latenza Primo Chunk:")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.5))
+                                Spacer()
+                                Text("\(String(format: "%.0f", latency)) ms")
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(latency < 250 ? brandGreen : brandCyan)
+                            }
+                        }
+                        if let synthMs = appState.lastSynthesisLatencyMs {
+                            HStack {
+                                Text("Tempo Sintesi Chunk:")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.5))
+                                Spacer()
+                                Text("\(String(format: "%.0f", synthMs)) ms")
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        if appState.lastFirstChunkLatencyMs == nil && appState.lastSynthesisLatencyMs == nil {
+                            Text("Cache L1/L2 e Ring Buffer N+2 attivi.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.4))
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.04))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            
-            // Box Info Performance
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "cpu")
-                        .foregroundStyle(brandGreen)
-                    Text("Apple Neural Engine")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                
-                Text("Esecuzione 100% offline su Silicon ANE. RAM < 45 MB, latenza First-Chunk < 60 ms.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            
-            Spacer()
+            .padding(18)
         }
-        .padding(20)
         .background(Color(red: 0.08, green: 0.09, blue: 0.12))
     }
     
@@ -465,30 +544,41 @@ public struct LettoreStudioView: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
+                    .font(.system(size: 11))
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(isSelected ? brandCyan : Color.clear)
-            .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.8))
+            .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.85))
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
     
-    private func actionButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+    private func actionButton(icon: String, title: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(isActive ? brandGreen : .white)
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.white.opacity(0.08))
-            .foregroundStyle(.white)
+            .padding(.vertical, 6)
+            .background(isActive ? brandGreen.opacity(0.15) : Color.white.opacity(0.08))
+            .foregroundStyle(isActive ? brandGreen : .white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(isActive ? brandGreen.opacity(0.4) : Color.clear, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
@@ -539,6 +629,22 @@ public struct LettoreStudioView: View {
         .buttonStyle(.plain)
     }
     
+    private func stepOptionButton(title: String, steps: Int) -> some View {
+        Button(action: {
+            appState.synthesisSteps = steps
+        }) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .background(appState.synthesisSteps == steps ? brandGreen : Color.white.opacity(0.08))
+                .foregroundStyle(appState.synthesisSteps == steps ? Color.black : Color.white.opacity(0.8))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+    
     private var notchPreviewSheet: some View {
         VStack(spacing: 20) {
             HStack {
@@ -551,7 +657,7 @@ public struct LettoreStudioView: View {
                 }
             }
             
-            DynamicNotchView(appState: appState, audioEngine: audioEngine)
+            DynamicNotchView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
                 .padding(20)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -587,6 +693,7 @@ public struct LettoreStudioView: View {
         
         appState.setQueue(chunks)
         inputText = ""
+        coordinator.playCurrentChunk()
     }
     
     private func captureFromFrontmostApp() {
