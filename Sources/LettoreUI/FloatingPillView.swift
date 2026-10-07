@@ -33,14 +33,31 @@ public struct FloatingPillView: View {
     }
     
     private var effectiveOrientation: PillOrientation {
-        return .horizontal
+        return isStandalone ? appState.pillOrientation : .horizontal
     }
     
     public var body: some View {
         ZStack {
-            horizontalPill
+            if effectiveOrientation == .vertical {
+                verticalPill
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.90)),
+                            removal: .opacity.combined(with: .scale(scale: 0.90))
+                        )
+                    )
+            } else {
+                horizontalPill
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.90)),
+                            removal: .opacity.combined(with: .scale(scale: 0.90))
+                        )
+                    )
+            }
         }
         .contentShape(Capsule())
+        .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.78), value: effectiveOrientation)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76), value: isExpanded)
         .onHover { hovering in
             handleHover(hovering)
@@ -333,67 +350,79 @@ public struct FloatingPillView: View {
                 .accessibilityLabel("Chiudi pillola")
             }
         }
-    }
-    
-    // MARK: - Layout Verticale (Lati dello Schermo)
+    }    // MARK: - Layout Verticale (Lati dello Schermo - Naturale & Pieno)
     
     private var verticalPill: some View {
-        VStack(spacing: 5) {
-            // Drag grip in alto
+        VStack(spacing: 6) {
+            // Drag grip in alto con cursore e accelerazione hardware
             if isStandalone {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .frame(width: 22, height: 8)
-                    .contentShape(Rectangle())
-                    .padding(.top, 4)
+                verticalDragGrip
             }
             
-            // Sezione Onde Vocali Verticale (tappabile per Play/Pausa)
+            // Sezione Onde Vocali Verticale (animata con decibel vocali)
             verticalWaveformSection
-                .padding(.top, isStandalone ? 0 : 4)
-                .padding(.bottom, isExpanded ? 0 : 4)
             
-            // Sezione Controlli Verticali a Comparsa
+            // Sezione Controlli Verticali o Indicatore Compatto
             if isExpanded {
                 verticalControlsSection
-                    .padding(.bottom, 6)
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.90, anchor: .top)),
                             removal: .opacity.combined(with: .scale(scale: 0.90, anchor: .top))
                         )
                     )
+            } else {
+                verticalCompactPlayIndicator
             }
         }
-        .frame(width: 44)
-        .frame(height: isExpanded ? 198 : 44, alignment: .top)
+        .padding(.vertical, 6)
+        .frame(width: 42)
+        .frame(height: isExpanded ? (appState.isUsingSpeechFallback ? 186 : 164) : 98, alignment: .top)
         .background {
-            Capsule()
-                .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
-                            lineWidth: 1
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
-                .shadow(
-                    color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
-                    radius: isExpanded ? 12 : 6
-                )
-                .contentShape(Capsule())
-                .gesture(dragGesture)
+            ZStack {
+                Capsule()
+                    .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
+                    .shadow(
+                        color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
+                        radius: isExpanded ? 12 : 6
+                    )
+                
+                if isStandalone && !isExpanded {
+                    NativeDragHandleView(appState: appState)
+                        .clipShape(Capsule())
+                }
+            }
         }
         .clipShape(Capsule())
     }
     
+    private var verticalDragGrip: some View {
+        ZStack {
+            NativeDragHandleView(appState: appState)
+            
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(.white.opacity(0.45))
+                .allowsHitTesting(false)
+        }
+        .frame(width: 20, height: 12)
+        .help("Trascina la pillola per spostarla")
+        .accessibilityLabel("Trascina pillola")
+    }
+    
     private var verticalWaveformSection: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 2.2) {
             ForEach(0..<min(4, appState.liveWaveformLevels.count), id: \.self) { idx in
                 let level = waveformLevel(at: idx)
-                RoundedRectangle(cornerRadius: 1)
+                RoundedRectangle(cornerRadius: 1.5)
                     .fill(
                         LinearGradient(
                             colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
@@ -401,11 +430,11 @@ public struct FloatingPillView: View {
                             endPoint: .bottom
                         )
                     )
-                    .frame(width: 2.5, height: max(4, level * 16))
-                    .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4), radius: 1.5)
+                    .frame(width: 2.6, height: max(5, level * 18))
+                    .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4), radius: 2)
             }
         }
-        .frame(width: 24, height: 18, alignment: .center)
+        .frame(width: 22, height: 20, alignment: .center)
         .contentShape(Rectangle())
         .onTapGesture {
             handlePlayPause()
@@ -414,27 +443,57 @@ public struct FloatingPillView: View {
         .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
     }
     
-    private var verticalControlsSection: some View {
-        VStack(spacing: 5) {
-            // Play / Pausa
+    private var verticalCompactPlayIndicator: some View {
+        VStack(spacing: 4) {
             Button(action: handlePlayPause) {
                 ZStack {
                     Circle()
-                        .fill(Color.white)
-                        .frame(width: 24, height: 24)
-                        .shadow(color: Color.white.opacity(0.35), radius: 2.5)
+                        .fill(appState.playbackState == .playing ? Color(red: 0.0, green: 0.9, blue: 1.0) : Color.white.opacity(0.18))
+                        .frame(width: 22, height: 22)
+                        .shadow(
+                            color: appState.playbackState == .playing ? Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4) : Color.clear,
+                            radius: 3
+                        )
                     
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundStyle(.black)
-                        .offset(x: appState.playbackState == .playing ? 0 : 1)
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(appState.playbackState == .playing ? Color.black : Color.white)
+                        .offset(x: appState.playbackState == .playing ? 0 : 0.8)
                 }
             }
             .buttonStyle(.plain)
             .help(appState.playbackState == .playing ? "Pausa" : "Riproduci")
             .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
             
-            // Navigazione Frasi
+            // Puntino inferiore decorativo che bilancia esteticamente il design verticale
+            Circle()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: 3, height: 3)
+                .allowsHitTesting(false)
+        }
+    }
+    
+    private var verticalControlsSection: some View {
+        VStack(spacing: 6) {
+            // Play / Pausa principale in evidenza (cerchio bianco ad alto contrasto)
+            Button(action: handlePlayPause) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 26, height: 26)
+                        .shadow(color: Color.white.opacity(0.35), radius: 3)
+                    
+                    Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.black)
+                        .offset(x: appState.playbackState == .playing ? 0 : 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .help(appState.playbackState == .playing ? "Metti in pausa" : "Riproduci")
+            .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
+            
+            // Navigazione Frasi (Precedente / Successiva)
             HStack(spacing: 3) {
                 Button(action: {
                     if let coordinator = coordinator {
@@ -444,10 +503,10 @@ public struct FloatingPillView: View {
                     }
                 }) {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 17, height: 17)
-                        .background(Color.white.opacity(0.1))
+                        .frame(width: 18, height: 18)
+                        .background(Color.white.opacity(0.12))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -462,10 +521,10 @@ public struct FloatingPillView: View {
                     }
                 }) {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 17, height: 17)
-                        .background(Color.white.opacity(0.1))
+                        .frame(width: 18, height: 18)
+                        .background(Color.white.opacity(0.12))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -473,7 +532,7 @@ public struct FloatingPillView: View {
                 .accessibilityLabel("Frase successiva")
             }
             
-            // Selettore Velocità
+            // Selettore Velocità compatto
             Menu {
                 ForEach([0.7, 0.85, 1.0, 1.05, 1.25, 1.5, 1.75, 2.0], id: \.self) { spd in
                     Button("\(String(format: "%.2f", spd))×") {
@@ -482,12 +541,12 @@ public struct FloatingPillView: View {
                     }
                 }
             } label: {
-                Text("\(String(format: "%.2f", appState.playbackSpeed))×")
+                Text("\(String(format: "%.1f", appState.playbackSpeed))×")
                     .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color(red: 0.0, green: 0.9, blue: 1.0))
-                    .frame(width: 36, height: 16)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .frame(width: 34, height: 17)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 4.5))
             }
             .buttonStyle(.plain)
             .help("Velocità di riproduzione")
@@ -496,9 +555,9 @@ public struct FloatingPillView: View {
             // Avviso Fallback (se attivo)
             if appState.isUsingSpeechFallback {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 9.5, weight: .bold))
                     .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
-                    .help(appState.speechFallbackNotice ?? "Voce macOS di fallback")
+                    .help(appState.speechFallbackNotice ?? "Voce macOS di fallback attiva")
             }
             
             // Pulsanti Pin e Chiudi
@@ -518,7 +577,7 @@ public struct FloatingPillView: View {
                     Image(systemName: appState.isPillExpanded ? "pin.fill" : "pin")
                         .font(.system(size: 9))
                         .foregroundStyle(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0) : .white.opacity(0.75))
-                        .frame(width: 17, height: 17)
+                        .frame(width: 18, height: 18)
                         .background(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.2) : Color.white.opacity(0.08))
                         .clipShape(Circle())
                 }
@@ -533,7 +592,7 @@ public struct FloatingPillView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 8.5, weight: .bold))
                             .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 17, height: 17)
+                            .frame(width: 18, height: 18)
                             .background(Color.white.opacity(0.1))
                             .clipShape(Circle())
                     }
