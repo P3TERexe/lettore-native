@@ -228,6 +228,7 @@ public final class FloatingPillPanelManager {
     
     public func dragPanelStarted() {
         isDragging = true
+        isAnimatingFrame = false
     }
     
     public func dragPanelEnded() {
@@ -246,6 +247,7 @@ public final class FloatingPillPanelManager {
     public func finishDrag(appState: AppState) {
         print("[FloatingPillPanel] Fine drag. Posizione finale: \(panel?.frame.origin ?? .zero)")
         isDragging = false
+        isAnimatingFrame = false
         initialMouseScreenLocation = nil
         initialWindowOrigin = nil
         if let panel = panel {
@@ -336,7 +338,6 @@ public final class FloatingPillPanelManager {
     // MARK: - Docking Naturale & Rilevamento Bordi Schermo
     
     public func evaluateDockingAndOrientation(panel: NSPanel, appState: AppState, animated: Bool) {
-        guard !isAnimatingFrame else { return }
         guard let screen = panel.screen ?? NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
         let panelFrame = panel.frame
@@ -346,10 +347,10 @@ public final class FloatingPillPanelManager {
         
         let isCurrentlyVertical = (appState.pillOrientation == .vertical)
         
-        // Soglie di aggancio con isteresi bilanciata:
-        // - Per agganciarsi ai lati in verticale: basta rilasciare la pillola entro 45px dal bordo
-        // - Per sganciarsi dal lato e tornare orizzontale: basta trascinarla a più di 60px verso l'interno
-        let dockThreshold: CGFloat = isCurrentlyVertical ? 60.0 : 45.0
+        // Soglie di aggancio ergonomiche e naturali:
+        // - Per agganciarsi ai bordi in verticale: basta rilasciare la pillola entro 90px dal bordo
+        // - Per sganciarsi dal bordo e tornare orizzontale: basta allontanarla di oltre 130px verso l'interno
+        let dockThreshold: CGFloat = isCurrentlyVertical ? 130.0 : 90.0
         
         let newOrientation: PillOrientation
         let newDockSide: PillDockSide
@@ -364,6 +365,8 @@ public final class FloatingPillPanelManager {
             newOrientation = .horizontal
             newDockSide = .center
         }
+        
+        print("[FloatingPillPanel] evaluateDockingAndOrientation -> leftDist: \(leftDist), rightDist: \(rightDist), dockThreshold: \(dockThreshold), current: \(appState.pillOrientation), new: \(newOrientation), dockSide: \(newDockSide)")
         
         let orientationChanged = (appState.pillOrientation != newOrientation)
         let dockSideChanged = (appState.pillDockSide != newDockSide)

@@ -45,7 +45,7 @@ let package = Package(
         ),
         .testTarget(
             name: "LettoreCoreTests",
-            dependencies: ["LettoreCore", "LettoreEngine", "LettoreSystem"],
+            dependencies: ["LettoreCore", "LettoreEngine", "LettoreSystem", "LettoreUI"],
             path: "Tests/LettoreCoreTests"
         )
     ]

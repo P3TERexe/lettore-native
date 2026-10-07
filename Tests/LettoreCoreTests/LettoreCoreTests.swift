@@ -1,8 +1,10 @@
 import XCTest
 import CoreGraphics
+import AppKit
 @testable import LettoreCore
 @testable import LettoreEngine
 @testable import LettoreSystem
+@testable import LettoreUI
 
 final class LettoreCoreTests: XCTestCase {
     
@@ -169,9 +171,9 @@ final class LettoreCoreTests: XCTestCase {
         let horizontalWidth: CGFloat = 282
         let verticalWidth: CGFloat = 48
         
-        // Scenario 1: Pillola orizzontale trascinata a 30px dal bordo destro
-        let distFromRightEdge: CGFloat = 30.0
-        let dockThresholdFromHorizontal: CGFloat = 45.0
+        // Scenario 1: Pillola orizzontale trascinata a 60px dal bordo destro
+        let distFromRightEdge: CGFloat = 60.0
+        let dockThresholdFromHorizontal: CGFloat = 90.0
         XCTAssertLessThanOrEqual(distFromRightEdge, dockThresholdFromHorizontal, "Deve agganciarsi a destra")
         
         // Calcolo coordinata X agganciata a destra
@@ -179,12 +181,12 @@ final class LettoreCoreTests: XCTestCase {
         XCTAssertEqual(dockedX, 1470 - 48 - 8)
         XCTAssertLessThanOrEqual(dockedX + verticalWidth, screenRect.maxX - 8)
         
-        // Scenario 2: Pillola verticale ancorata a destra (isteresi di sgancio = 60px)
-        let undockThresholdFromVertical: CGFloat = 60.0
-        let smallPullDist: CGFloat = 50.0 // Non ancora abbastanza per sganciarsi
+        // Scenario 2: Pillola verticale ancorata a destra (isteresi di sgancio = 130px)
+        let undockThresholdFromVertical: CGFloat = 130.0
+        let smallPullDist: CGFloat = 80.0 // Non ancora abbastanza per sganciarsi
         XCTAssertLessThanOrEqual(smallPullDist, undockThresholdFromVertical, "Resta agganciata in verticale")
         
-        let deliberatePullDist: CGFloat = 75.0 // Sgancio deliberato verso il centro
+        let deliberatePullDist: CGFloat = 150.0 // Sgancio deliberato verso il centro
         XCTAssertGreaterThan(deliberatePullDist, undockThresholdFromVertical, "Si sgancia e torna orizzontale")
         
         // Scenario 3: Calcolo ancoraggio espansione verso l'interno schermo
@@ -196,6 +198,37 @@ final class LettoreCoreTests: XCTestCase {
         
         XCTAssertGreaterThanOrEqual(expandedX, minAllowedX, "Non deve uscire a sinistra")
         XCTAssertLessThanOrEqual(expandedX + horizontalWidth, screenRect.maxX - 8, "Non deve uscire a destra")
+    }
+    
+    @MainActor
+    func testFloatingPillDockingExecution() {
+        guard let screen = NSScreen.main else { return }
+        let screenRect = screen.visibleFrame
+        let appState = AppState()
+        let manager = FloatingPillPanelManager.shared
+        
+        let panel = NSPanel(
+            contentRect: NSRect(x: screenRect.maxX - 60, y: 300, width: 104, height: 42),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        
+        appState.pillOrientation = .horizontal
+        appState.pillDockSide = .center
+        
+        // Esegui docking sul bordo destro
+        manager.evaluateDockingAndOrientation(panel: panel, appState: appState, animated: false)
+        
+        XCTAssertEqual(appState.pillOrientation, .vertical, "Pillola deve diventare verticale quando rilasciata sul bordo destro")
+        XCTAssertEqual(appState.pillDockSide, .right, "Dock side deve essere .right")
+        
+        // Ora sposta la pillola verso il centro
+        panel.setFrameOrigin(NSPoint(x: screenRect.midX - 24, y: 300))
+        manager.evaluateDockingAndOrientation(panel: panel, appState: appState, animated: false)
+        
+        XCTAssertEqual(appState.pillOrientation, .horizontal, "Pillola deve tornare orizzontale al centro dello schermo")
+        XCTAssertEqual(appState.pillDockSide, .center, "Dock side deve essere .center")
     }
 }
 
