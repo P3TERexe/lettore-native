@@ -11,8 +11,10 @@ public final class FloatingPillPanelManager {
     public static let shared = FloatingPillPanelManager()
     
     public private(set) var panel: NSPanel?
+    public private(set) var isDragging: Bool = false
     private var moveObserver: AnyObject?
-    private var initialDragOrigin: NSPoint?
+    private var initialMouseScreenLocation: NSPoint?
+    private var initialWindowOrigin: NSPoint?
     
     public var isVisible: Bool {
         return panel?.isVisible ?? false
@@ -34,7 +36,7 @@ public final class FloatingPillPanelManager {
         if let existing = panel {
             ensureMoveObserver(panel: existing, appState: appState)
             existing.makeKeyAndOrderFront(nil)
-            updateOrientation(panel: existing, appState: appState)
+            updateDockSide(panel: existing, appState: appState)
             updatePanelFrame(for: appState.pillOrientation, isExpanded: appState.isPillExpanded, animated: false)
             return
         }
@@ -64,7 +66,7 @@ public final class FloatingPillPanelManager {
         newPanel.backgroundColor = .clear
         newPanel.isOpaque = false
         newPanel.hasShadow = false
-        newPanel.isMovableByWindowBackground = true
+        newPanel.isMovableByWindowBackground = false
         newPanel.contentView = hostingView
         
         // Posiziona la pillola in alto al centro dello schermo principale
@@ -79,7 +81,7 @@ public final class FloatingPillPanelManager {
         ensureMoveObserver(panel: newPanel, appState: appState)
         newPanel.makeKeyAndOrderFront(nil)
         
-        updateOrientation(panel: newPanel, appState: appState)
+        updateDockSide(panel: newPanel, appState: appState)
         updatePanelFrame(for: appState.pillOrientation, isExpanded: appState.isPillExpanded, animated: false)
     }
     
@@ -100,34 +102,61 @@ public final class FloatingPillPanelManager {
         ) { [weak self, weak appState, weak panel] _ in
             MainActor.assumeIsolated {
                 guard let self = self, let panel = panel, let appState = appState else { return }
-                self.updateOrientation(panel: panel, appState: appState)
+                self.updateDockSide(panel: panel, appState: appState)
             }
         }
     }
     
-    // MARK: - Gestione Drag Fluido & Diretto
+    // MARK: - Gestione Drag Fluido & Diretto a Coordinate Schermo Globali
+    
+    public func dragPanelWithCurrentMouse() {
+        guard let panel = panel else { return }
+        let currentMouse = NSEvent.mouseLocation
+        
+        if initialMouseScreenLocation == nil || initialWindowOrigin == nil {
+            initialMouseScreenLocation = currentMouse
+            initialWindowOrigin = panel.frame.origin
+            isDragging = true
+        }
+        
+        guard let startMouse = initialMouseScreenLocation,
+              let startOrigin = initialWindowOrigin else { return }
+              
+        let deltaX = currentMouse.x - startMouse.x
+        let deltaY = currentMouse.y - startMouse.y
+        
+        var newOrigin = NSPoint(x: startOrigin.x + deltaX, y: startOrigin.y + deltaY)
+        
+        // Mantieni all'interno dei limiti dello schermo visibile per non perdere mai la pillola
+        if let screen = panel.screen ?? NSScreen.main {
+            let screenRect = screen.visibleFrame
+            let maxX = screenRect.maxX - panel.frame.width
+            let maxY = screenRect.maxY - panel.frame.height
+            newOrigin.x = max(screenRect.minX, min(maxX, newOrigin.x))
+            newOrigin.y = max(screenRect.minY, min(maxY, newOrigin.y))
+        }
+        
+        panel.setFrameOrigin(newOrigin)
+    }
     
     public func dragPanel(deltaX: CGFloat, deltaY: CGFloat) {
-        guard let panel = panel else { return }
-        if initialDragOrigin == nil {
-            initialDragOrigin = panel.frame.origin
-        }
-        guard let start = initialDragOrigin else { return }
-        // Coordinate macOS: Y cresce verso l'alto; deltaY positivo verso il basso
-        let newX = start.x + deltaX
-        let newY = start.y - deltaY
-        panel.setFrameOrigin(NSPoint(x: newX, y: newY))
+        dragPanelWithCurrentMouse()
     }
     
     public func finishDrag(appState: AppState) {
-        guard let panel = panel else { return }
-        initialDragOrigin = nil
-        updateOrientation(panel: panel, appState: appState)
+        isDragging = false
+        initialMouseScreenLocation = nil
+        initialWindowOrigin = nil
+        if let panel = panel {
+            updateDockSide(panel: panel, appState: appState)
+        }
     }
     
     // MARK: - Adattamento Dimensioni Dinamiche NSPanel
     
     public func updatePanelFrame(for orientation: PillOrientation, isExpanded: Bool, animated: Bool = true) {
+        // Se l'utente sta trascinando la pillola, blocca modifiche al frame per evitare scatti improvvisi
+        if isDragging { return }
         guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
         let currentFrame = panel.frame
         
@@ -166,40 +195,33 @@ public final class FloatingPillPanelManager {
         }
     }
     
-    // MARK: - Orientamento & Docking
+    // MARK: - Docking & Posizione (Senza cambi forzati di orientamento)
     
-    public func updateOrientation(panel: NSPanel, appState: AppState) {
+    public func updateDockSide(panel: NSPanel, appState: AppState) {
         guard let screen = panel.screen ?? NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
         let panelFrame = panel.frame
         let midX = panelFrame.midX
         let screenWidth = screenFrame.width
         
-        let isCurrentlyVertical = appState.pillOrientation == .vertical
-        let sideRatio: CGFloat = isCurrentlyVertical ? 0.28 : 0.22
-        let leftThreshold = screenFrame.minX + screenWidth * sideRatio
-        let rightThreshold = screenFrame.maxX - screenWidth * sideRatio
+        let leftThreshold = screenFrame.minX + screenWidth * 0.33
+        let rightThreshold = screenFrame.maxX - screenWidth * 0.33
         
-        let newOrientation: PillOrientation
         let newDockSide: PillDockSide
-        
         if midX < leftThreshold {
-            newOrientation = .vertical
             newDockSide = .left
         } else if midX > rightThreshold {
-            newOrientation = .vertical
             newDockSide = .right
         } else {
-            newOrientation = .horizontal
             newDockSide = .center
         }
         
-        if appState.pillOrientation != newOrientation || appState.pillDockSide != newDockSide {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.76)) {
-                appState.pillOrientation = newOrientation
-                appState.pillDockSide = newDockSide
-            }
-            updatePanelFrame(for: newOrientation, isExpanded: appState.isPillExpanded, animated: true)
+        if appState.pillDockSide != newDockSide {
+            appState.pillDockSide = newDockSide
         }
+    }
+    
+    public func updateOrientation(panel: NSPanel, appState: AppState) {
+        updateDockSide(panel: panel, appState: appState)
     }
 }

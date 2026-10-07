@@ -33,26 +33,13 @@ public struct FloatingPillView: View {
     }
     
     private var effectiveOrientation: PillOrientation {
-        return isStandalone ? appState.pillOrientation : .horizontal
+        return .horizontal
     }
     
     public var body: some View {
         ZStack {
-            if effectiveOrientation == .vertical {
-                verticalPill
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.92)),
-                        removal: .opacity.combined(with: .scale(scale: 0.92))
-                    ))
-            } else {
-                horizontalPill
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.92)),
-                        removal: .opacity.combined(with: .scale(scale: 0.92))
-                    ))
-            }
+            horizontalPill
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.78), value: effectiveOrientation)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76), value: isExpanded)
         .onHover { hovering in
             handleHover(hovering)
@@ -62,6 +49,9 @@ public struct FloatingPillView: View {
     // MARK: - Gestione Hover con Grace Period
     
     private func handleHover(_ hovering: Bool) {
+        // Se stiamo attivamente trascinando la pillola sullo schermo, blocca qualsiasi transizione hover
+        if FloatingPillPanelManager.shared.isDragging { return }
+        
         if hovering {
             hoverDismissTask?.cancel()
             hoverDismissTask = nil
@@ -84,7 +74,7 @@ public struct FloatingPillView: View {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    if !appState.isPillExpanded {
+                    if !appState.isPillExpanded && !FloatingPillPanelManager.shared.isDragging {
                         withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76)) {
                             isHovered = false
                         }
@@ -101,16 +91,13 @@ public struct FloatingPillView: View {
         }
     }
     
-    // MARK: - Drag Gesture Fluido per la Capsula
+    // MARK: - Drag Gesture Fluido & Stabile a Coordinate Schermo Globali
     
     private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-            .onChanged { gesture in
+        DragGesture(minimumDistance: 1)
+            .onChanged { _ in
                 guard isStandalone else { return }
-                FloatingPillPanelManager.shared.dragPanel(
-                    deltaX: gesture.translation.width,
-                    deltaY: gesture.translation.height
-                )
+                FloatingPillPanelManager.shared.dragPanelWithCurrentMouse()
             }
             .onEnded { _ in
                 guard isStandalone else { return }
@@ -178,8 +165,9 @@ public struct FloatingPillView: View {
         Image(systemName: "line.3.horizontal")
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.white.opacity(0.45))
-            .frame(width: 10, height: 22)
+            .frame(width: 14, height: 22)
             .contentShape(Rectangle())
+            .gesture(dragGesture)
             .help("Trascina la pillola per spostarla")
             .accessibilityLabel("Trascina pillola")
     }
