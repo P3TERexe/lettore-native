@@ -25,44 +25,39 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
         let isExpanded = (appState?.isPillExpanded ?? false) || bounds.width > 120 || bounds.height > 120
         let isVertical = (appState?.pillOrientation == .vertical)
         
-        if isVertical {
-            if isExpanded {
-                // In verticale espanso:
-                // Se il click è sotto il grip superiore (y <= bounds.height - 28), passa l'evento ai bottoni SwiftUI
-                if loc.y <= bounds.height - 28 {
+        if isExpanded {
+            // In modalità espansa: passa i click sui controlli interattivi a SwiftUI
+            if isVertical {
+                // Sotto il grip superiore (y <= bounds.height - 24): controlli interattivi
+                if loc.y <= bounds.height - 24 {
                     super.mouseDown(with: event)
                     return
                 }
             } else {
-                // In verticale compatto:
-                // Waveform e play mini-button sono tra y = 14 e y = bounds.height - 22
-                if loc.y >= 14 && loc.y <= bounds.height - 22 {
-                    super.mouseDown(with: event)
-                    return
-                }
-            }
-        } else {
-            if isExpanded {
-                // In orizzontale espanso: controlli interattivi a destra (x > 70)
-                if loc.x > 70 {
-                    super.mouseDown(with: event)
-                    return
-                }
-            } else {
-                // In orizzontale compatto: waveform al centro (x tra 24 e 80)
-                if loc.x >= 24 && loc.x <= 80 {
+                // A destra del grip (x > 50): controlli interattivi
+                if loc.x > 50 {
                     super.mouseDown(with: event)
                     return
                 }
             }
         }
         
-        // Avvia il trascinamento nativo macOS con accelerazione hardware
-        print("[DraggablePillHostingView] Avvio drag nativo da: \(loc)")
+        // In modalità compatta (o sull'area grip in espansa):
+        // Tutto il corpo della pillola è reattivo al trascinamento hardware a 120 FPS
+        let startOrigin = window.frame.origin
         FloatingPillPanelManager.shared.dragPanelStarted()
         window.performDrag(with: event)
-        FloatingPillPanelManager.shared.dragPanelEnded()
-        print("[DraggablePillHostingView] Drag completato a: \(window.frame.origin)")
+        let endOrigin = window.frame.origin
+        
+        let dist = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
+        if dist < 3.0 && !isExpanded {
+            // Click/tap sul posto senza trascinamento: attiva Play/Pausa
+            FloatingPillPanelManager.shared.dragPanelCancelled()
+            NotificationCenter.default.post(name: NSNotification.Name("FloatingPillTogglePlayPause"), object: nil)
+        } else {
+            // Trascinamento completato: valuta docking ed orientamento
+            FloatingPillPanelManager.shared.dragPanelEnded()
+        }
     }
 }
 
@@ -75,6 +70,7 @@ public final class FloatingPillPanelManager {
     
     public private(set) var panel: NSPanel?
     public private(set) var isDragging: Bool = false
+    public private(set) var isAnimatingFrame: Bool = false
     public weak var appState: AppState?
     private var moveObserver: AnyObject?
     private var initialMouseScreenLocation: NSPoint?
@@ -168,10 +164,27 @@ public final class FloatingPillPanelManager {
         ) { [weak self, weak appState, weak panel] _ in
             MainActor.assumeIsolated {
                 guard let self = self, let panel = panel, let appState = appState else { return }
-                if !self.isDragging {
-                    self.evaluateDockingAndOrientation(panel: panel, appState: appState, animated: false)
-                }
+                // IMPORTANTE: non invocare MAI evaluateDockingAndOrientation o setFrame
+                // durante didMoveNotification per prevenire cicli ricorsivi durante le animazioni!
+                self.updateInformationalDockSide(panel: panel, appState: appState)
             }
+        }
+    }
+    
+    private func updateInformationalDockSide(panel: NSPanel, appState: AppState) {
+        guard let screen = panel.screen ?? NSScreen.main else { return }
+        let screenFrame = screen.visibleFrame
+        let midX = panel.frame.midX
+        let side: PillDockSide
+        if midX < screenFrame.minX + (screenFrame.width * 0.33) {
+            side = .left
+        } else if midX > screenFrame.maxX - (screenFrame.width * 0.33) {
+            side = .right
+        } else {
+            side = .center
+        }
+        if appState.pillDockSide != side && appState.pillOrientation != .vertical {
+            appState.pillDockSide = side
         }
     }
     
@@ -224,6 +237,12 @@ public final class FloatingPillPanelManager {
         }
     }
     
+    public func dragPanelCancelled() {
+        isDragging = false
+        initialMouseScreenLocation = nil
+        initialWindowOrigin = nil
+    }
+    
     public func finishDrag(appState: AppState) {
         print("[FloatingPillPanel] Fine drag. Posizione finale: \(panel?.frame.origin ?? .zero)")
         isDragging = false
@@ -256,14 +275,25 @@ public final class FloatingPillPanelManager {
         var newOrigin = currentFrame.origin
         switch orientation {
         case .horizontal:
-            let midX = currentFrame.midX
-            newOrigin.x = midX - (targetSize.width / 2)
+            // Se veniamo da verticale ancorata a destra, espanditi verso l'interno sinistro dello schermo!
+            if appState?.pillDockSide == .right || currentFrame.midX > screenRect.midX {
+                newOrigin.x = currentFrame.maxX - targetSize.width
+            } else if appState?.pillDockSide == .left {
+                // Se veniamo da verticale ancorata a sinistra, mantieni l'ancoraggio a sinistra
+                newOrigin.x = currentFrame.minX
+            } else {
+                let midX = currentFrame.midX
+                newOrigin.x = midX - (targetSize.width / 2)
+            }
+            
+            // Per la coordinata Y, mantieni il centro verticale dell'elemento
             if currentFrame.height > 60 {
                 newOrigin.y = currentFrame.midY - (targetSize.height / 2)
             } else {
                 let topY = currentFrame.maxY
                 newOrigin.y = topY - targetSize.height
             }
+            
         case .vertical:
             let topY = currentFrame.maxY
             newOrigin.y = topY - targetSize.height
@@ -274,19 +304,39 @@ public final class FloatingPillPanelManager {
             }
         }
         
-        // Mantieni all'interno dei limiti dello schermo visibile
-        newOrigin.x = max(screenRect.minX + 4, min(screenRect.maxX - targetSize.width - 4, newOrigin.x))
-        newOrigin.y = max(screenRect.minY + 8, min(screenRect.maxY - targetSize.height - 8, newOrigin.y))
+        // VINCOLO ASSOLUTO: Mantieni l'intero frame rigorosamente all'interno dello schermo visibile
+        let minAllowedX = screenRect.minX + 8
+        let maxAllowedX = screenRect.maxX - targetSize.width - 8
+        let minAllowedY = screenRect.minY + 8
+        let maxAllowedY = screenRect.maxY - targetSize.height - 8
+        
+        newOrigin.x = max(minAllowedX, min(maxAllowedX, newOrigin.x))
+        newOrigin.y = max(minAllowedY, min(maxAllowedY, newOrigin.y))
         
         let newFrame = NSRect(origin: newOrigin, size: targetSize)
         if panel.frame != newFrame {
-            panel.setFrame(newFrame, display: true, animate: animated)
+            if animated {
+                self.isAnimatingFrame = true
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.28
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    panel.animator().setFrame(newFrame, display: true)
+                }, completionHandler: { [weak self] in
+                    MainActor.assumeIsolated {
+                        self?.isAnimatingFrame = false
+                    }
+                })
+            } else {
+                panel.setFrame(newFrame, display: true)
+                self.isAnimatingFrame = false
+            }
         }
     }
     
     // MARK: - Docking Naturale & Rilevamento Bordi Schermo
     
     public func evaluateDockingAndOrientation(panel: NSPanel, appState: AppState, animated: Bool) {
+        guard !isAnimatingFrame else { return }
         guard let screen = panel.screen ?? NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
         let panelFrame = panel.frame
@@ -295,10 +345,11 @@ public final class FloatingPillPanelManager {
         let rightDist = screenFrame.maxX - panelFrame.maxX
         
         let isCurrentlyVertical = (appState.pillOrientation == .vertical)
-        // Isteresi bilanciata ed ergonomica:
-        // - Se orizzontale, basta spostarla a ridosso dell'estremo bordo (<= 35px) per agganciarla in verticale
-        // - Se già verticale, basta allontanarla di oltre 50px verso l'interno per sganciarsi e tornare orizzontale
-        let dockThreshold: CGFloat = isCurrentlyVertical ? 50.0 : 35.0
+        
+        // Soglie di aggancio con isteresi bilanciata:
+        // - Per agganciarsi ai lati in verticale: basta rilasciare la pillola entro 45px dal bordo
+        // - Per sganciarsi dal lato e tornare orizzontale: basta trascinarla a più di 60px verso l'interno
+        let dockThreshold: CGFloat = isCurrentlyVertical ? 60.0 : 45.0
         
         let newOrientation: PillOrientation
         let newDockSide: PillDockSide
@@ -318,20 +369,22 @@ public final class FloatingPillPanelManager {
         let dockSideChanged = (appState.pillDockSide != newDockSide)
         
         if orientationChanged || dockSideChanged {
-            withAnimation(animated ? .spring(response: 0.38, dampingFraction: 0.78) : nil) {
+            withAnimation(animated ? .spring(response: 0.28, dampingFraction: 0.82) : nil) {
                 appState.pillOrientation = newOrientation
                 appState.pillDockSide = newDockSide
             }
             updatePanelFrame(for: newOrientation, isExpanded: appState.isPillExpanded, animated: animated)
         } else if isCurrentlyVertical {
             snapToVerticalEdge(panel: panel, dockSide: newDockSide, animated: animated)
+        } else {
+            clampFrameInsideScreen(panel: panel, animated: animated)
         }
     }
     
     private func snapToVerticalEdge(panel: NSPanel, dockSide: PillDockSide, animated: Bool) {
         guard let screen = panel.screen ?? NSScreen.main else { return }
         let screenRect = screen.visibleFrame
-        var currentFrame = panel.frame
+        let currentFrame = panel.frame
         let targetX: CGFloat
         if dockSide == .left {
             targetX = screenRect.minX + 8
@@ -340,9 +393,61 @@ public final class FloatingPillPanelManager {
         } else {
             return
         }
-        if abs(currentFrame.origin.x - targetX) > 1 {
-            currentFrame.origin.x = targetX
-            panel.setFrame(currentFrame, display: true, animate: animated)
+        
+        let minY = screenRect.minY + 8
+        let maxY = screenRect.maxY - currentFrame.height - 8
+        let targetY = max(minY, min(maxY, currentFrame.origin.y))
+        
+        if abs(currentFrame.origin.x - targetX) > 1 || abs(currentFrame.origin.y - targetY) > 1 {
+            let clampedFrame = NSRect(x: targetX, y: targetY, width: currentFrame.width, height: currentFrame.height)
+            if animated {
+                self.isAnimatingFrame = true
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.22
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    panel.animator().setFrame(clampedFrame, display: true)
+                }, completionHandler: { [weak self] in
+                    MainActor.assumeIsolated {
+                        self?.isAnimatingFrame = false
+                    }
+                })
+            } else {
+                panel.setFrame(clampedFrame, display: true)
+                self.isAnimatingFrame = false
+            }
+        }
+    }
+    
+    private func clampFrameInsideScreen(panel: NSPanel, animated: Bool) {
+        guard let screen = panel.screen ?? NSScreen.main else { return }
+        let screenRect = screen.visibleFrame
+        let currentFrame = panel.frame
+        
+        let minX = screenRect.minX + 8
+        let maxX = screenRect.maxX - currentFrame.width - 8
+        let minY = screenRect.minY + 8
+        let maxY = screenRect.maxY - currentFrame.height - 8
+        
+        let targetX = max(minX, min(maxX, currentFrame.origin.x))
+        let targetY = max(minY, min(maxY, currentFrame.origin.y))
+        
+        if abs(currentFrame.origin.x - targetX) > 1 || abs(currentFrame.origin.y - targetY) > 1 {
+            let clampedFrame = NSRect(x: targetX, y: targetY, width: currentFrame.width, height: currentFrame.height)
+            if animated {
+                self.isAnimatingFrame = true
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.20
+                    context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    panel.animator().setFrame(clampedFrame, display: true)
+                }, completionHandler: { [weak self] in
+                    MainActor.assumeIsolated {
+                        self?.isAnimatingFrame = false
+                    }
+                })
+            } else {
+                panel.setFrame(clampedFrame, display: true)
+                self.isAnimatingFrame = false
+            }
         }
     }
     

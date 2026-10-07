@@ -50,9 +50,17 @@ public final class NativeDragHandleNSView: NSView {
     public override func mouseDown(with event: NSEvent) {
         guard let window = self.window else { return }
         print("[NativeDragHandleNSView] mouseDown ricevuto! Avvio window.performDrag(with: event)...")
+        let startOrigin = window.frame.origin
         FloatingPillPanelManager.shared.dragPanelStarted()
         window.performDrag(with: event)
-        FloatingPillPanelManager.shared.dragPanelEnded()
+        let endOrigin = window.frame.origin
+        let dist = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
+        if dist < 3.0 && !(appState?.isPillExpanded ?? false) {
+            FloatingPillPanelManager.shared.dragPanelCancelled()
+            NotificationCenter.default.post(name: NSNotification.Name("FloatingPillTogglePlayPause"), object: nil)
+        } else {
+            FloatingPillPanelManager.shared.dragPanelEnded()
+        }
         print("[NativeDragHandleNSView] performDrag completato! Nuova origine: \(window.frame.origin)")
     }
 }

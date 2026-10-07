@@ -62,13 +62,16 @@ public struct FloatingPillView: View {
         .onHover { hovering in
             handleHover(hovering)
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FloatingPillTogglePlayPause"))) { _ in
+            handlePlayPause()
+        }
     }
     
     // MARK: - Gestione Hover con Grace Period
     
     private func handleHover(_ hovering: Bool) {
-        // Se stiamo attivamente trascinando la pillola sullo schermo, blocca qualsiasi transizione hover
-        if FloatingPillPanelManager.shared.isDragging { return }
+        // Se stiamo attivamente trascinando o la finestra sta animando il morphing, blocca transizioni hover
+        if FloatingPillPanelManager.shared.isDragging || FloatingPillPanelManager.shared.isAnimatingFrame { return }
         
         if hovering {
             hoverDismissTask?.cancel()
@@ -92,7 +95,7 @@ public struct FloatingPillView: View {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    if !appState.isPillExpanded && !FloatingPillPanelManager.shared.isDragging {
+                    if !appState.isPillExpanded && !FloatingPillPanelManager.shared.isDragging && !FloatingPillPanelManager.shared.isAnimatingFrame {
                         withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76)) {
                             isHovered = false
                         }

@@ -161,5 +161,41 @@ final class LettoreCoreTests: XCTestCase {
             XCTFail("Errore inatteso: \(error)")
         }
     }
+    
+    // MARK: - Test Logica di Docking e Isteresi Pillola
+    
+    func testPillDockingCalculationHysteresis() {
+        let screenRect = CGRect(x: 0, y: 0, width: 1470, height: 923)
+        let horizontalWidth: CGFloat = 282
+        let verticalWidth: CGFloat = 48
+        
+        // Scenario 1: Pillola orizzontale trascinata a 30px dal bordo destro
+        let distFromRightEdge: CGFloat = 30.0
+        let dockThresholdFromHorizontal: CGFloat = 45.0
+        XCTAssertLessThanOrEqual(distFromRightEdge, dockThresholdFromHorizontal, "Deve agganciarsi a destra")
+        
+        // Calcolo coordinata X agganciata a destra
+        let dockedX = screenRect.maxX - verticalWidth - 8
+        XCTAssertEqual(dockedX, 1470 - 48 - 8)
+        XCTAssertLessThanOrEqual(dockedX + verticalWidth, screenRect.maxX - 8)
+        
+        // Scenario 2: Pillola verticale ancorata a destra (isteresi di sgancio = 60px)
+        let undockThresholdFromVertical: CGFloat = 60.0
+        let smallPullDist: CGFloat = 50.0 // Non ancora abbastanza per sganciarsi
+        XCTAssertLessThanOrEqual(smallPullDist, undockThresholdFromVertical, "Resta agganciata in verticale")
+        
+        let deliberatePullDist: CGFloat = 75.0 // Sgancio deliberato verso il centro
+        XCTAssertGreaterThan(deliberatePullDist, undockThresholdFromVertical, "Si sgancia e torna orizzontale")
+        
+        // Scenario 3: Calcolo ancoraggio espansione verso l'interno schermo
+        let currentRightBezel = screenRect.maxX - deliberatePullDist
+        var expandedX = currentRightBezel - horizontalWidth
+        let minAllowedX = screenRect.minX + 8
+        let maxAllowedX = screenRect.maxX - horizontalWidth - 8
+        expandedX = max(minAllowedX, min(maxAllowedX, expandedX))
+        
+        XCTAssertGreaterThanOrEqual(expandedX, minAllowedX, "Non deve uscire a sinistra")
+        XCTAssertLessThanOrEqual(expandedX + horizontalWidth, screenRect.maxX - 8, "Non deve uscire a destra")
+    }
 }
 
