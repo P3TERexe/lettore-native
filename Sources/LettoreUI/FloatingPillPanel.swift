@@ -3,6 +3,40 @@ import AppKit
 import LettoreCore
 import LettoreEngine
 
+public final class FloatingPillPanelWindow: NSPanel {
+    public override var canBecomeKey: Bool {
+        return true
+    }
+    public override var canBecomeMain: Bool {
+        return false
+    }
+}
+
+public final class DraggablePillHostingView<Content: View>: NSHostingView<Content> {
+    public override func mouseDown(with event: NSEvent) {
+        guard let window = self.window else {
+            super.mouseDown(with: event)
+            return
+        }
+        
+        let loc = event.locationInWindow
+        let isExpanded = bounds.width > 120
+        
+        // Se la pillola è espansa e il click cade sui controlli a destra, passa l'evento ai bottoni SwiftUI
+        if isExpanded && loc.x > 75 {
+            super.mouseDown(with: event)
+            return
+        }
+        
+        // Avvia il trascinamento nativo macOS con accelerazione hardware
+        print("[DraggablePillHostingView] Avvio drag nativo da: \(loc)")
+        FloatingPillPanelManager.shared.dragPanelStarted()
+        window.performDrag(with: event)
+        FloatingPillPanelManager.shared.dragPanelEnded()
+        print("[DraggablePillHostingView] Drag completato a: \(window.frame.origin)")
+    }
+}
+
 /// Controller per la finestra fluttuante borderless (NSPanel) della Pillola.
 /// Permette alla pillola di fluttuare libera sopra qualsiasi finestra di macOS (Safari, Word, Xcode)
 /// con dimensioni minime al millimetro, zero spazio vuoto extra e trascinamento istantaneo e fluido.
@@ -48,12 +82,12 @@ public final class FloatingPillPanelManager {
             isStandalone: true
         )
         
-        let hostingView = NSHostingView(rootView: pillView)
+        let hostingView = DraggablePillHostingView(rootView: pillView)
         hostingView.autoresizingMask = [.width, .height]
         
         // Dimensioni millimetriche esatte della pillola compatta iniziale: zero spazio vuoto
         let initialSize = NSSize(width: 104, height: 42)
-        let newPanel = NSPanel(
+        let newPanel = FloatingPillPanelWindow(
             contentRect: NSRect(origin: .zero, size: initialSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -117,6 +151,7 @@ public final class FloatingPillPanelManager {
             initialMouseScreenLocation = currentMouse
             initialWindowOrigin = panel.frame.origin
             isDragging = true
+            print("[FloatingPillPanel] Inizio drag da mouse: \(currentMouse), origine: \(panel.frame.origin)")
         }
         
         guard let startMouse = initialMouseScreenLocation,
@@ -137,13 +172,23 @@ public final class FloatingPillPanelManager {
         }
         
         panel.setFrameOrigin(newOrigin)
+        print("[FloatingPillPanel] Muove a nuova origine: \(newOrigin) (delta: \(deltaX), \(deltaY))")
     }
     
     public func dragPanel(deltaX: CGFloat, deltaY: CGFloat) {
         dragPanelWithCurrentMouse()
     }
     
+    public func dragPanelStarted() {
+        isDragging = true
+    }
+    
+    public func dragPanelEnded() {
+        isDragging = false
+    }
+    
     public func finishDrag(appState: AppState) {
+        print("[FloatingPillPanel] Fine drag. Posizione finale: \(panel?.frame.origin ?? .zero)")
         isDragging = false
         initialMouseScreenLocation = nil
         initialWindowOrigin = nil

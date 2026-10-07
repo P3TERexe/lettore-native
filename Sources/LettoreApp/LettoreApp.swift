@@ -120,6 +120,19 @@ struct LettoreApp: App {
                 }
             }
         }
+        // Ascolta richieste di apertura o toggle della pillola fluttuante
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("ToggleFloatingPill"), object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                FloatingPillPanelManager.shared.toggle(appState: state, audioEngine: audioEngine, coordinator: coordinator)
+            }
+        }
+        
+        // Mostra la pillola all'avvio dell'applicazione
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("ShowFloatingPill"), object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                FloatingPillPanelManager.shared.show(appState: state, audioEngine: audioEngine, coordinator: coordinator)
+            }
+        }
     }
     
     var body: some Scene {
@@ -138,10 +151,20 @@ struct LettoreApp: App {
                 )
                 .frame(minWidth: 960, minHeight: 640)
                 .task { setupCaptureLogic(state: appState) }
+                .onAppear {
+                    // Mostra la pillola fluttuante all'apertura dello Studio
+                    FloatingPillPanelManager.shared.show(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                }
             }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandMenu("Strumenti") {
+                Button("Mostra / Nascondi Pillola Fluttuante") {
+                    FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .appInfo) {
                 Button("Informazioni su Lettore Native") {
                     NSApplication.shared.orderFrontStandardAboutPanel(

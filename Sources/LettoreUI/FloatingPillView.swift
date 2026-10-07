@@ -40,6 +40,7 @@ public struct FloatingPillView: View {
         ZStack {
             horizontalPill
         }
+        .contentShape(Capsule())
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76), value: isExpanded)
         .onHover { hovering in
             handleHover(hovering)
@@ -140,36 +141,43 @@ public struct FloatingPillView: View {
         .frame(height: 36)
         .frame(width: isExpanded ? (appState.isUsingSpeechFallback ? 290 : 275) : 96, alignment: .center)
         .background {
-            Capsule()
-                .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
-                            lineWidth: 1
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
-                .shadow(
-                    color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
-                    radius: isExpanded ? 12 : 6
-                )
-                .contentShape(Capsule())
-                // Permette di trascinare afferrando qualsiasi punto della capsula
-                .gesture(dragGesture)
+            ZStack {
+                Capsule()
+                    .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
+                    .shadow(
+                        color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
+                        radius: isExpanded ? 12 : 6
+                    )
+                
+                if isStandalone && !isExpanded {
+                    NativeDragHandleView(appState: appState)
+                        .clipShape(Capsule())
+                }
+            }
         }
         .clipShape(Capsule())
     }
     
     private var dragGrip: some View {
-        Image(systemName: "line.3.horizontal")
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.white.opacity(0.45))
-            .frame(width: 14, height: 22)
-            .contentShape(Rectangle())
-            .gesture(dragGesture)
-            .help("Trascina la pillola per spostarla")
-            .accessibilityLabel("Trascina pillola")
+        ZStack {
+            NativeDragHandleView(appState: appState)
+            
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.45))
+                .allowsHitTesting(false)
+        }
+        .frame(width: 18, height: 26)
+        .help("Trascina la pillola per spostarla")
+        .accessibilityLabel("Trascina pillola")
     }
     
     private var horizontalWaveformSection: some View {
