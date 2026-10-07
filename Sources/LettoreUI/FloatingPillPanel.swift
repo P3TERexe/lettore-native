@@ -5,7 +5,7 @@ import LettoreEngine
 
 /// Controller per la finestra fluttuante borderless (NSPanel) della Pillola.
 /// Permette alla pillola di fluttuare libera sopra qualsiasi finestra di macOS (Safari, Word, Xcode)
-/// senza alcun bordo di finestra, titolo o sfondo grigio, garantendo il passaggio dei click alle app sottostanti.
+/// con dimensioni minime al millimetro, zero spazio vuoto extra e trascinamento istantaneo e fluido.
 @MainActor
 public final class FloatingPillPanelManager {
     public static let shared = FloatingPillPanelManager()
@@ -49,8 +49,8 @@ public final class FloatingPillPanelManager {
         let hostingView = NSHostingView(rootView: pillView)
         hostingView.autoresizingMask = [.width, .height]
         
-        // Dimensioni iniziali compatte per non bloccare lo schermo
-        let initialSize = NSSize(width: 170, height: 76)
+        // Dimensioni millimetriche esatte della pillola compatta iniziale: zero spazio vuoto
+        let initialSize = NSSize(width: 104, height: 42)
         let newPanel = NSPanel(
             contentRect: NSRect(origin: .zero, size: initialSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -64,9 +64,7 @@ public final class FloatingPillPanelManager {
         newPanel.backgroundColor = .clear
         newPanel.isOpaque = false
         newPanel.hasShadow = false
-        // Disabilitiamo il drag cieco sullo sfondo dell'intera finestra per evitare che click
-        // trasparenti blocchino le app sottostanti. Il drag viene gestito esplicitamente dal grip/capsula della pillola.
-        newPanel.isMovableByWindowBackground = false
+        newPanel.isMovableByWindowBackground = true
         newPanel.contentView = hostingView
         
         // Posiziona la pillola in alto al centro dello schermo principale
@@ -115,7 +113,7 @@ public final class FloatingPillPanelManager {
             initialDragOrigin = panel.frame.origin
         }
         guard let start = initialDragOrigin else { return }
-        // Coordinate macOS: Y cresce verso l'alto; DragGesture deltaY positivo verso il basso.
+        // Coordinate macOS: Y cresce verso l'alto; deltaY positivo verso il basso
         let newX = start.x + deltaX
         let newY = start.y - deltaY
         panel.setFrameOrigin(NSPoint(x: newX, y: newY))
@@ -127,7 +125,7 @@ public final class FloatingPillPanelManager {
         updateOrientation(panel: panel, appState: appState)
     }
     
-    // MARK: - Adattamento Dinamico Dimensioni NSPanel
+    // MARK: - Adattamento Dimensioni Dinamiche NSPanel
     
     public func updatePanelFrame(for orientation: PillOrientation, isExpanded: Bool, animated: Bool = true) {
         guard let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
@@ -136,15 +134,14 @@ public final class FloatingPillPanelManager {
         let targetSize: NSSize
         switch orientation {
         case .horizontal:
-            targetSize = isExpanded ? NSSize(width: 400, height: 76) : NSSize(width: 170, height: 76)
+            targetSize = isExpanded ? NSSize(width: 295, height: 42) : NSSize(width: 104, height: 42)
         case .vertical:
-            targetSize = isExpanded ? NSSize(width: 88, height: 260) : NSSize(width: 88, height: 88)
+            targetSize = isExpanded ? NSSize(width: 50, height: 215) : NSSize(width: 50, height: 50)
         }
         
         var newOrigin = currentFrame.origin
         switch orientation {
         case .horizontal:
-            // Centra orizzontalmente rispetto alla posizione corrente
             let midX = currentFrame.midX
             newOrigin.x = midX - (targetSize.width / 2)
             let topY = currentFrame.maxY
@@ -178,7 +175,6 @@ public final class FloatingPillPanelManager {
         let midX = panelFrame.midX
         let screenWidth = screenFrame.width
         
-        // Isteresi per evitare sfarfallii vicino al confine tra centro e lati
         let isCurrentlyVertical = appState.pillOrientation == .vertical
         let sideRatio: CGFloat = isCurrentlyVertical ? 0.28 : 0.22
         let leftThreshold = screenFrame.minX + screenWidth * sideRatio

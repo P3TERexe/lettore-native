@@ -48,6 +48,13 @@ public struct LettoreStudioView: View {
                     .background(Color.white.opacity(0.12))
             }
             
+            if appState.isUsingSpeechFallback, let notice = appState.speechFallbackNotice {
+                speechFallbackBanner(notice: notice)
+                
+                Divider()
+                    .background(Color.white.opacity(0.12))
+            }
+            
             // Corpo Principale: Canvas di Lettura & Sidebar Parametri
             HStack(spacing: 0) {
                 mainReadingCanvas
@@ -216,6 +223,60 @@ public struct LettoreStudioView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .background(Color(red: 0.18, green: 0.13, blue: 0.05))
+    }
+    
+    // MARK: - Speech Fallback Warning Banner
+    
+    private func speechFallbackBanner(notice: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Voce di Sistema macOS in uso (Fallback)")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                
+                Text(notice)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            Button("Riconnetti Supertonic") {
+                Task {
+                    do {
+                        try await coordinator.supertonicPipeline.loadModel()
+                        await MainActor.run {
+                            appState.isUsingSpeechFallback = false
+                            appState.speechFallbackNotice = nil
+                        }
+                    } catch {
+                        await MainActor.run {
+                            appState.isUsingSpeechFallback = true
+                            appState.speechFallbackNotice = "Ritentativo fallito: \(error.localizedDescription). Assicurati che il backend Python sia attivo su 127.0.0.1:7788."
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color(red: 1.0, green: 0.72, blue: 0.2).opacity(0.2))
+            .foregroundStyle(Color(red: 1.0, green: 0.8, blue: 0.3))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color(red: 1.0, green: 0.72, blue: 0.2).opacity(0.4), lineWidth: 1)
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.20, green: 0.14, blue: 0.05))
     }
     
     // MARK: - Canvas di Lettura Centrale
@@ -387,9 +448,21 @@ public struct LettoreStudioView: View {
             VStack(alignment: .leading, spacing: 18) {
                 // Sezione Lingua & Voci Neurali
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("LINGUA & VOCE")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.5))
+                    HStack {
+                        Text("LINGUA & VOCE")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Spacer()
+                        if appState.isUsingSpeechFallback {
+                            Text("Fallback Sistema")
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
+                        } else {
+                            Text("Supertonic Neurale")
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundStyle(brandGreen)
+                        }
+                    }
                     
                     // Picker Lingua
                     Picker("", selection: $appState.selectedLanguage) {

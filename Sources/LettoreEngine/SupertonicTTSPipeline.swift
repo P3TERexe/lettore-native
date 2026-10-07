@@ -13,9 +13,10 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
     
     public init(baseURL: URL = URL(string: "http://127.0.0.1:7788")!) {
         self.baseURL = baseURL
-        let config = URLSessionConfiguration.default
+        let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 20.0
         config.timeoutIntervalForResource = 60.0
+        config.connectionProxyDictionary = [:] // Assicura chiamata diretta a 127.0.0.1 bypassando eventuali proxy
         self.session = URLSession(configuration: config)
     }
     

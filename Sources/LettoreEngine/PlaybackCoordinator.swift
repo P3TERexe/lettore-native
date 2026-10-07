@@ -290,6 +290,8 @@ public final class PlaybackCoordinator {
                 await MainActor.run {
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = true
+                    self.appState.isUsingSpeechFallback = false
+                    self.appState.speechFallbackNotice = nil
                     self.appState.playbackState = .playing
                     self.appState.lastSynthesisLatencyMs = synthDurationMs
                     
@@ -298,10 +300,13 @@ public final class PlaybackCoordinator {
                     self.playAudioData(wavData)
                 }
             } catch {
+                let notice = "Motore Supertonic non raggiungibile su 127.0.0.1:7788 (\(error.localizedDescription)). In riproduzione con la voce di sistema macOS di fallback."
                 print("[PlaybackCoordinator] Supertonic ERRORE: \(error.localizedDescription). Uso fallback.")
                 await MainActor.run {
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = false
+                    self.appState.isUsingSpeechFallback = true
+                    self.appState.speechFallbackNotice = notice
                     self.appState.playbackState = .playing
                     self.playRequestedTime = 0
                     self.speechFallback.speak(

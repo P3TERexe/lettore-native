@@ -56,6 +56,10 @@ public final class AppState: @unchecked Sendable {
     public var pillDockSide: PillDockSide = .center
     public var isAccessibilityGranted: Bool = false
     
+    // MARK: - Stato Motore Vocale & Fallback
+    public var isUsingSpeechFallback: Bool = false
+    public var speechFallbackNotice: String? = nil
+    
     // MARK: - Spettro Audio Live (Metal & SwiftUI Waveform)
     /// 7 valori normalizzati (0.0 - 1.0) aggiornati a 60fps dal tap audio.
     public var liveWaveformLevels: [Float] = [0.15, 0.3, 0.6, 0.9, 0.7, 0.4, 0.2]
