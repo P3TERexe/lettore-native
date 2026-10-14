@@ -25,7 +25,10 @@ if ! gh auth status &>/dev/null; then
     gh auth login -h github.com
 fi
 
-echo -e "${GREEN}✓ GitHub CLI autenticato con successo.${NC}\n"
+# Configura git affinché utilizzi il token di gh per autenticare le operazioni di push
+gh auth setup-git
+
+echo -e "${GREEN}✓ GitHub CLI autenticato e configurato per git.${NC}\n"
 
 # 2. Verifica / creazione del file zip di release v0.3.0
 ZIP_FILE="LettoreNative-v0.3.0-macOS.zip"
@@ -56,8 +59,11 @@ echo -e "${BLUE}4. Pulizia del tag remoto v3.0.0...${NC}"
 git push origin :refs/tags/v3.0.0 2>/dev/null || true
 echo -e "${GREEN}✓ Tag remoto v3.0.0 verificato/ripulito.${NC}\n"
 
-# 5. Configurazione e push del tag locale v0.3.0
-echo -e "${BLUE}5. Allineamento tag locale v0.3.0 all'attuale commit di main...${NC}"
+# 5. Push del branch main e configurazione/push del tag locale v0.3.0
+echo -e "${BLUE}5. Push delle modifiche del branch main su origin...${NC}"
+git push origin main
+
+echo -e "${BLUE}Allineamento tag locale v0.3.0 all'attuale commit di main...${NC}"
 git tag -d v3.0.0 2>/dev/null || true
 git tag -a v0.3.0 -m "Release v0.3.0: Native macOS Edition" -f
 
