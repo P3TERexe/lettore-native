@@ -1,10 +1,20 @@
-import React from 'react';
-import { Play, Download, Terminal, ArrowRight, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Play, Download, Terminal, ArrowRight, Sparkles, Globe, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import VoicesLanguagesModal from './VoicesLanguagesModal';
 
 export default function Hero() {
   const { t } = useLanguage();
   const h = t.hero;
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogTab, setCatalogTab] = useState('voices');
+  const languagesButtonRef = useRef(null);
+  const voicesButtonRef = useRef(null);
+
+  const openCatalog = (tab) => {
+    setCatalogTab(tab);
+    setCatalogOpen(true);
+  };
 
   return (
     <section className="hero-section" style={{ padding: '80px 0 60px', position: 'relative', textAlign: 'center' }}>
@@ -19,15 +29,33 @@ export default function Hero() {
 
         {/* Multilingual Pill */}
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 32 }}>
-          <span className="badge-pill" style={{ color: 'var(--accent-emerald)', borderColor: 'var(--accent-emerald-glow)' }}>
-            <Sparkles size={14} /> {h.multiLangBadge}
-          </span>
+          <button
+            ref={languagesButtonRef}
+            type="button"
+            className="badge-pill badge-pill-interactive"
+            style={{ color: 'var(--accent-emerald)', borderColor: 'var(--accent-emerald-glow)' }}
+            onClick={() => openCatalog('languages')}
+            aria-haspopup="dialog"
+            aria-label={h.openLanguages}
+          >
+            <Globe size={14} /> {h.multiLangBadge} <ChevronRight size={13} />
+          </button>
           <span className="badge-pill">🇮🇹 Italiano</span>
           <span className="badge-pill">🇬🇧 English</span>
           <span className="badge-pill">🇪🇸 Español</span>
           <span className="badge-pill">🇫🇷 Français</span>
           <span className="badge-pill">🇩🇪 Deutsch</span>
-          <span className="badge-pill" style={{ color: 'var(--accent-sky)' }}>{h.voicesBadge}</span>
+          <button
+            ref={voicesButtonRef}
+            type="button"
+            className="badge-pill badge-pill-interactive"
+            style={{ color: 'var(--accent-sky)' }}
+            onClick={() => openCatalog('voices')}
+            aria-haspopup="dialog"
+            aria-label={h.openVoices}
+          >
+            <Sparkles size={14} /> {h.voicesBadge} <ChevronRight size={13} />
+          </button>
         </div>
 
         {/* Main Headline */}
@@ -72,6 +100,13 @@ export default function Hero() {
           </a>
         </div>
       </div>
+
+      <VoicesLanguagesModal
+        isOpen={catalogOpen}
+        initialTab={catalogTab}
+        returnFocusRef={catalogTab === 'languages' ? languagesButtonRef : voicesButtonRef}
+        onClose={() => setCatalogOpen(false)}
+      />
     </section>
   );
 }

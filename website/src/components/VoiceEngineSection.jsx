@@ -198,7 +198,7 @@ export default function VoiceEngineSection() {
                   </strong>
                 </div>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {isEnglish ? 'Includes multiple male and female voices, ready for Italian, English, Spanish, and more.' : "Include diverse voci maschili e femminili ed è pronto per leggere in italiano, inglese, spagnolo e altre lingue."}
+                  {isEnglish ? 'Includes 10 male and female voices and supports 31 languages, including Italian and Japanese.' : "Include 10 voci maschili e femminili e supporta 31 lingue, tra cui italiano e giapponese."}
                 </div>
               </div>
             </div>
