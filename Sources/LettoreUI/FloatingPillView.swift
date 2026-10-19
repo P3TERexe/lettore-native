@@ -41,6 +41,14 @@ public struct FloatingPillView: View {
         return isStandalone ? appState.pillOrientation : .horizontal
     }
 
+    /// Durante il drag il frame della finestra cambia istantaneamente: se il
+    /// contenuto facesse la dissolvenza di 0,28 s si vedrebbero orizzontale e
+    /// verticale sovrapposte mentre la finestra è già della nuova misura.
+    /// Il morphing live deve essere secco, come il ridimensionamento.
+    private var isLiveDragging: Bool {
+        isStandalone && FloatingPillPanelManager.shared.isDragging
+    }
+
     /// Spazio riservato al contenuto dentro la finestra. Deriva dalle stesse
     /// metriche del pannello meno il margine di sicurezza, così il contenuto
     /// non può mai essere più grande della finestra che lo ospita.
@@ -73,7 +81,7 @@ public struct FloatingPillView: View {
             }
         }
         .contentShape(Capsule())
-        .animation(morphAnimation, value: effectiveOrientation)
+        .animation(isLiveDragging ? nil : morphAnimation, value: effectiveOrientation)
         .animation(morphAnimation, value: isExpanded)
         .onHover { hovering in
             handleHover(hovering)

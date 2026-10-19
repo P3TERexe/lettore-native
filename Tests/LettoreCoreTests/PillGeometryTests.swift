@@ -175,4 +175,59 @@ final class PillGeometryTests: XCTestCase {
         XCTAssertEqual(orientation, .vertical)
         XCTAssertEqual(dock, .right)
     }
+
+    // MARK: - Docking live sul cursore
+
+    func testLiveDockIgnoresExpandedPanelEdge() {
+        // La capsula espansa clampata al bordo ha rightDist ≈ 8, ma il cursore
+        // è ancora lontano: non deve agganciarsi né far saltare la pillola.
+        let dock = FloatingPillPanelManager.resolvedLiveDock(
+            previous: .center,
+            cursorX: screen.maxX - 200,
+            screenRect: screen
+        )
+        XCTAssertEqual(dock, .center)
+    }
+
+    func testLiveDockSnapsWhenCursorReachesEdge() {
+        let near = FloatingPillPanelManager.PillMetrics.dockThreshold - 1
+        XCTAssertEqual(
+            FloatingPillPanelManager.resolvedLiveDock(
+                previous: .center,
+                cursorX: screen.maxX - near,
+                screenRect: screen
+            ),
+            .right
+        )
+        XCTAssertEqual(
+            FloatingPillPanelManager.resolvedLiveDock(
+                previous: .center,
+                cursorX: screen.minX + near,
+                screenRect: screen
+            ),
+            .left
+        )
+    }
+
+    func testLiveDockHysteresisFollowsCursor() {
+        let insideExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold - 1
+        let beyondExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold + 1
+
+        XCTAssertEqual(
+            FloatingPillPanelManager.resolvedLiveDock(
+                previous: .right,
+                cursorX: screen.maxX - insideExit,
+                screenRect: screen
+            ),
+            .right
+        )
+        XCTAssertEqual(
+            FloatingPillPanelManager.resolvedLiveDock(
+                previous: .right,
+                cursorX: screen.maxX - beyondExit,
+                screenRect: screen
+            ),
+            .center
+        )
+    }
 }
