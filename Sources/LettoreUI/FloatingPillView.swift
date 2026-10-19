@@ -11,11 +11,13 @@ public struct FloatingPillView: View {
     public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator?
     public var isStandalone: Bool
-    
-    @State private var isHovered: Bool = false
+
     @State private var hoverDismissTask: Task<Void, Never>? = nil
+    /// Hover della pillola incorporata nello Studio. Quella flottante usa il
+    /// flag del manager, così non può restare disallineata dal frame finestra.
+    @State private var isEmbeddedHovered: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    
+
     public init(
         appState: AppState,
         audioEngine: AudioEngineService,
@@ -27,169 +29,164 @@ public struct FloatingPillView: View {
         self.coordinator = coordinator
         self.isStandalone = isStandalone
     }
-    
+
     private var isExpanded: Bool {
-        return isHovered || appState.isPillExpanded
+        if appState.isPillExpanded { return true }
+        return isStandalone
+            ? FloatingPillPanelManager.shared.isHoverExpanded
+            : isEmbeddedHovered
     }
-    
+
     private var effectiveOrientation: PillOrientation {
         return isStandalone ? appState.pillOrientation : .horizontal
     }
-    
+
+    /// Spazio riservato al contenuto dentro la finestra. Deriva dalle stesse
+    /// metriche del pannello meno il margine di sicurezza, così il contenuto
+    /// non può mai essere più grande della finestra che lo ospita.
+    private var contentSize: CGSize {
+        FloatingPillPanelManager.PillMetrics.contentSize(
+            orientation: effectiveOrientation,
+            isExpanded: isExpanded,
+            isFallback: appState.isUsingSpeechFallback
+        )
+    }
+
     public var body: some View {
         ZStack {
             if effectiveOrientation == .vertical {
                 verticalPill
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.90)),
-                            removal: .opacity.combined(with: .scale(scale: 0.90))
+                            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                            removal: .opacity.combined(with: .scale(scale: 0.94))
                         )
                     )
             } else {
                 horizontalPill
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.90)),
-                            removal: .opacity.combined(with: .scale(scale: 0.90))
+                            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                            removal: .opacity.combined(with: .scale(scale: 0.94))
                         )
                     )
             }
         }
         .contentShape(Capsule())
-        .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.78), value: effectiveOrientation)
-        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76), value: isExpanded)
+        .animation(morphAnimation, value: effectiveOrientation)
+        .animation(morphAnimation, value: isExpanded)
         .onHover { hovering in
             handleHover(hovering)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FloatingPillTogglePlayPause"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .floatingPillTogglePlayPause)) { _ in
             handlePlayPause()
         }
-    }
-    
-    // MARK: - Gestione Hover con Grace Period
-    
-    private func handleHover(_ hovering: Bool) {
-        // Se stiamo attivamente trascinando o la finestra sta animando il morphing, blocca transizioni hover
-        if FloatingPillPanelManager.shared.isDragging || FloatingPillPanelManager.shared.isAnimatingFrame { return }
-        
-        if hovering {
+        .onChange(of: appState.isUsingSpeechFallback) { _, _ in
+            // Il badge di fallback allarga il contenuto: senza questo la finestra
+            // resterebbe della misura precedente e taglierebbe i controlli.
+            guard isStandalone else { return }
+            FloatingPillPanelManager.shared.updatePanelFrame(
+                for: effectiveOrientation,
+                isExpanded: isExpanded,
+                animated: !reduceMotion
+            )
+        }
+        .onDisappear {
             hoverDismissTask?.cancel()
             hoverDismissTask = nil
-            if !isHovered {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76)) {
-                    isHovered = true
-                }
-                if isStandalone {
-                    FloatingPillPanelManager.shared.updatePanelFrame(
-                        for: effectiveOrientation,
-                        isExpanded: true,
-                        animated: !reduceMotion
-                    )
-                }
-            }
-        } else {
-            hoverDismissTask?.cancel()
-            hoverDismissTask = Task {
-                // 350ms di grace period per prevenire scatti o chiusure brusche accidentali
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    if !appState.isPillExpanded && !FloatingPillPanelManager.shared.isDragging && !FloatingPillPanelManager.shared.isAnimatingFrame {
-                        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.76)) {
-                            isHovered = false
-                        }
-                        if isStandalone {
-                            FloatingPillPanelManager.shared.updatePanelFrame(
-                                for: effectiveOrientation,
-                                isExpanded: false,
-                                animated: !reduceMotion
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
-    
-    // MARK: - Drag Gesture Fluido & Stabile a Coordinate Schermo Globali
-    
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
-            .onChanged { _ in
-                guard isStandalone else { return }
-                FloatingPillPanelManager.shared.dragPanelWithCurrentMouse()
-            }
-            .onEnded { _ in
-                guard isStandalone else { return }
-                FloatingPillPanelManager.shared.finishDrag(appState: appState)
-            }
+
+    /// Stessa curva e stessa durata del frame della finestra: se il contenuto
+    /// morphasse con una spring più lenta, durante la transizione verrebbe
+    /// disegnato fuori dalla capsula.
+    private var morphAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: FloatingPillPanelManager.PillMetrics.morphDuration)
     }
-    
+
+    // MARK: - Hover
+
+    private func handleHover(_ hovering: Bool) {
+        hoverDismissTask?.cancel()
+        hoverDismissTask = nil
+
+        if hovering {
+            setHoverExpanded(true)
+            return
+        }
+
+        hoverDismissTask = Task { @MainActor in
+            // Grace period: evita il collasso mentre il cursore attraversa il bordo.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            setHoverExpanded(false)
+        }
+    }
+
+    private func setHoverExpanded(_ expanded: Bool) {
+        let isCurrentlyExpanded = isStandalone
+            ? FloatingPillPanelManager.shared.isHoverExpanded
+            : isEmbeddedHovered
+        guard isCurrentlyExpanded != expanded else { return }
+
+        let manager = FloatingPillPanelManager.shared
+        // Durante il drag la finestra si muove sotto il cursore: cambiare forma
+        // in quel momento sposterebbe il grip rispetto al mouse.
+        guard !isStandalone || !manager.isDragging else { return }
+
+        if isStandalone {
+            manager.isHoverExpanded = expanded
+        } else {
+            isEmbeddedHovered = expanded
+        }
+
+        guard isStandalone else { return }
+        manager.updatePanelFrame(
+            for: effectiveOrientation,
+            isExpanded: expanded || appState.isPillExpanded,
+            animated: !reduceMotion
+        )
+    }
+
     private func waveformLevel(at index: Int) -> CGFloat {
         guard index >= 0 && index < appState.liveWaveformLevels.count else { return 0.15 }
         return CGFloat(appState.liveWaveformLevels[index])
     }
-    
+
     // MARK: - Layout Orizzontale (Top / Centro Schermo)
-    
+
     private var horizontalPill: some View {
         HStack(spacing: 6) {
-            // Sezione Grip & Onde Vocali
             HStack(spacing: 5) {
                 if isStandalone {
                     dragGrip
                 }
-                
+
                 horizontalWaveformSection
             }
             .padding(.leading, 8)
             .padding(.trailing, isExpanded ? 2 : 8)
-            
-            // Sezione Controlli a Comparsa Orizzontale (compatta, zero spazio extra)
+
             if isExpanded {
                 horizontalControlsSection
                     .padding(.trailing, 8)
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.90, anchor: .leading)),
-                            removal: .opacity.combined(with: .scale(scale: 0.90, anchor: .leading))
+                            insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .leading)),
+                            removal: .opacity.combined(with: .scale(scale: 0.92, anchor: .leading))
                         )
                     )
             }
         }
-        .frame(height: 36)
-        .frame(width: isExpanded ? (appState.isUsingSpeechFallback ? 290 : 275) : 96, alignment: .center)
-        .background {
-            ZStack {
-                Capsule()
-                    .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
-                    .shadow(
-                        color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
-                        radius: isExpanded ? 12 : 6
-                    )
-                
-                if isStandalone && !isExpanded {
-                    NativeDragHandleView(appState: appState)
-                        .clipShape(Capsule())
-                }
-            }
-        }
+        .frame(width: contentSize.width, height: contentSize.height)
+        .background(pillBackground)
         .clipShape(Capsule())
     }
-    
+
     private var dragGrip: some View {
         ZStack {
             NativeDragHandleView(appState: appState)
-            
+
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.white.opacity(0.45))
@@ -199,21 +196,15 @@ public struct FloatingPillView: View {
         .help("Trascina la pillola per spostarla")
         .accessibilityLabel("Trascina pillola")
     }
-    
+
     private var horizontalWaveformSection: some View {
         HStack(spacing: 2.5) {
             ForEach(0..<min(5, appState.liveWaveformLevels.count), id: \.self) { idx in
                 let level = waveformLevel(at: idx)
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .fill(waveformGradient)
                     .frame(width: 2.8, height: max(5, level * 20))
-                    .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4), radius: 2)
+                    .shadow(color: brandCyan.opacity(0.4), radius: 2)
             }
         }
         .frame(width: 32, height: 22, alignment: .center)
@@ -224,154 +215,42 @@ public struct FloatingPillView: View {
         .help(appState.playbackState == .playing ? "Pausa" : "Riproduci")
         .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
     }
-    
+
     private var horizontalControlsSection: some View {
         HStack(spacing: 6) {
-            // Frase precedente
-            Button(action: {
-                if let coordinator = coordinator {
-                    coordinator.skipBackward()
-                } else {
-                    _ = appState.rewindChunk()
-                }
-            }) {
-                Image(systemName: "backward.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(width: 22, height: 22)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help("Frase precedente")
-            .accessibilityLabel("Frase precedente")
-            
-            // Play / Pausa
-            Button(action: handlePlayPause) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 26, height: 26)
-                        .shadow(color: Color.white.opacity(0.35), radius: 3)
-                    
-                    Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.black)
-                        .offset(x: appState.playbackState == .playing ? 0 : 1)
-                }
-            }
-            .buttonStyle(.plain)
-            .help(appState.playbackState == .playing ? "Metti in pausa" : "Riproduci")
-            .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
-            
-            // Frase successiva
-            Button(action: {
-                if let coordinator = coordinator {
-                    coordinator.skipForward()
-                } else {
-                    _ = appState.advanceChunk()
-                }
-            }) {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(width: 22, height: 22)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help("Frase successiva")
-            .accessibilityLabel("Frase successiva")
-            
-            // Selettore Velocità
-            Menu {
-                ForEach([0.7, 0.85, 1.0, 1.05, 1.25, 1.5, 1.75, 2.0], id: \.self) { spd in
-                    Button("\(String(format: "%.2f", spd))×") {
-                        appState.setSpeed(Float(spd))
-                        audioEngine.setSpeed(Float(spd))
-                    }
-                }
-            } label: {
-                Text("\(String(format: "%.2f", appState.playbackSpeed))×")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.0, green: 0.9, blue: 1.0))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2.5)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
-            .help("Velocità di riproduzione")
-            .accessibilityLabel("Velocità: \(String(format: "%.2f", appState.playbackSpeed)) per")
-            
-            // Badge Avviso Fallback (se attivo)
+            skipBackwardButton(size: 22, iconSize: 10)
+            playPauseButton(size: 26, iconSize: 10)
+            skipForwardButton(size: 22, iconSize: 10)
+            speedMenu(width: nil, height: nil, fontSize: 9.5)
+
             if appState.isUsingSpeechFallback {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
-                    .help(appState.speechFallbackNotice ?? "Voce macOS di fallback attiva (backend Supertonic offline)")
+                fallbackBadge(size: 10)
             }
-            
-            // Blocca / Sblocca espanso (Pin)
-            Button(action: {
-                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.75)) {
-                    appState.isPillExpanded.toggle()
-                }
-                if isStandalone {
-                    FloatingPillPanelManager.shared.updatePanelFrame(
-                        for: effectiveOrientation,
-                        isExpanded: appState.isPillExpanded,
-                        animated: !reduceMotion
-                    )
-                }
-            }) {
-                Image(systemName: appState.isPillExpanded ? "pin.fill" : "pin")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0) : .white.opacity(0.75))
-                    .frame(width: 22, height: 22)
-                    .background(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.2) : Color.white.opacity(0.08))
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help(appState.isPillExpanded ? "Sblocca espansione automatica" : "Blocca pillola espansa")
-            .accessibilityLabel(appState.isPillExpanded ? "Sblocca espansione" : "Blocca pillola espansa")
-            
-            // Chiudi pillola (solo se fluttuante indipendente)
+
+            pinButton(size: 22, iconSize: 9.5)
+
             if isStandalone {
-                Button(action: {
-                    FloatingPillPanelManager.shared.hide(appState: appState)
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9.5, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(width: 22, height: 22)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Chiudi la pillola fluttuante")
-                .accessibilityLabel("Chiudi pillola")
+                closeButton(size: 22, iconSize: 9.5)
             }
         }
-    }    // MARK: - Layout Verticale (Lati dello Schermo - Naturale & Pieno)
-    
+    }
+
+    // MARK: - Layout Verticale (Lati dello Schermo)
+
     private var verticalPill: some View {
         VStack(spacing: 6) {
-            // Drag grip in alto con cursore e accelerazione hardware
             if isStandalone {
                 verticalDragGrip
             }
-            
-            // Sezione Onde Vocali Verticale (animata con decibel vocali)
+
             verticalWaveformSection
-            
-            // Sezione Controlli Verticali o Indicatore Compatto
+
             if isExpanded {
                 verticalControlsSection
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.90, anchor: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 0.90, anchor: .top))
+                            insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.92, anchor: .top))
                         )
                     )
             } else {
@@ -379,38 +258,15 @@ public struct FloatingPillView: View {
             }
         }
         .padding(.vertical, 6)
-        .frame(width: 42)
-        .frame(height: isExpanded ? (appState.isUsingSpeechFallback ? 186 : 164) : 98, alignment: .top)
-        .background {
-            ZStack {
-                Capsule()
-                    .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(
-                                isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
-                    .shadow(
-                        color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(isExpanded ? 0.22 : 0.08),
-                        radius: isExpanded ? 12 : 6
-                    )
-                
-                if isStandalone && !isExpanded {
-                    NativeDragHandleView(appState: appState)
-                        .clipShape(Capsule())
-                }
-            }
-        }
+        .frame(width: contentSize.width, height: contentSize.height, alignment: .top)
+        .background(pillBackground)
         .clipShape(Capsule())
     }
-    
+
     private var verticalDragGrip: some View {
         ZStack {
             NativeDragHandleView(appState: appState)
-            
+
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 8.5, weight: .bold))
                 .foregroundStyle(.white.opacity(0.45))
@@ -420,21 +276,15 @@ public struct FloatingPillView: View {
         .help("Trascina la pillola per spostarla")
         .accessibilityLabel("Trascina pillola")
     }
-    
+
     private var verticalWaveformSection: some View {
         HStack(spacing: 2.2) {
             ForEach(0..<min(4, appState.liveWaveformLevels.count), id: \.self) { idx in
                 let level = waveformLevel(at: idx)
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color(red: 0.2, green: 0.95, blue: 0.5)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .fill(waveformGradient)
                     .frame(width: 2.6, height: max(5, level * 18))
-                    .shadow(color: Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4), radius: 2)
+                    .shadow(color: brandCyan.opacity(0.4), radius: 2)
             }
         }
         .frame(width: 22, height: 20, alignment: .center)
@@ -445,19 +295,19 @@ public struct FloatingPillView: View {
         .help(appState.playbackState == .playing ? "Pausa" : "Riproduci")
         .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
     }
-    
+
     private var verticalCompactPlayIndicator: some View {
         VStack(spacing: 4) {
             Button(action: handlePlayPause) {
                 ZStack {
                     Circle()
-                        .fill(appState.playbackState == .playing ? Color(red: 0.0, green: 0.9, blue: 1.0) : Color.white.opacity(0.18))
+                        .fill(appState.playbackState == .playing ? brandCyan : Color.white.opacity(0.18))
                         .frame(width: 22, height: 22)
                         .shadow(
-                            color: appState.playbackState == .playing ? Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.4) : Color.clear,
+                            color: appState.playbackState == .playing ? brandCyan.opacity(0.4) : .clear,
                             radius: 3
                         )
-                    
+
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(appState.playbackState == .playing ? Color.black : Color.white)
@@ -467,148 +317,202 @@ public struct FloatingPillView: View {
             .buttonStyle(.plain)
             .help(appState.playbackState == .playing ? "Pausa" : "Riproduci")
             .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
-            
-            // Puntino inferiore decorativo che bilancia esteticamente il design verticale
+
             Circle()
                 .fill(Color.white.opacity(0.25))
                 .frame(width: 3, height: 3)
                 .allowsHitTesting(false)
         }
     }
-    
+
     private var verticalControlsSection: some View {
         VStack(spacing: 6) {
-            // Play / Pausa principale in evidenza (cerchio bianco ad alto contrasto)
-            Button(action: handlePlayPause) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 26, height: 26)
-                        .shadow(color: Color.white.opacity(0.35), radius: 3)
-                    
-                    Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.black)
-                        .offset(x: appState.playbackState == .playing ? 0 : 1)
-                }
-            }
-            .buttonStyle(.plain)
-            .help(appState.playbackState == .playing ? "Metti in pausa" : "Riproduci")
-            .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
-            
-            // Navigazione Frasi (Precedente / Successiva)
+            playPauseButton(size: 26, iconSize: 10)
+
             HStack(spacing: 3) {
-                Button(action: {
-                    if let coordinator = coordinator {
-                        coordinator.skipBackward()
-                    } else {
-                        _ = appState.rewindChunk()
-                    }
-                }) {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 18, height: 18)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Frase precedente")
-                .accessibilityLabel("Frase precedente")
-                
-                Button(action: {
-                    if let coordinator = coordinator {
-                        coordinator.skipForward()
-                    } else {
-                        _ = appState.advanceChunk()
-                    }
-                }) {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 18, height: 18)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Frase successiva")
-                .accessibilityLabel("Frase successiva")
+                skipBackwardButton(size: 18, iconSize: 9)
+                skipForwardButton(size: 18, iconSize: 9)
             }
-            
-            // Selettore Velocità compatto
-            Menu {
-                ForEach([0.7, 0.85, 1.0, 1.05, 1.25, 1.5, 1.75, 2.0], id: \.self) { spd in
-                    Button("\(String(format: "%.2f", spd))×") {
-                        appState.setSpeed(Float(spd))
-                        audioEngine.setSpeed(Float(spd))
-                    }
-                }
-            } label: {
-                Text("\(String(format: "%.1f", appState.playbackSpeed))×")
-                    .font(.system(size: 8.5, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.0, green: 0.9, blue: 1.0))
-                    .frame(width: 34, height: 17)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 4.5))
-            }
-            .buttonStyle(.plain)
-            .help("Velocità di riproduzione")
-            .accessibilityLabel("Velocità: \(String(format: "%.2f", appState.playbackSpeed)) per")
-            
-            // Avviso Fallback (se attivo)
+
+            speedMenu(width: 34, height: 17, fontSize: 8.5)
+
             if appState.isUsingSpeechFallback {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
-                    .help(appState.speechFallbackNotice ?? "Voce macOS di fallback attiva")
+                fallbackBadge(size: 9.5)
             }
-            
-            // Pulsanti Pin e Chiudi
+
             HStack(spacing: 3) {
-                Button(action: {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.75)) {
-                        appState.isPillExpanded.toggle()
-                    }
-                    if isStandalone {
-                        FloatingPillPanelManager.shared.updatePanelFrame(
-                            for: effectiveOrientation,
-                            isExpanded: appState.isPillExpanded,
-                            animated: !reduceMotion
-                        )
-                    }
-                }) {
-                    Image(systemName: appState.isPillExpanded ? "pin.fill" : "pin")
-                        .font(.system(size: 9))
-                        .foregroundStyle(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0) : .white.opacity(0.75))
-                        .frame(width: 18, height: 18)
-                        .background(appState.isPillExpanded ? Color(red: 0.0, green: 0.9, blue: 1.0).opacity(0.2) : Color.white.opacity(0.08))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help(appState.isPillExpanded ? "Sblocca espansione" : "Blocca pillola espansa")
-                .accessibilityLabel("Blocca o sblocca espansione")
-                
+                pinButton(size: 18, iconSize: 9)
+
                 if isStandalone {
-                    Button(action: {
-                        FloatingPillPanelManager.shared.hide(appState: appState)
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 18, height: 18)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Chiudi pillola")
-                    .accessibilityLabel("Chiudi pillola")
+                    closeButton(size: 18, iconSize: 8.5)
                 }
             }
         }
     }
-    
+
+    // MARK: - Componenti condivisi (una sola definizione per entrambi gli orientamenti)
+
+    private var brandCyan: Color {
+        Color(red: 0.0, green: 0.9, blue: 1.0)
+    }
+
+    private var waveformGradient: LinearGradient {
+        LinearGradient(
+            colors: [brandCyan, Color(red: 0.2, green: 0.95, blue: 0.5)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var pillBackground: some View {
+        ZStack {
+            Capsule()
+                .fill(Color(red: 0.05, green: 0.05, blue: 0.07).opacity(0.96))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            isExpanded ? Color.white.opacity(0.35) : Color.white.opacity(0.18),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.7), radius: isExpanded ? 16 : 8, y: 6)
+                .shadow(color: brandCyan.opacity(isExpanded ? 0.22 : 0.08), radius: isExpanded ? 12 : 6)
+
+            // Il drag in compatto è gestito dall'hosting view a livello di finestra,
+            // quindi qui non serve un secondo overlay reattivo.
+        }
+    }
+
+    private func playPauseButton(size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: handlePlayPause) {
+            ZStack {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: size, height: size)
+                    .shadow(color: Color.white.opacity(0.35), radius: 3)
+
+                Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: iconSize, weight: .bold))
+                    .foregroundStyle(.black)
+                    .offset(x: appState.playbackState == .playing ? 0 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(appState.playbackState == .playing ? "Metti in pausa" : "Riproduci")
+        .accessibilityLabel(appState.playbackState == .playing ? "Pausa" : "Riproduci")
+    }
+
+    private func skipBackwardButton(size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: {
+            if let coordinator = coordinator {
+                coordinator.skipBackward()
+            } else {
+                _ = appState.rewindChunk()
+            }
+        }) {
+            Image(systemName: "backward.fill")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: size, height: size)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Frase precedente")
+        .accessibilityLabel("Frase precedente")
+    }
+
+    private func skipForwardButton(size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: {
+            if let coordinator = coordinator {
+                coordinator.skipForward()
+            } else {
+                _ = appState.advanceChunk()
+            }
+        }) {
+            Image(systemName: "forward.fill")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: size, height: size)
+                .background(Color.white.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Frase successiva")
+        .accessibilityLabel("Frase successiva")
+    }
+
+    private func speedMenu(width: CGFloat?, height: CGFloat?, fontSize: CGFloat) -> some View {
+        Menu {
+            ForEach([0.7, 0.85, 1.0, 1.05, 1.25, 1.5, 1.75, 2.0], id: \.self) { spd in
+                Button("\(String(format: "%.2f", spd))×") {
+                    appState.setSpeed(Float(spd))
+                    audioEngine.setSpeed(Float(spd))
+                }
+            }
+        } label: {
+            Text("\(String(format: "%.2f", appState.playbackSpeed))×")
+                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(brandCyan)
+                .frame(width: width, height: height)
+                .padding(.horizontal, width == nil ? 5 : 0)
+                .padding(.vertical, width == nil ? 2.5 : 0)
+                .background(Color.white.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: width == nil ? 5 : 4.5))
+        }
+        .buttonStyle(.plain)
+        .help("Velocità di riproduzione")
+        .accessibilityLabel("Velocità: \(String(format: "%.2f", appState.playbackSpeed)) per")
+    }
+
+    private func fallbackBadge(size: CGFloat) -> some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
+            .help(appState.speechFallbackNotice ?? "Voce macOS di fallback attiva (backend Supertonic offline)")
+    }
+
+    private func pinButton(size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: {
+            appState.isPillExpanded.toggle()
+            if isStandalone {
+                FloatingPillPanelManager.shared.updatePanelFrame(
+                    for: effectiveOrientation,
+                    isExpanded: isExpanded,
+                    animated: !reduceMotion
+                )
+            }
+        }) {
+            Image(systemName: appState.isPillExpanded ? "pin.fill" : "pin")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(appState.isPillExpanded ? brandCyan : .white.opacity(0.75))
+                .frame(width: size, height: size)
+                .background(appState.isPillExpanded ? brandCyan.opacity(0.2) : Color.white.opacity(0.08))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(appState.isPillExpanded ? "Sblocca espansione automatica" : "Blocca pillola espansa")
+        .accessibilityLabel(appState.isPillExpanded ? "Sblocca espansione" : "Blocca pillola espansa")
+    }
+
+    private func closeButton(size: CGFloat, iconSize: CGFloat) -> some View {
+        Button(action: {
+            FloatingPillPanelManager.shared.hide(appState: appState)
+        }) {
+            Image(systemName: "xmark")
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: size, height: size)
+                .background(Color.white.opacity(0.1))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Chiudi la pillola fluttuante")
+        .accessibilityLabel("Chiudi pillola")
+    }
+
     // MARK: - Azioni Comuni
-    
+
     private func handlePlayPause() {
         if appState.readingQueue.isEmpty || appState.currentChunk == nil {
             NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)

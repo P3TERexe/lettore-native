@@ -2,23 +2,23 @@ import SwiftUI
 import AppKit
 import LettoreCore
 
-/// Componente AppKit nativo per il trascinamento a 120 FPS della pillola fluttuante.
-/// Utilizza il tracking loop modale di macOS (`window.nextEvent`) che cattura il cursore
-/// globalmente attraverso tutti i monitor, garantendo zero perdita di eventi e zero scatti
-/// anche durante movimenti rapidissimi del mouse.
+/// Area del grip della pillola. È un'ancora visiva e di cursore per il drag.
+/// La logica non è duplicata: sia il grip sia l'hosting view chiamano lo stesso
+/// ingresso del manager (`beginPanelDrag`), che annulla l'animazione di frame e
+/// delega a `performDrag`.
 public struct NativeDragHandleView: NSViewRepresentable {
     public var appState: AppState
-    
+
     public init(appState: AppState) {
         self.appState = appState
     }
-    
+
     public func makeNSView(context: Context) -> NativeDragHandleNSView {
         let view = NativeDragHandleNSView()
         view.appState = appState
         return view
     }
-    
+
     public func updateNSView(_ nsView: NativeDragHandleNSView, context: Context) {
         nsView.appState = appState
     }
@@ -27,7 +27,7 @@ public struct NativeDragHandleView: NSViewRepresentable {
 public final class NativeDragHandleNSView: NSView {
     public var appState: AppState?
     private var trackingArea: NSTrackingArea?
-    
+
     public override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let old = trackingArea {
@@ -38,29 +38,30 @@ public final class NativeDragHandleNSView: NSView {
         addTrackingArea(area)
         trackingArea = area
     }
-    
+
     public override func cursorUpdate(with event: NSEvent) {
         NSCursor.openHand.set()
     }
-    
+
     public override func resetCursorRects() {
         addCursorRect(bounds, cursor: .openHand)
     }
-    
+
+    /// Il grip è un entry point del drag, ma la logica vive tutta nel manager:
+    /// stessa cancellazione dell'animazione, stesso lifecycle, stessa soglia.
     public override func mouseDown(with event: NSEvent) {
         guard let window = self.window else { return }
-        print("[NativeDragHandleNSView] mouseDown ricevuto! Avvio window.performDrag(with: event)...")
+        let manager = FloatingPillPanelManager.shared
         let startOrigin = window.frame.origin
-        FloatingPillPanelManager.shared.dragPanelStarted()
-        window.performDrag(with: event)
+
+        manager.beginPanelDrag(event: event)
+
         let endOrigin = window.frame.origin
-        let dist = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
-        if dist < 3.0 && !(appState?.isPillExpanded ?? false) {
-            FloatingPillPanelManager.shared.dragPanelCancelled()
-            NotificationCenter.default.post(name: NSNotification.Name("FloatingPillTogglePlayPause"), object: nil)
+        let distance = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
+        if distance < 3.0 {
+            manager.dragPanelCancelled()
         } else {
-            FloatingPillPanelManager.shared.dragPanelEnded()
+            manager.dragPanelEnded()
         }
-        print("[NativeDragHandleNSView] performDrag completato! Nuova origine: \(window.frame.origin)")
     }
 }
