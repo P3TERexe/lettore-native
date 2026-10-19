@@ -133,7 +133,7 @@ export const TRANSLATIONS = {
     download: {
       kicker: 'Disponibile Gratuitamente',
       title: 'Inizia subito a leggere con voce naturale',
-      subtitle: 'Compatibile con macOS Sonoma e Sequoia. Su 8 GB di RAM usa il profilo CPU; con 16 GB il profilo ibrido è più rapido.',
+      subtitle: 'Compatibile con macOS Sonoma e Sequoia (Apple Silicon M1/M2/M3/M4 & Intel).',
       dmgBtn: 'Scarica .dmg per macOS',
       sourceBtn: 'Compila dal codice sorgente',
       cliTitle: 'Installazione rapida da Terminale (CLI):',
@@ -141,37 +141,35 @@ export const TRANSLATIONS = {
       copyCmd: 'Copia comando',
       hardware: {
         kicker: 'Requisiti hardware',
-        title: 'Pensato anche per i portatili da studente',
-        subtitle: 'Non serve un Mac recente per iniziare. Con 8 GB di RAM il profilo CPU mantiene il motore TTS sotto 1 GB; con 16 GB puoi usare il profilo ibrido, più rapido.',
+        title: 'Scegli il Mac che hai già',
+        subtitle: '8 GB bastano per studiare; 16 GB rendono la lettura più fluida.',
         badge: '8 GB minimo · 16 GB consigliati',
         tiers: [
           {
             title: 'Minimo consigliato',
             device: 'MacBook Air M1 · 8 GB',
             profile: 'Profilo CPU',
-            desc: 'Circa 0,75 GB di RAM per il motore TTS. Prima frase in 2–4 secondi (stima), poi il prefetch rende la lettura continua.',
+            desc: 'Il minimo per studiare e leggere con la voce neurale. Prima frase in 2–4 secondi (stima).',
             tag: 'Studenti'
           },
           {
             title: 'Configurazione ideale',
             device: 'Apple Silicon · 16 GB',
             profile: 'Profilo ibrido',
-            desc: 'Circa 4,1 GB di RAM di picco. Latenza mediana misurata di 1,3 s su M5, con CPU e RAM ridotte rispetto al vecchio CoreML completo.',
+            desc: 'La configurazione più fluida per l’uso quotidiano. Prima frase in circa 1,3 secondi (misurato su M5).',
             tag: 'Consigliato'
           },
           {
             title: 'Compatibilità tecnica',
             device: 'Intel i5 8ª gen · 8 GB',
             profile: 'Solo profilo CPU',
-            desc: 'Funziona con macOS 14, ma il primo chunk può richiedere 5–10 secondi (stima). Da scegliere solo se il Mac è già in tuo possesso.',
+            desc: 'Funziona, ma è più lento: prima frase in 5–10 secondi (stima). Scegli questa configurazione solo se hai già il Mac.',
             tag: 'Non per nuovi acquisti'
           }
         ],
-        storage: 'Almeno 3 GB liberi, meglio 5 GB: modello (~400 MB), ambiente Python e cache audio.',
-        note: '4 GB di RAM non sono consigliati. Su Intel dual-core l’esperienza può essere lenta: meglio testi brevi o la voce di sistema.',
-        config: 'Per il profilo CPU:',
-        footnote: 'Le stime per M1 e Intel sono proiezioni; le misure reali sono state rilevate su un Apple M5 10-core / 16 GB.',
-        otherPlatforms: 'Windows e Linux non sono ancora supportati. Per un eventuale port del solo motore TTS: CPU 4 core/8 thread con AVX2, 8 GB di RAM (16 GB consigliati su Windows) e 5 GB liberi; la GPU dedicata è opzionale.'
+        storage: 'Servono almeno 5 GB di spazio libero.',
+        note: '4 GB di RAM non sono consigliati.',
+        unsupported: 'Windows e Linux non sono ancora supportati.'
       }
     },
     footer: {
@@ -325,7 +323,7 @@ export const TRANSLATIONS = {
     download: {
       kicker: 'Free & Open Source',
       title: 'Start reading with a natural voice today',
-      subtitle: 'Compatible with macOS Sonoma and Sequoia. On 8 GB RAM use the CPU profile; with 16 GB the hybrid profile is faster.',
+      subtitle: 'Compatible with macOS Sonoma and Sequoia (Apple Silicon M1/M2/M3/M4 & Intel).',
       dmgBtn: 'Download .dmg for macOS',
       sourceBtn: 'Build from source code',
       cliTitle: 'Quick Terminal install (CLI):',
@@ -333,37 +331,35 @@ export const TRANSLATIONS = {
       copyCmd: 'Copy command',
       hardware: {
         kicker: 'Hardware requirements',
-        title: 'Designed for student laptops too',
-        subtitle: 'You do not need a recent Mac to start. With 8 GB RAM the CPU profile keeps the TTS engine under 1 GB; with 16 GB you can use the faster hybrid profile.',
+        title: 'Choose the Mac you already have',
+        subtitle: '8 GB is enough for studying; 16 GB makes reading smoother.',
         badge: '8 GB minimum · 16 GB recommended',
         tiers: [
           {
             title: 'Recommended minimum',
             device: 'MacBook Air M1 · 8 GB',
             profile: 'CPU profile',
-            desc: 'About 0.75 GB RAM for the TTS engine. First sentence in 2–4 seconds (estimate), then prefetch keeps playback continuous.',
+            desc: 'The minimum for studying and reading with the neural voice. First sentence in 2–4 seconds (estimate).',
             tag: 'Students'
           },
           {
             title: 'Ideal setup',
             device: 'Apple Silicon · 16 GB',
             profile: 'Hybrid profile',
-            desc: 'About 4.1 GB peak RAM. 1.3 s median latency measured on M5, with lower CPU and RAM than the old full-CoreML setup.',
+            desc: 'The smoothest setup for daily use. First sentence in about 1.3 seconds (measured on M5).',
             tag: 'Recommended'
           },
           {
             title: 'Technical compatibility',
             device: 'Intel i5 8th gen · 8 GB',
             profile: 'CPU profile only',
-            desc: 'Works on macOS 14, but the first chunk can take 5–10 seconds (estimate). Choose only if you already own the Mac.',
+            desc: 'Works, but it is slower: first sentence in 5–10 seconds (estimate). Choose this only if you already own the Mac.',
             tag: 'Not for new purchases'
           }
         ],
-        storage: 'At least 3 GB free, 5 GB preferred: model (~400 MB), Python environment and audio cache.',
-        note: '4 GB RAM is not recommended. On dual-core Intel Macs the experience can be slow: prefer short texts or the system voice.',
-        config: 'For the CPU profile:',
-        footnote: 'M1 and Intel figures are projections; actual measurements were taken on an Apple M5 10-core / 16 GB.',
-        otherPlatforms: 'Windows and Linux are not supported yet. For a future port of the TTS engine only: 4-core/8-thread CPU with AVX2, 8 GB RAM (16 GB recommended on Windows) and 5 GB free; a dedicated GPU is optional.'
+        storage: 'At least 5 GB of free space.',
+        note: '4 GB RAM is not recommended.',
+        unsupported: 'Windows and Linux are not supported yet.'
       }
     },
     footer: {

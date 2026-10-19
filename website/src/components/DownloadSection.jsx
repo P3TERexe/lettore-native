@@ -49,7 +49,7 @@ swift run LettoreApp`;
                 {isEnglish ? 'Download for Mac' : 'Scarica per Mac'}
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-                {isEnglish ? 'Runs on Apple Silicon and Intel Macs. Check the recommended hardware profiles below.' : 'Funziona su Mac Apple Silicon e Intel. Controlla i profili hardware consigliati qui sotto.'}
+                {isEnglish ? 'Ready for all Mac models (Apple Silicon M1/M2/M3/M4 & Intel). Fast to install and runs immediately.' : 'Pronto per tutti i modelli di Mac (Apple Silicon M1/M2/M3/M4 e Intel). Facile da installare e subito pronto all\'uso.'}
               </p>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 24 }}>
                 {isEnglish ? 'Version 0.3.2 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 0.3.2 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
@@ -276,34 +276,6 @@ swift run LettoreApp`;
               </span>
             </div>
 
-            <div style={{
-              marginTop: 12,
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: '8px 10px',
-              fontSize: '0.78rem',
-              color: 'var(--text-secondary)',
-              position: 'relative'
-            }}>
-              <span>{hw.config}</span>
-              <code style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.74rem',
-                color: 'var(--accent-emerald)',
-                background: 'rgba(0, 0, 0, 0.35)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 5,
-                padding: '2px 7px'
-              }}>
-                LETTORE_TTS_PROVIDER=cpu
-              </code>
-            </div>
-
-            <p style={{ margin: '12px 0 0', fontSize: '0.72rem', color: 'var(--text-tertiary)', lineHeight: 1.5, position: 'relative' }}>
-              {hw.footnote}
-            </p>
-
             <p style={{
               margin: '10px 0 0',
               paddingTop: 10,
@@ -313,7 +285,7 @@ swift run LettoreApp`;
               lineHeight: 1.55,
               position: 'relative'
             }}>
-              {hw.otherPlatforms}
+              {hw.unsupported}
             </p>
           </div>
         </div>
