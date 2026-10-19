@@ -94,5 +94,12 @@ node_modules/
 AGENTS.md
 dev-docs/
 mockup-native-100/
-docs/
+
+# Local issue tracker (docs/agents/issue-tracker.md)
+.scratch/
+
+# Build output of the website; agent docs under docs/ are versioned
+docs/*
+!docs/adr/
+!docs/agents/
 

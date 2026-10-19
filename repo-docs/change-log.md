@@ -31,3 +31,4 @@ Registro delle modifiche e sincronizzazioni della documentazione del repository.
 
 
 
+| 2026-10-19 11:10 | Configurazione skill di ingegneria (setup-matt-pocock-skills) | Aggiunto `GLOSSARY.md` alla root come vocabolario di dominio degli agenti; migrati gli 8 ADR da `dev-docs/decisions.md` a `docs/adr/` (un file per decisione) lasciando in `dev-docs/decisions.md` un indice di rimando; creati `docs/agents/issue-tracker.md` (tracker Markdown locale in `.scratch/`), `docs/agents/triage-labels.md` e `docs/agents/domain.md`; aggiunta la sezione `## Agent skills` in `AGENTS.md`; aggiornati `.gitignore` (versiona `docs/adr/` e `docs/agents/`, ignora `.scratch/`), `ROADMAP.md`, `dev-docs/README.md` e il rimando in `repo-docs/glossary.md` | python3 .agents/skills/documentation/repo-docs/validate_repo_docs.py repo-docs/ --seed --repo-root ., git check-ignore sui nuovi percorsi | Documentazione di dominio e tracker configurati, 0 errori di validazione |

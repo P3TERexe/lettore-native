@@ -493,5 +493,5 @@ L'obiettivo strategico di Lettore Native è garantire a studenti, ricercatori e 
 
 Se hai suggerimenti, vuoi proporre modifiche o testare queste funzionalità sul tuo dispositivo:
 - Apri una **Issue** o una **Discussion** su GitHub.
-- Consulta [dev-docs/decisions.md](file:///Users/pepe/Stuff/lettore-native/dev-docs/decisions.md) per le linee guida architetturali.
+- Consulta [docs/adr/](docs/adr/) per le linee guida architetturali e le decisioni vincolanti.
 - Consulta [AGENTS.md](file:///Users/pepe/Stuff/lettore-native/AGENTS.md) per le convenzioni di codice Swift 6.
