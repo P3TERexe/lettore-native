@@ -1,7 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Sparkles, Volume2, Globe, ExternalLink } from 'lucide-react';
+import { X, AudioLines, Globe, ExternalLink, Play } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { SUPERTONIC_LANGUAGES, SUPERTONIC_VOICES } from '../data/supertonicCatalog';
+import {
+  SUPERTONIC_APP_LANGUAGES,
+  SUPERTONIC_AUTO_MODE,
+  SUPERTONIC_LANGUAGE_FLAGS,
+  SUPERTONIC_LANGUAGES,
+  SUPERTONIC_VOICES
+} from '../data/supertonicCatalog';
 
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const TABS = ['voices', 'languages'];
@@ -11,13 +17,8 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
   const c = t.catalog;
   const [activeTab, setActiveTab] = useState(initialTab);
   const dialogRef = useRef(null);
-  const closeButtonRef = useRef(null);
   const tabRefs = useRef([]);
   const previousFocusRef = useRef(null);
-
-  useEffect(() => {
-    if (isOpen) setActiveTab(initialTab);
-  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -25,17 +26,27 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
     previousFocusRef.current = document.activeElement;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
 
     return () => {
-      window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
       const focusTarget = returnFocusRef?.current || previousFocusRef.current;
       if (focusTarget?.isConnected && typeof focusTarget.focus === 'function') {
         focusTarget.focus();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, returnFocusRef]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    setActiveTab(initialTab);
+    const focusTimer = window.setTimeout(() => {
+      const index = TABS.indexOf(initialTab);
+      tabRefs.current[index]?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -53,7 +64,7 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
       if (!dialog) return;
 
       const focusable = Array.from(dialog.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
-        (element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0
+        (element) => element.tabIndex >= 0 && !element.hasAttribute('hidden') && element.getClientRects().length > 0
       );
       if (focusable.length === 0) return;
 
@@ -97,22 +108,23 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
     tabRefs.current[nextIndex]?.focus();
   };
 
-  const renderVoiceGroup = (title, voices, className) => (
+  const renderVoiceGroup = (title, voices) => (
     <section className="catalog-voice-group">
-      <h4>{title}</h4>
-      <div className="catalog-voice-grid">
-        {voices.map((voice) => (
-          <article key={voice.id} className={`catalog-voice-card ${className}`}>
-            <div className="catalog-voice-head">
-              <span className="catalog-voice-id">{voice.id}</span>
-              <span className="catalog-voice-alias">
-                {c.simulatorName}: {voice.alias}
-              </span>
-            </div>
-            <p>{voice.description[locale]}</p>
-          </article>
-        ))}
+      <div className="catalog-group-heading">
+        <h4>{title}</h4>
+        <span className="catalog-group-count">{voices.length}</span>
       </div>
+      <ul className="catalog-voice-list">
+        {voices.map((voice) => (
+          <li key={voice.id} className="catalog-voice-row">
+            <div className="catalog-voice-identity">
+              <span className="catalog-voice-alias">{voice.alias}</span>
+              <span className="catalog-voice-id">{voice.id}</span>
+            </div>
+            <p className="catalog-voice-description">{voice.description[locale]}</p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 
@@ -125,9 +137,11 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
       tabIndex={0}
       hidden={activeTab !== 'voices'}
     >
-      <p className="catalog-intro">{c.voicesIntro}</p>
-      {renderVoiceGroup(c.male, maleVoices, 'male')}
-      {renderVoiceGroup(c.female, femaleVoices, 'female')}
+      <p className="catalog-panel-note">{c.voiceAliasNote}</p>
+      <div className="catalog-voices-columns">
+        {renderVoiceGroup(c.male, maleVoices)}
+        {renderVoiceGroup(c.female, femaleVoices)}
+      </div>
     </div>
   );
 
@@ -140,28 +154,52 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
       tabIndex={0}
       hidden={activeTab !== 'languages'}
     >
-      <p className="catalog-intro">{c.languagesIntro}</p>
-      <div className="catalog-language-grid">
+      <p className="catalog-panel-note">{c.flagsNote}</p>
+      <ul className="catalog-language-list">
         {sortedLanguages.map((language) => {
           const localizedName = language[locale];
 
           return (
-            <div key={language.code} className="catalog-language-card">
+            <li key={language.code} className="catalog-language-row">
+              <span className="catalog-language-flag" aria-hidden="true">
+                {SUPERTONIC_LANGUAGE_FLAGS[language.code]}
+              </span>
               <span className="catalog-language-code">{language.code}</span>
-              <div className="catalog-language-text">
+              <span className="catalog-language-text">
                 <span className="catalog-language-name">{localizedName}</span>
                 {language.native !== localizedName && (
                   <span className="catalog-language-native" lang={language.code}>
                     {language.native}
                   </span>
                 )}
-              </div>
-            </div>
+              </span>
+            </li>
           );
         })}
-      </div>
-      <p className="catalog-note">{c.autoNote}</p>
-      <p className="catalog-note">{c.engineNote}</p>
+      </ul>
+
+      <dl className="catalog-info">
+        <div className="catalog-info-row">
+          <dt className="catalog-info-label">{c.appLanguagesLabel}</dt>
+          <dd className="catalog-info-value">
+            <span className="catalog-app-codes">
+              {SUPERTONIC_APP_LANGUAGES.map((code) => (
+                <span key={code} className="catalog-app-code">{code.toUpperCase()}</span>
+              ))}
+            </span>
+            <span className="catalog-info-note">{c.appLanguagesNote}</span>
+          </dd>
+        </div>
+        <div className="catalog-info-row">
+          <dt className="catalog-info-label">
+            <span className="catalog-info-code">{SUPERTONIC_AUTO_MODE.code}</span>
+            {c.autoTitle}
+          </dt>
+          <dd className="catalog-info-value">
+            <span className="catalog-info-note">{c.autoNote}</span>
+          </dd>
+        </div>
+      </dl>
     </div>
   );
 
@@ -181,50 +219,56 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
         aria-describedby="catalog-description"
       >
         <div className="modal-header catalog-modal-header">
-          <div>
-            <span className="section-kicker catalog-kicker">
-              <Sparkles size={13} /> {c.kicker}
+          <div className="catalog-header-main">
+            <span className="catalog-kicker">
+              <AudioLines size={14} aria-hidden="true" /> {c.kicker}
             </span>
             <h3 id="catalog-title" className="catalog-title">{c.title}</h3>
             <p id="catalog-description" className="catalog-subtitle">{c.subtitle}</p>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            className="modal-close-btn"
-            onClick={onClose}
-            aria-label={c.close}
-          >
-            <X size={18} />
-          </button>
-        </div>
 
-        <div className="catalog-tabs" role="tablist" aria-label={c.tabListLabel}>
-          {TABS.map((tab, index) => {
-            const selected = activeTab === tab;
-            const isVoices = tab === 'voices';
+          <div className="catalog-header-side">
+            <div className="catalog-tabs" role="tablist" aria-label={c.tabListLabel}>
+              {TABS.map((tab, index) => {
+                const selected = activeTab === tab;
+                const isVoices = tab === 'voices';
+                const count = isVoices ? SUPERTONIC_VOICES.length : SUPERTONIC_LANGUAGES.length;
+                const label = isVoices ? c.voicesTabLabel : c.languagesTabLabel;
 
-            return (
-              <button
-                key={tab}
-                ref={(element) => {
-                  tabRefs.current[index] = element;
-                }}
-                type="button"
-                role="tab"
-                id={`catalog-tab-${tab}`}
-                aria-selected={selected}
-                aria-controls={`catalog-panel-${tab}`}
-                tabIndex={selected ? 0 : -1}
-                className={`catalog-tab ${selected ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab)}
-                onKeyDown={(event) => handleTabKeyDown(event, index)}
-              >
-                {isVoices ? <Volume2 size={15} /> : <Globe size={15} />}
-                {isVoices ? c.voicesTab : c.languagesTab}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={tab}
+                    ref={(element) => {
+                      tabRefs.current[index] = element;
+                    }}
+                    type="button"
+                    role="tab"
+                    id={`catalog-tab-${tab}`}
+                    aria-selected={selected}
+                    aria-controls={`catalog-panel-${tab}`}
+                    aria-label={`${count} ${label}`}
+                    tabIndex={selected ? 0 : -1}
+                    className={`catalog-tab catalog-tab-${tab} ${selected ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab)}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
+                  >
+                    {isVoices ? <AudioLines size={15} aria-hidden="true" /> : <Globe size={15} aria-hidden="true" />}
+                    <span className="catalog-tab-count">{count}</span>
+                    <span className="catalog-tab-label">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="modal-close-btn catalog-close-btn"
+              onClick={onClose}
+              aria-label={c.close}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {renderVoicesPanel()}
@@ -237,11 +281,13 @@ export default function VoicesLanguagesModal({ isOpen, initialTab = 'voices', re
             target="_blank"
             rel="noopener noreferrer"
           >
-            {c.source} <ExternalLink size={13} />
+            <ExternalLink size={13} aria-hidden="true" />
+            {c.source}
           </a>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {c.close}
-          </button>
+          <a href="#simulatore" className="btn btn-primary catalog-cta" onClick={onClose}>
+            <Play size={14} fill="currentColor" aria-hidden="true" />
+            {c.trySimulator}
+          </a>
         </div>
       </div>
     </div>

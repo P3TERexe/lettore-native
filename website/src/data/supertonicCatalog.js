@@ -101,9 +101,12 @@ export const SUPERTONIC_VOICES = [
   }
 ];
 
+export const SUPERTONIC_APP_LANGUAGES = ['it', 'en', 'es', 'fr', 'de'];
+
+export const SUPERTONIC_AUTO_MODE = { code: 'na' };
+
 export const SUPERTONIC_LANGUAGES = [
-  { code: 'ar', it: 'Arabo', en: 'Arabic', native: 'العربية' },
-  { code: 'bg', it: 'Bulgaro', en: 'Bulgarian', native: 'Български' },
+  { code: 'ar', it: 'Arabo', en: 'Arabic', native: 'العربية' },  { code: 'bg', it: 'Bulgaro', en: 'Bulgarian', native: 'Български' },
   { code: 'hr', it: 'Croato', en: 'Croatian', native: 'Hrvatski' },
   { code: 'cs', it: 'Ceco', en: 'Czech', native: 'Čeština' },
   { code: 'da', it: 'Danese', en: 'Danish', native: 'Dansk' },
@@ -134,3 +137,41 @@ export const SUPERTONIC_LANGUAGES = [
   { code: 'uk', it: 'Ucraino', en: 'Ukrainian', native: 'Українська' },
   { code: 'vi', it: 'Vietnamita', en: 'Vietnamese', native: 'Tiếng Việt' }
 ];
+
+/**
+ * Bandierine rappresentative per il catalogo UI.
+ * Una lingua può essere ufficiale in più paesi: la bandiera non limita il supporto.
+ */
+export const SUPERTONIC_LANGUAGE_FLAGS = {
+  ar: '🇸🇦',
+  bg: '🇧🇬',
+  hr: '🇭🇷',
+  cs: '🇨🇿',
+  da: '🇩🇰',
+  nl: '🇳🇱',
+  en: '🇬🇧',
+  et: '🇪🇪',
+  fi: '🇫🇮',
+  fr: '🇫🇷',
+  de: '🇩🇪',
+  el: '🇬🇷',
+  hi: '🇮🇳',
+  hu: '🇭🇺',
+  id: '🇮🇩',
+  it: '🇮🇹',
+  ja: '🇯🇵',
+  ko: '🇰🇷',
+  lv: '🇱🇻',
+  lt: '🇱🇹',
+  pl: '🇵🇱',
+  pt: '🇵🇹',
+  ro: '🇷🇴',
+  ru: '🇷🇺',
+  sk: '🇸🇰',
+  sl: '🇸🇮',
+  es: '🇪🇸',
+  sv: '🇸🇪',
+  tr: '🇹🇷',
+  uk: '🇺🇦',
+  vi: '🇻🇳'
+};

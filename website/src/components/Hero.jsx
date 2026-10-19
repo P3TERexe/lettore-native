@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Play, Download, Terminal, ArrowRight, Sparkles, Globe, ChevronRight } from 'lucide-react';
+import { Play, Download, Terminal, ArrowRight, AudioLines, Globe } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { SUPERTONIC_APP_LANGUAGES, SUPERTONIC_LANGUAGE_FLAGS, SUPERTONIC_LANGUAGES } from '../data/supertonicCatalog';
 import VoicesLanguagesModal from './VoicesLanguagesModal';
 
 export default function Hero() {
@@ -27,34 +28,49 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Multilingual Pill */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 32 }}>
+        {/* Catalog Bar */}
+        <div className="hero-catalog-bar" role="group" aria-label={h.catalogBarLabel}>
           <button
             ref={languagesButtonRef}
             type="button"
-            className="badge-pill badge-pill-interactive"
-            style={{ color: 'var(--accent-emerald)', borderColor: 'var(--accent-emerald-glow)' }}
+            className="hero-catalog-segment hero-catalog-languages"
             onClick={() => openCatalog('languages')}
             aria-haspopup="dialog"
             aria-label={h.openLanguages}
           >
-            <Globe size={14} /> {h.multiLangBadge} <ChevronRight size={13} />
+            <span className="hero-catalog-icon" aria-hidden="true">
+              <Globe size={17} />
+            </span>
+            <span className="hero-catalog-copy">
+              <span className="hero-catalog-value">{h.multiLangBadge}</span>
+              <span className="hero-catalog-flags" aria-hidden="true">
+                {SUPERTONIC_APP_LANGUAGES.map((code) => (
+                  <span key={code} className="hero-catalog-flag">{SUPERTONIC_LANGUAGE_FLAGS[code]}</span>
+                ))}
+                <span className="hero-catalog-flag hero-catalog-flag-more">
+                  +{SUPERTONIC_LANGUAGES.length - SUPERTONIC_APP_LANGUAGES.length}
+                </span>
+              </span>
+            </span>
           </button>
-          <span className="badge-pill">🇮🇹 Italiano</span>
-          <span className="badge-pill">🇬🇧 English</span>
-          <span className="badge-pill">🇪🇸 Español</span>
-          <span className="badge-pill">🇫🇷 Français</span>
-          <span className="badge-pill">🇩🇪 Deutsch</span>
+
+          <span className="hero-catalog-divider" aria-hidden="true" />
+
           <button
             ref={voicesButtonRef}
             type="button"
-            className="badge-pill badge-pill-interactive"
-            style={{ color: 'var(--accent-sky)' }}
+            className="hero-catalog-segment hero-catalog-voices"
             onClick={() => openCatalog('voices')}
             aria-haspopup="dialog"
             aria-label={h.openVoices}
           >
-            <Sparkles size={14} /> {h.voicesBadge} <ChevronRight size={13} />
+            <span className="hero-catalog-icon" aria-hidden="true">
+              <AudioLines size={17} />
+            </span>
+            <span className="hero-catalog-copy">
+              <span className="hero-catalog-value">{h.voicesBadge}</span>
+              <span className="hero-catalog-meta">{h.catalogVoicesMeta}</span>
+            </span>
           </button>
         </div>
 
