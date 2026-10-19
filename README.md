@@ -13,7 +13,7 @@
 > 🚀 **Prova subito la simulazione nel browser:** [**p3terexe.github.io/lettore-native/#hero**](https://p3terexe.github.io/lettore-native/#hero) (include la Floating Pill interattiva e la sintesi vocale di prova).
 
 ### 🌐 [👉 Prova la Demo Interattiva nel Browser](https://p3terexe.github.io/lettore-native/#hero)
-### 📥 [Scarica l'Ultima Versione per macOS (v3.0.0)](https://github.com/P3TERexe/lettore-native/releases/latest)
+### 📥 [Scarica l'Ultima Versione per macOS (v0.3.2)](https://github.com/P3TERexe/lettore-native/releases/latest)
 
 ## 🚀 Funzionalità Chiave
 
@@ -27,10 +27,10 @@
 ## 🎙️ Motore Vocale Neurale (Supertonic)
 
 La sintesi vocale di Lettore Native è interamente basata su **[Supertonic](https://github.com/supertone-inc/supertonic)** (v3), modello neurale ad altissima efficienza sviluppato da **[Supertone Inc.](https://github.com/supertone-inc)**:
-* **Architettura On-Device**: Modello compatto (~99M parametri, ~400MB) eseguito localmente tramite ONNX Runtime con accelerazione CoreML su Apple Silicon e fallback CPU/CUDA.
+* **Architettura On-Device**: Modello compatto (~99M parametri, ~400MB) eseguito localmente tramite ONNX Runtime. Il profilo predefinito è ibrido (CoreML solo per `vector_estimator`, CPU per le altre sessioni); `LETTORE_TTS_PROVIDER=cpu|coreml|auto` permette di cambiare configurazione.
 * **Supporto Multilingua**: Oltre 30 lingue supportate nativamente con rilevamento automatico del testo.
 * **Profili Vocali Neurali**: 10 voci predefinite (5 maschili `M1`–`M5` e 5 femminili `F1`–`F5`) calibrate per una dizione chiara, naturale e a basso affaticamento cognitivo.
-* **Latenza Ultra-bassa**: Tempo di sintesi <30ms per frase su Mac Apple Silicon, ideale per la lettura continua in streaming.
+* **Latenza contenuta**: Nel benchmark locale la mediana cold è ~1,3 s sul corpus di 28 testi (frasi brevi sotto 0,6 s); il prefetch dei chunk successivi rende continua la lettura.
 
 ## 🏗️ Architettura Ibrida (Fase 3.0)
 
@@ -46,6 +46,22 @@ Il motore neurale di sintesi vocale ([Supertonic](https://github.com/supertone-i
 *   **OS**: macOS 14.0 (Sonoma) o superiore.
 *   **Sviluppo**: Xcode 16.0+ o Swift 6.0 Toolchain.
 *   **Python**: Python 3.10+ (necessario solo per eseguire il backend TTS in modalità sviluppo).
+
+### 💻 Hardware minimo consigliato
+
+L'app è ottimizzata per funzionare anche su Mac da 8 GB. Il profilo TTS cambia RAM e latenza:
+
+| Profilo | Mac consigliato | RAM TTS | Prima frase | Note |
+| --- | --- | --- | --- | --- |
+| **Minimo consigliato** | MacBook Air M1 · 8 GB | ~0,75 GB | 2–4 s (stima) | Avvia il backend con `LETTORE_TTS_PROVIDER=cpu` |
+| **Ideale** | Apple Silicon · 16 GB | ~4,1 GB | ~1,3 s (misurato su M5) | Profilo ibrido, predefinito |
+| **Solo compatibilità** | Intel i5 8ª gen · 8 GB | ~0,75 GB | 5–10 s (stima) | Non consigliato per nuovi acquisti |
+
+- **Minimo:** Apple Silicon con 8 GB di RAM e profilo CPU. 4 GB di RAM non sono consigliati.
+- **Consigliato:** Apple Silicon con 16 GB di RAM e profilo ibrido.
+- **Spazio libero:** almeno 3 GB, meglio 5 GB (modello ~400 MB, ambiente Python e cache audio).
+- **Windows/Linux:** non ancora supportati. Per un eventuale port del solo motore TTS: CPU 4 core/8 thread con AVX2, 8 GB di RAM (16 GB consigliati su Windows) e 5 GB liberi; una GPU dedicata è opzionale.
+- La release macOS contiene l'app compilata; il backend TTS Python va avviato separatamente come descritto qui sotto.
 
 ## 💻 Compilazione ed Esecuzione (Sviluppo)
 
