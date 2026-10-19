@@ -48,20 +48,17 @@ public final class NativeDragHandleNSView: NSView {
     }
 
     /// Il grip è un entry point del drag, ma la logica vive tutta nel manager:
-    /// stessa cancellazione dell'animazione, stesso lifecycle, stessa soglia.
+    /// stesso lifecycle manuale, stessa soglia di tap, stesso morphing live.
     public override func mouseDown(with event: NSEvent) {
-        guard let window = self.window else { return }
+        guard self.window != nil else { return }
         let manager = FloatingPillPanelManager.shared
-        let startOrigin = window.frame.origin
 
-        manager.beginPanelDrag(event: event)
-
-        let endOrigin = window.frame.origin
-        let distance = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
-        if distance < 3.0 {
-            manager.dragPanelCancelled()
-        } else {
-            manager.dragPanelEnded()
+        manager.beginPanelDrag(atMouseLocation: NSEvent.mouseLocation) { distance in
+            if distance < FloatingPillPanelManager.PillMetrics.tapThreshold {
+                manager.dragPanelCancelled()
+            } else {
+                manager.dragPanelEnded()
+            }
         }
     }
 }

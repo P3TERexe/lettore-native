@@ -56,20 +56,27 @@ struct LettoreApp: App {
         
         let captureAction: @Sendable () -> Void = { [axCapture] in
             Task {
-                if let result = await axCapture.captureSelectedText() {
-                    let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    
-                    await MainActor.run {
-                        let normalizer = TextNormalizer()
-                        let normalized = normalizer.normalize(text: text)
-                        let chunker = SentenceChunker()
-                        let chunks = chunker.chunk(text: normalized)
-                        
-                        state.setQueue(chunks)
-                        if state.playbackState != .playing {
+                let result = await axCapture.captureSelectedText()
+                let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                
+                await MainActor.run {
+                    guard !text.isEmpty else {
+                        // Nessuna selezione leggibile: se esiste una coda non
+                        // ancora finita, riprendila invece di non fare nulla.
+                        if state.playbackState != .playing, state.currentChunk != nil {
                             self.coordinator.playCurrentChunk()
                         }
+                        return
+                    }
+                    
+                    let normalizer = TextNormalizer()
+                    let normalized = normalizer.normalize(text: text)
+                    let chunker = SentenceChunker()
+                    let chunks = chunker.chunk(text: normalized)
+                    
+                    state.setQueue(chunks)
+                    if state.playbackState != .playing {
+                        self.coordinator.playCurrentChunk()
                     }
                 }
             }

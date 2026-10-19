@@ -14,6 +14,7 @@ public final class PlaybackCoordinator {
     
     private var isPlayingSupertonic: Bool = true
     private var isSynthesizing: Bool = false
+    private var synthesisTask: Task<Void, Never>?
     
     // Cache e Coda Preload Ring Buffer (PERF-2, PERF-3)
     private let cacheManager: AudioCacheManager = AudioCacheManager.shared
@@ -107,6 +108,8 @@ public final class PlaybackCoordinator {
     }
     
     public func stop() {
+        synthesisTask?.cancel()
+        synthesisTask = nil
         isSynthesizing = false
         playRequestedTime = 0
         activePreloadTasks.values.forEach { $0.cancel() }
@@ -255,9 +258,13 @@ public final class PlaybackCoordinator {
             return
         }
         
-        guard !isSynthesizing else {
-            print("[PlaybackCoordinator] Sintesi già in corso, ignorata")
-            return
+        if isSynthesizing {
+            // Una nuova richiesta di riproduzione ha la precedenza: annulla la
+            // sintesi in volo invece di ignorare il click, che all'utente
+            // sembrerebbe un pulsante morto.
+            print("[PlaybackCoordinator] Nuova richiesta di play: preempt della sintesi in corso")
+            synthesisTask?.cancel()
+            synthesisTask = nil
         }
         
         isSynthesizing = true
@@ -275,7 +282,7 @@ public final class PlaybackCoordinator {
         let voice = appState.selectedVoice
         let speed = appState.playbackSpeed
         
-        Task {
+        synthesisTask = Task {
             let synthStart = CFAbsoluteTimeGetCurrent()
             do {
                 let wavData = try await supertonicPipeline.synthesize(
@@ -284,10 +291,12 @@ public final class PlaybackCoordinator {
                     speed: speed,
                     steps: effectiveSteps
                 )
+                guard !Task.isCancelled else { return }
                 let synthDurationMs = (CFAbsoluteTimeGetCurrent() - synthStart) * 1000.0
                 cacheManager.storeAudio(wavData, for: cacheKey)
                 
                 await MainActor.run {
+                    self.synthesisTask = nil
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = true
                     self.appState.isUsingSpeechFallback = false
@@ -300,9 +309,12 @@ public final class PlaybackCoordinator {
                     self.playAudioData(wavData)
                 }
             } catch {
+                // Cancellazione volontaria (preempt): nessun fallback vocale.
+                guard !Task.isCancelled else { return }
                 let notice = "Motore Supertonic non raggiungibile su 127.0.0.1:7788 (\(error.localizedDescription)). In riproduzione con la voce di sistema macOS di fallback."
                 print("[PlaybackCoordinator] Supertonic ERRORE: \(error.localizedDescription). Uso fallback.")
                 await MainActor.run {
+                    self.synthesisTask = nil
                     self.isSynthesizing = false
                     self.isPlayingSupertonic = false
                     self.appState.isUsingSpeechFallback = true

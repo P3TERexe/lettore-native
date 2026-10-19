@@ -181,13 +181,14 @@ final class LettoreCoreTests: XCTestCase {
         XCTAssertEqual(dockedX, 1470 - verticalWidth - inset)
         XCTAssertLessThanOrEqual(dockedX + verticalWidth, screenRect.maxX - inset)
 
-        // Scenario 2: soglia unica. Oltre la soglia si sgancia e torna orizzontale.
+        // Scenario 2: isteresi. Finché non si supera la soglia di uscita la
+        // pillola resta agganciata; oltre si sgancia e torna orizzontale.
         let smallPullDist: CGFloat = 30.0
-        XCTAssertLessThanOrEqual(smallPullDist, FloatingPillPanelManager.PillMetrics.dockThreshold,
+        XCTAssertLessThanOrEqual(smallPullDist, FloatingPillPanelManager.PillMetrics.dockExitThreshold,
                                  "Resta agganciata in verticale")
 
         let deliberatePullDist: CGFloat = 150.0
-        XCTAssertGreaterThan(deliberatePullDist, FloatingPillPanelManager.PillMetrics.dockThreshold,
+        XCTAssertGreaterThan(deliberatePullDist, FloatingPillPanelManager.PillMetrics.dockExitThreshold,
                              "Si sgancia e torna orizzontale")
 
         // Scenario 3: ancoraggio dell'espansione verso l'interno schermo.

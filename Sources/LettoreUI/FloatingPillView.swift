@@ -514,9 +514,8 @@ public struct FloatingPillView: View {
     // MARK: - Azioni Comuni
 
     private func handlePlayPause() {
-        if appState.readingQueue.isEmpty || appState.currentChunk == nil {
-            NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
-        } else {
+        if appState.playbackState == .playing || appState.playbackState == .paused {
+            // Riproduzione in corso o in pausa: il pulsante resta play/pausa.
             if let coordinator = coordinator {
                 coordinator.togglePlayPause()
             } else {
@@ -528,6 +527,10 @@ public struct FloatingPillView: View {
                     appState.playbackState = .playing
                 }
             }
+        } else {
+            // Idle: prova a leggere la selezione corrente. Se non c'è testo
+            // selezionato, la cattura riprende la coda rimasta in sospeso.
+            NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
         }
     }
 }

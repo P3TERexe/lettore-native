@@ -14,14 +14,16 @@ final class PillGeometryTests: XCTestCase {
         _ current: CGRect,
         _ orientation: PillOrientation,
         expanded: Bool = true,
-        fallback: Bool = false
+        fallback: Bool = false,
+        dock: PillDockSide = .center
     ) -> CGRect {
         FloatingPillPanelManager.resolvedFrame(
             current: current,
             screenRect: screen,
             orientation: orientation,
             isExpanded: expanded,
-            isFallback: fallback
+            isFallback: fallback,
+            dockSide: dock
         )
     }
 
@@ -97,7 +99,7 @@ final class PillGeometryTests: XCTestCase {
 
     func testVerticalDockSnapsToRightInset() {
         let frame = CGRect(x: screen.maxX - 48 - 20, y: 400, width: 48, height: 104)
-        let result = resolved(frame, .vertical, expanded: false)
+        let result = resolved(frame, .vertical, expanded: false, dock: .right)
 
         let expectedX = screen.maxX - 48 - FloatingPillPanelManager.PillMetrics.screenInset
         XCTAssertEqual(result.minX, expectedX, accuracy: 0.5)
@@ -105,7 +107,7 @@ final class PillGeometryTests: XCTestCase {
 
     func testVerticalDockSnapsToLeftInset() {
         let frame = CGRect(x: screen.minX + 20, y: 400, width: 48, height: 104)
-        let result = resolved(frame, .vertical, expanded: false)
+        let result = resolved(frame, .vertical, expanded: false, dock: .left)
 
         let expectedX = screen.minX + FloatingPillPanelManager.PillMetrics.screenInset
         XCTAssertEqual(result.minX, expectedX, accuracy: 0.5)
@@ -137,5 +139,40 @@ final class PillGeometryTests: XCTestCase {
         // Lo snap massimo coincide con la soglia: deve restare un magnete, non
         // un teletrasporto verso il bordo.
         XCTAssertLessThanOrEqual(FloatingPillPanelManager.PillMetrics.dockThreshold, 60)
+    }
+
+    // MARK: - Isteresi del docking (morphing live)
+
+    func testResolvedDockEntersAtThreshold() {
+        let near = FloatingPillPanelManager.PillMetrics.dockThreshold - 1
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .center, leftDist: 500, rightDist: near), .right)
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .center, leftDist: near, rightDist: 500), .left)
+    }
+
+    func testResolvedDockStaysDockedInsideExitThreshold() {
+        let insideExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold - 1
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 400, rightDist: insideExit), .right)
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .left, leftDist: insideExit, rightDist: 400), .left)
+    }
+
+    func testResolvedDockReleasesBeyondExitThreshold() {
+        let beyondExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold + 1
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 400, rightDist: beyondExit), .center)
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .left, leftDist: beyondExit, rightDist: 400), .center)
+    }
+
+    func testResolvedDockCrossesDirectlyBetweenSides() {
+        // Da un bordo all'altro passando per il centro: dentro la soglia di
+        // ingresso dell'altro lato, il dock cambia lato senza fermarsi.
+        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 10, rightDist: 400), .left)
+    }
+
+    func testLiveDockKeepsOrientationUntilReleased() {
+        // Il morphing durante il drag usa la stessa isteresi del rilascio:
+        // dentro la soglia di uscita l'orientamento verticale non sfarfalla.
+        let dock = FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 500, rightDist: 100)
+        let orientation: PillOrientation = dock == .center ? .horizontal : .vertical
+        XCTAssertEqual(orientation, .vertical)
+        XCTAssertEqual(dock, .right)
     }
 }

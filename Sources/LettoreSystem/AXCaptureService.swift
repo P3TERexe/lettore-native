@@ -100,6 +100,9 @@ public actor AXCaptureService {
                     usedClipboardFallback: false
                 )
             }
+            print("[AXCapture] Focused element senza testo selezionato (app: \(appName ?? "?"), textResult: \(textResult.rawValue)). Provo il fallback clipboard.")
+        } else {
+            print("[AXCapture] kAXFocusedUIElementAttribute fallito (codice \(elemResult.rawValue)). Provo il fallback clipboard.")
         }
         
         // Fallback su simulazione Cmd+C via clipboard se AX non espone il testo selezionato
@@ -127,6 +130,7 @@ public actor AXCaptureService {
             try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
             if pasteboard.changeCount != previousChangeCount {
                 if let copied = pasteboard.string(forType: .string), !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    print("[AXCapture] Fallback clipboard riuscito (\(copied.count) caratteri).")
                     return AXCaptureResult(
                         text: copied,
                         sourceAppName: appName,
@@ -137,6 +141,7 @@ public actor AXCaptureService {
             }
         }
         
+        print("[AXCapture] Fallback clipboard senza risultato (nessun testo copiato).")
         return nil
     }
 }

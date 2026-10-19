@@ -21,7 +21,7 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
     private let verticalGripZone: CGFloat = 26
 
     public override func mouseDown(with event: NSEvent) {
-        guard let window = self.window else {
+        guard self.window != nil else {
             super.mouseDown(with: event)
             return
         }
@@ -44,28 +44,25 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
         }
 
         // In compatto l'intera capsula trascina.
-        let startOrigin = window.frame.origin
-        manager.beginPanelDrag(event: event)
-        let endOrigin = window.frame.origin
-
-        let distance = hypot(endOrigin.x - startOrigin.x, endOrigin.y - startOrigin.y)
-        if distance < 3.0 {
-            // Tap sul posto: nessun drag. In compatto equivale a play/pausa.
-            manager.dragPanelCancelled()
-            if !isExpanded {
-                NotificationCenter.default.post(name: .floatingPillTogglePlayPause, object: nil)
+        manager.beginPanelDrag(atMouseLocation: NSEvent.mouseLocation) { distance in
+            if distance < FloatingPillPanelManager.PillMetrics.tapThreshold {
+                // Tap sul posto: nessun drag. In compatto equivale a play/pausa.
+                manager.dragPanelCancelled()
+                if !isExpanded {
+                    NotificationCenter.default.post(name: .floatingPillTogglePlayPause, object: nil)
+                }
+            } else {
+                manager.dragPanelEnded()
             }
-        } else {
-            manager.dragPanelEnded()
         }
     }
 }
 
 /// Controller della finestra fluttuante borderless (NSPanel) della Pillola.
 ///
-/// Regola di base: **un solo driver geometrico**. Il trascinamento usa
-/// `NSWindow.performDrag` (che segue il mouse 1:1 nel suo tracking loop) e ogni
-/// ridimensionamento passa da `updatePanelFrame`, che prima annulla qualsiasi
+/// Regola di base: **un solo driver geometrico**. Il trascinamento è manuale
+/// (mouseDragged → origine = cursore − offset di presa) e ogni
+/// ridimensionamento passa da `resolvedFrame`, che prima annulla qualsiasi
 /// animazione di frame in corso. Non esistono due sistemi che scrivono il frame.
 @MainActor
 @Observable
@@ -85,12 +82,20 @@ public final class FloatingPillPanelManager {
         /// Margine di sicurezza dai bordi dello schermo visibile.
         public static let screenInset: CGFloat = 8
 
-        /// Distanza entro cui il rilascio aggancia la pillola al bordo laterale.
-        /// Tenuta bassa di proposito: lo snap massimo coincide con questa soglia,
-        /// quindi non può mai teletrasportare la pillola per centinaia di pixel.
-        /// Non c'è isteresi: la valutazione avviene solo al rilascio, quindi una
-        /// soglia unica è già deterministica e simmetrica in dock e undock.
+        /// Distanza entro cui la pillola si aggancia al bordo laterale mentre
+        /// viene trascinata. L'aggancio è "morbido": una volta docked, la
+        /// pillola resta al bordo finché il cursore non si allontana oltre
+        /// `dockExitThreshold`, così il magnete non sfarfalla sul confine.
         public static let dockThreshold: CGFloat = 60
+
+        /// Soglia di uscita dal dock (isteresi). Più alta della soglia di
+        /// ingresso per evitare oscillazioni orizzontale ↔ verticale.
+        public static let dockExitThreshold: CGFloat = 130
+
+        /// Spostamento massimo del cursore (in punti) entro cui un click resta
+        /// un tap: oltre è un trascinamento. Il tremolio della mano su un click
+        /// reale arriva a 4-5px, quindi la soglia deve essere più larga.
+        public static let tapThreshold: CGFloat = 8
 
         /// Durata del morphing, condivisa da finestra e contenuto SwiftUI.
         /// Una sola curva per entrambi: se divergono, il contenuto viene
@@ -126,6 +131,12 @@ public final class FloatingPillPanelManager {
     public weak var appState: AppState?
 
     private var screenObserver: AnyObject?
+    private var dragReleaseHandler: (@MainActor (CGFloat) -> Void)?
+    private var dragEventMonitor: Any?
+    private var dragGrabOffset: NSPoint = .zero
+    private var dragStartMouseLocation: NSPoint = .zero
+    private var dragWasExpanded: Bool = false
+    private var liveDockSide: PillDockSide = .center
 
     public var isVisible: Bool {
         return panel?.isVisible ?? false
@@ -148,7 +159,7 @@ public final class FloatingPillPanelManager {
 
         if let existing = panel {
             ensureScreenObserver(appState: appState)
-            existing.makeKeyAndOrderFront(nil)
+            existing.orderFrontRegardless()
             evaluateDockingAndOrientation(panel: existing, appState: appState, animated: false)
             return
         }
@@ -175,6 +186,10 @@ public final class FloatingPillPanelManager {
         newPanel.isFloatingPanel = true
         newPanel.level = .floating
         newPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Non rubare mai il key status all'app esterna: la lettura AX della
+        // selezione (e il fallback Cmd+C) devono restare puntati sull'app da
+        // cui l'utente ha selezionato il testo.
+        newPanel.becomesKeyOnlyIfNeeded = true
         newPanel.backgroundColor = .clear
         newPanel.isOpaque = false
         newPanel.hasShadow = false
@@ -190,12 +205,17 @@ public final class FloatingPillPanelManager {
 
         self.panel = newPanel
         ensureScreenObserver(appState: appState)
-        newPanel.makeKeyAndOrderFront(nil)
+        // orderFrontRegardless (non makeKeyAndOrderFront): la pillola appare
+        // anche con app non attiva senza mai diventare key window.
+        newPanel.orderFrontRegardless()
 
         evaluateDockingAndOrientation(panel: newPanel, appState: appState, animated: false)
     }
 
     public func hide(appState: AppState? = nil) {
+        removeDragEventMonitor()
+        dragReleaseHandler = nil
+        isDragging = false
         cancelFrameAnimation()
         panel?.orderOut(nil)
         isHoverExpanded = false
@@ -223,17 +243,106 @@ public final class FloatingPillPanelManager {
 
     // MARK: - Ciclo di vita del drag
 
-    /// Unico punto di ingresso del trascinamento nativo: annulla l'animazione
-    /// di frame in volo e delega a `performDrag`.
-    public func beginPanelDrag(event: NSEvent) {
+    /// Punto di ingresso unico del trascinamento manuale.
+    ///
+    /// Niente `performDrag`: il WindowServer terrebbe l'ancora del cursore per
+    /// sé e qualunque ridimensionamento live (il morphing ai bordi) verrebbe
+    /// combattuto dal suo tracking loop. Qui il movimento è nostro, quindi
+    /// possiamo morphare la pillola **mentre** la si trascina.
+    public func beginPanelDrag(atMouseLocation mouseLocation: NSPoint, onRelease: @escaping @MainActor (CGFloat) -> Void) {
         guard let panel = panel else { return }
+        removeDragEventMonitor()
         dragPanelStarted()
-        panel.performDrag(with: event)
+        dragGrabOffset = NSPoint(
+            x: mouseLocation.x - panel.frame.minX,
+            y: mouseLocation.y - panel.frame.minY
+        )
+        dragStartMouseLocation = mouseLocation
+        dragWasExpanded = (appState?.isPillExpanded ?? false) || isHoverExpanded
+        liveDockSide = appState?.pillDockSide ?? .center
+        dragReleaseHandler = onRelease
+
+        // Il morphing live ricostruisce l'albero SwiftUI: la vista che ha
+        // ricevuto il mouseDown può sparire a metà drag e non ricevere più il
+        // mouseUp. Il monitor locale non dipende dalla gerarchia delle viste.
+        dragEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
+            guard let self else { return event }
+            let type = event.type
+            guard type == .leftMouseDragged || type == .leftMouseUp else { return event }
+            MainActor.assumeIsolated {
+                if type == .leftMouseDragged {
+                    self.continuePanelDrag(to: NSEvent.mouseLocation)
+                } else {
+                    self.finishPanelDrag()
+                }
+            }
+            return nil
+        }
+    }
+
+    private func removeDragEventMonitor() {
+        if let monitor = dragEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            dragEventMonitor = nil
+        }
+    }
+
+    /// Aggiorna posizione e orientamento a ogni evento di trascinamento.
+    /// Qui vive il morphing live: la valutazione del docking è la stessa sia
+    /// durante il drag sia al rilascio, quindi non ci sono salti di stato.
+    public func continuePanelDrag(to mouseLocation: NSPoint) {
+        guard isDragging, let panel = panel, let screen = panel.screen ?? NSScreen.main else { return }
+        let screenRect = screen.visibleFrame
+
+        // Il frame proposto segue il cursore col medesimo offset di presa; la
+        // dimensione resta quella attuale e viene risolta da `resolvedFrame`.
+        let proposed = CGRect(
+            origin: NSPoint(x: mouseLocation.x - dragGrabOffset.x,
+                            y: mouseLocation.y - dragGrabOffset.y),
+            size: panel.frame.size
+        )
+
+        let leftDist = proposed.minX - screenRect.minX
+        let rightDist = screenRect.maxX - proposed.maxX
+        let dock = Self.resolvedDock(previous: liveDockSide, leftDist: leftDist, rightDist: rightDist)
+        liveDockSide = dock
+
+        let orientation: PillOrientation = dock == .center ? .horizontal : .vertical
+        appState?.pillOrientation = orientation
+        appState?.pillDockSide = dock
+
+        let target = Self.resolvedFrame(
+            current: proposed,
+            screenRect: screenRect,
+            orientation: orientation,
+            isExpanded: dragWasExpanded,
+            isFallback: appState?.isUsingSpeechFallback ?? false,
+            dockSide: dock
+        )
+        applyFrame(target, to: panel, animated: false)
+    }
+
+    /// Chiude il drag e consegna al chiamante lo spostamento **del cursore**.
+    /// La distanza del cursore, non della finestra: lo snap al bordo muove la
+    /// finestra anche sotto un cursore quasi fermo, e un click non deve
+    /// diventare drag solo perché la pillola si è agganciata.
+    public func finishPanelDrag() {
+        guard isDragging else { return }
+        removeDragEventMonitor()
+        let handler = dragReleaseHandler
+        dragReleaseHandler = nil
+        let distance = hypot(
+            NSEvent.mouseLocation.x - dragStartMouseLocation.x,
+            NSEvent.mouseLocation.y - dragStartMouseLocation.y
+        )
+        handler?(distance)
     }
 
     public func dragPanelStarted() {
         // Un'animazione di frame ancora in volo continuerebbe a scrivere l'origine
-        // mentre performDrag calcola il delta: è la causa dello sfasamento dal cursore.
+        // mentre il drag calcola il delta: è la causa dello sfasamento dal cursore.
         cancelFrameAnimation()
         isDragging = true
     }
@@ -293,12 +402,15 @@ public final class FloatingPillPanelManager {
     /// Calcola il frame obiettivo a partire da un frame corrente.
     /// Funzione pura sulla geometria: nessun accesso al singleton, così può
     /// essere verificata anche su un pannello di test.
+    ///
+    /// `dockSide` è esplicito: l'isteresi vive in `resolvedDock`, non qui.
     public nonisolated static func resolvedFrame(
         current: CGRect,
         screenRect: CGRect,
         orientation: PillOrientation,
         isExpanded: Bool,
-        isFallback: Bool
+        isFallback: Bool,
+        dockSide: PillDockSide = .center
     ) -> CGRect {
         let targetSize = PillMetrics.panelSize(
             orientation: orientation,
@@ -318,14 +430,12 @@ public final class FloatingPillPanelManager {
             // Grip in alto: resta fermo il bordo superiore, in dock come in undock.
             newOrigin.y = current.maxY - targetSize.height
 
-            let leftDist = current.minX - screenRect.minX
-            let rightDist = screenRect.maxX - current.maxX
-
-            if rightDist <= PillMetrics.dockThreshold {
+            switch dockSide {
+            case .right:
                 newOrigin.x = screenRect.maxX - targetSize.width - PillMetrics.screenInset
-            } else if leftDist <= PillMetrics.dockThreshold {
+            case .left:
                 newOrigin.x = screenRect.minX + PillMetrics.screenInset
-            } else {
+            case .center:
                 newOrigin.x = current.midX - targetSize.width / 2
             }
         }
@@ -334,7 +444,31 @@ public final class FloatingPillPanelManager {
         return CGRect(origin: newOrigin, size: targetSize)
     }
 
-    /// Variante d'istanza: legge lo stato di fallback dell'app.
+    /// Isteresi del docking: si entra con la soglia bassa, si esce solo
+    /// superando quella alta. Deterministica e simmetrica in dock e undock.
+    public nonisolated static func resolvedDock(
+        previous: PillDockSide,
+        leftDist: CGFloat,
+        rightDist: CGFloat
+    ) -> PillDockSide {
+        let enter = PillMetrics.dockThreshold
+        let exit = PillMetrics.dockExitThreshold
+
+        switch previous {
+        case .left:
+            if leftDist <= exit { return .left }
+            return rightDist <= enter ? .right : .center
+        case .right:
+            if rightDist <= exit { return .right }
+            return leftDist <= enter ? .left : .center
+        case .center:
+            if leftDist <= enter { return .left }
+            if rightDist <= enter { return .right }
+            return .center
+        }
+    }
+
+    /// Variante d'istanza: legge stato di fallback e dock corrente dall'app.
     func resolvedFrame(
         current: CGRect,
         screenRect: CGRect,
@@ -346,7 +480,8 @@ public final class FloatingPillPanelManager {
             screenRect: screenRect,
             orientation: orientation,
             isExpanded: isExpanded,
-            isFallback: appState?.isUsingSpeechFallback ?? false
+            isFallback: appState?.isUsingSpeechFallback ?? false,
+            dockSide: appState?.pillDockSide ?? .center
         )
     }
 
@@ -359,31 +494,25 @@ public final class FloatingPillPanelManager {
 
         let leftDist = frame.minX - screenRect.minX
         let rightDist = screenRect.maxX - frame.maxX
+        // Stessa isteresi del drag live: nessun salto di orientamento al rilascio.
+        let dock = Self.resolvedDock(
+            previous: appState.pillDockSide,
+            leftDist: leftDist,
+            rightDist: rightDist
+        )
 
-        let newOrientation: PillOrientation
-        let newDockSide: PillDockSide
-
-        if leftDist <= PillMetrics.dockThreshold {
-            newOrientation = .vertical
-            newDockSide = .left
-        } else if rightDist <= PillMetrics.dockThreshold {
-            newOrientation = .vertical
-            newDockSide = .right
-        } else {
-            newOrientation = .horizontal
-            newDockSide = .center
-        }
-
-        appState.pillOrientation = newOrientation
-        appState.pillDockSide = newDockSide
+        appState.pillOrientation = dock == .center ? .horizontal : .vertical
+        appState.pillDockSide = dock
 
         // Riallinea sempre: copre anche lo snap al bordo quando l'orientamento
         // non cambia ma la pillola va riportata dentro lo schermo.
-        let target = resolvedFrame(
+        let target = Self.resolvedFrame(
             current: frame,
             screenRect: screenRect,
-            orientation: newOrientation,
-            isExpanded: appState.isPillExpanded || isHoverExpanded
+            orientation: appState.pillOrientation,
+            isExpanded: appState.isPillExpanded || isHoverExpanded,
+            isFallback: appState.isUsingSpeechFallback,
+            dockSide: dock
         )
         applyFrame(target, to: panel, animated: animated)
     }
