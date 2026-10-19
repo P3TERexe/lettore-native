@@ -77,7 +77,15 @@ def synthesize(req: TTSRequest, request: Request):
             text=clean_text, lang=req.lang, voice=req.voice, steps=req.steps, speed=req.speed
         )
     except ValueError as exc:
-        logger.error("TTS ValueError: %s (text=%r, lang=%r, voice=%r, steps=%r, speed=%r)", exc, clean_text, req.lang, req.voice, req.steps, req.speed)
+        logger.error(
+            "TTS ValueError: %s (text=%r, lang=%r, voice=%r, steps=%r, speed=%r)",
+            exc,
+            clean_text,
+            req.lang,
+            req.voice,
+            req.steps,
+            req.speed,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         logger.error("TTS RuntimeError: %s", exc)

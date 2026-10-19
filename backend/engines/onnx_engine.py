@@ -1,17 +1,44 @@
 """Motore TTS basato su ONNX Runtime e Supertonic 3.
 
-Supporta accelerazione hardware automatica CoreML (Apple Silicon) e CUDA (NVIDIA),
-con fallback trasparente su CPUExecutionProvider (ADR-004).
+Il provider di esecuzione è selezionabile con ``LETTORE_TTS_PROVIDER``:
+
+- ``hybrid`` (default): CoreML solo per le sessioni in
+  ``LETTORE_TTS_COREML_SESSIONS`` (default ``vector_estimator``), CPU per le altre;
+- ``cpu``: solo ``CPUExecutionProvider``, con RAM molto inferiore;
+- ``coreml``: CoreML con fallback CPU;
+- ``auto``: CoreML/CUDA se disponibili, poi CPU.
+
+I thread sono configurabili con ``LETTORE_TTS_INTRA_THREADS`` (default 4) e
+``LETTORE_TTS_INTER_THREADS`` (default 1). ``LETTORE_TTS_ALLOW_SPINNING=0``
+attiva un profilo eco che riduce il CPU a costo di maggiore latenza.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import numpy as np
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_INTRA_THREADS = max(1, min(4, os.cpu_count() or 4))
+_DEFAULT_INTER_THREADS = 1
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        logger.warning("Valore non valido per %s=%r; uso %s", name, raw, default)
+        return default
+
 
 # --- PATCH ONNXRUNTIME PER HARDWARE ACCELERATION (ADR-004) ---
 # ort.InferenceSession va sostituito con una SOTTOCLASSE, non con una funzione:
@@ -19,18 +46,70 @@ if TYPE_CHECKING:
 try:
     import onnxruntime as ort
 
-    def _resolve_providers(providers: list[str] | None) -> list[str]:
-        if providers and "CoreMLExecutionProvider" in providers:
-            return providers
-        available = ort.get_available_providers()
-        resolved = [
-            p for p in ("CoreMLExecutionProvider", "CUDAExecutionProvider") if p in available
+    _PROVIDER_MODES = {"cpu", "hybrid", "coreml", "auto"}
+
+    def _provider_mode() -> str:
+        mode = os.getenv("LETTORE_TTS_PROVIDER", "hybrid").strip().lower()
+        if mode not in _PROVIDER_MODES:
+            logger.warning("Provider TTS non valido %r; uso 'hybrid'", mode)
+            return "hybrid"
+        return mode
+
+    def _coreml_sessions() -> set[str]:
+        raw = os.getenv("LETTORE_TTS_COREML_SESSIONS", "vector_estimator")
+        return {item.strip() for item in raw.split(",") if item.strip()}
+
+    def _session_name(path_or_bytes: Any) -> str:
+        if isinstance(path_or_bytes, (str, os.PathLike)):
+            return Path(path_or_bytes).stem
+        return ""
+
+    def _resolve_providers(providers: list[str] | None, session_name: str = "") -> list[str]:
+        available = set(ort.get_available_providers())
+        # supertonic passa sempre ["CPUExecutionProvider"]: un elenco che
+        # contiene solo CPU non è una scelta esplicita dell'utente, quindi
+        # lascia decidere LETTORE_TTS_PROVIDER. Provider espliciti diversi
+        # dalla CPU (CoreML, CUDA, ...) vengono invece rispettati.
+        explicit = [
+            provider
+            for provider in (providers or [])
+            if provider in available and provider != "CPUExecutionProvider"
         ]
-        resolved.append("CPUExecutionProvider")
-        return resolved
+        if explicit:
+            resolved = [provider for provider in providers or [] if provider in available]
+            if "CPUExecutionProvider" not in resolved:
+                resolved.append("CPUExecutionProvider")
+            return resolved
+
+        mode = _provider_mode()
+        if mode == "hybrid":
+            if session_name in _coreml_sessions() and "CoreMLExecutionProvider" in available:
+                return ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+            return ["CPUExecutionProvider"]
+        if mode == "coreml" and "CoreMLExecutionProvider" in available:
+            return ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+        if mode == "auto":
+            resolved = [
+                p for p in ("CoreMLExecutionProvider", "CUDAExecutionProvider") if p in available
+            ]
+            resolved.append("CPUExecutionProvider")
+            return resolved
+        return ["CPUExecutionProvider"]
+
+    def _configure_session_options(sess_options: Any) -> Any:
+        if sess_options is None:
+            sess_options = ort.SessionOptions()
+        if os.getenv("LETTORE_TTS_ALLOW_SPINNING", "1").strip().lower() in (
+            "0",
+            "false",
+            "no",
+        ):
+            sess_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+            sess_options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+        return sess_options
 
     class _AcceleratedSession(ort.InferenceSession):
-        """InferenceSession con selezione automatica dei provider (CoreML/CUDA/CPU)."""
+        """InferenceSession con provider selezionabili (CPU/CoreML/CUDA)."""
 
         def __init__(
             self,
@@ -40,10 +119,18 @@ try:
             provider_options: Any = None,
             **kwargs: Any,
         ) -> None:
+            session_name = _session_name(path_or_bytes)
+            resolved_providers = _resolve_providers(providers, session_name)
+            logger.info(
+                "ONNX Runtime provider per %s: %s (modo=%s)",
+                session_name or "sessione",
+                ", ".join(resolved_providers),
+                _provider_mode(),
+            )
             super().__init__(
                 path_or_bytes,
-                sess_options=sess_options,
-                providers=_resolve_providers(providers),
+                sess_options=_configure_session_options(sess_options),
+                providers=resolved_providers,
                 provider_options=provider_options,
                 **kwargs,
             )
@@ -53,12 +140,10 @@ except ImportError:
     pass
 # -----------------------------------------------------------
 
-from supertonic import TTS
-from supertonic.config import SUPPORTED_LANGUAGES
+from supertonic import TTS  # noqa: E402
+from supertonic.config import SUPPORTED_LANGUAGES  # noqa: E402
 
-from .base import BaseTTSEngine
-
-logger = logging.getLogger(__name__)
+from .base import BaseTTSEngine  # noqa: E402
 
 
 def _model_cache_dir(model: str) -> Path:
@@ -78,6 +163,7 @@ class SupertonicONNXEngine(BaseTTSEngine):
         self.model = model
         self.auto_download = auto_download
         self._tts: TTS | None = None
+        self._style_cache: dict[str, Any] = {}
 
     @property
     def sample_rate(self) -> int | None:
@@ -95,12 +181,22 @@ class SupertonicONNXEngine(BaseTTSEngine):
         """Carica il modello Supertonic via ONNX Runtime."""
         if self._tts is not None:
             return
+        intra_threads = _env_int("LETTORE_TTS_INTRA_THREADS", _DEFAULT_INTRA_THREADS)
+        inter_threads = _env_int("LETTORE_TTS_INTER_THREADS", _DEFAULT_INTER_THREADS)
         logger.info(
-            "Inizializzazione SupertonicONNXEngine (modello=%s, auto_download=%s)...",
+            "Inizializzazione SupertonicONNXEngine "
+            "(modello=%s, auto_download=%s, intra_threads=%s, inter_threads=%s)...",
             self.model,
             self.auto_download,
+            intra_threads,
+            inter_threads,
         )
-        self._tts = TTS(auto_download=self.auto_download, model=self.model)
+        self._tts = TTS(
+            auto_download=self.auto_download,
+            model=self.model,
+            intra_op_num_threads=intra_threads,
+            inter_op_num_threads=inter_threads,
+        )
         logger.info(
             "SupertonicONNXEngine pronto: sample_rate=%s, voci=%s",
             self._tts.sample_rate,
@@ -110,6 +206,7 @@ class SupertonicONNXEngine(BaseTTSEngine):
     def unload(self) -> None:
         """Rilascia la sessione ONNX e le risorse allocate."""
         self._tts = None
+        self._style_cache.clear()
         logger.info("SupertonicONNXEngine rilasciato.")
 
     def discover_custom_voices(self, cache_dir: Path | None = None) -> list[str]:
@@ -125,23 +222,34 @@ class SupertonicONNXEngine(BaseTTSEngine):
     def _resolve_style(self, voice: str) -> Any:
         if self._tts is None:
             raise RuntimeError("Motore ONNX non inizializzato")
+        cached = self._style_cache.get(voice)
+        if cached is not None:
+            return cached
+
         # 1. Match esatto (es. "M1", "F1")
         if voice in self._tts.voice_style_names:
-            return self._tts.get_voice_style(voice)
-        
-        # 2. Match su suffisso lingua (es. "IT-M1" -> "M1", "EN-F2" -> "F2")
-        candidate = voice.strip().split("-")[-1].upper()
-        if candidate in self._tts.voice_style_names:
-            return self._tts.get_voice_style(candidate)
-            
-        # 3. Match su file di stile personalizzato
-        custom_path = _model_cache_dir(self.model) / "custom_styles" / f"{voice}.json"
-        if custom_path.is_file():
-            return self._tts.get_voice_style_from_path(custom_path)
-            
-        # 4. Fallback sicuro su M1 invece di bloccare la sintesi con eccezione 400
-        logger.warning("Voce '%s' non trovata in %s. Fallback su 'M1'", voice, self._tts.voice_style_names)
-        return self._tts.get_voice_style("M1")
+            style = self._tts.get_voice_style(voice)
+        else:
+            # 2. Match su suffisso lingua (es. "IT-M1" -> "M1", "EN-F2" -> "F2")
+            candidate = voice.strip().split("-")[-1].upper()
+            if candidate in self._tts.voice_style_names:
+                style = self._tts.get_voice_style(candidate)
+            else:
+                # 3. Match su file di stile personalizzato
+                custom_path = _model_cache_dir(self.model) / "custom_styles" / f"{voice}.json"
+                if custom_path.is_file():
+                    style = self._tts.get_voice_style_from_path(custom_path)
+                else:
+                    # 4. Fallback sicuro su M1 invece di bloccare la sintesi con eccezione 400
+                    logger.warning(
+                        "Voce '%s' non trovata in %s. Fallback su 'M1'",
+                        voice,
+                        self._tts.voice_style_names,
+                    )
+                    style = self._tts.get_voice_style("M1")
+
+        self._style_cache[voice] = style
+        return style
 
     def synthesize(
         self, text: str, voice: str, lang: str, steps: int, speed: float
@@ -149,7 +257,7 @@ class SupertonicONNXEngine(BaseTTSEngine):
         if self._tts is None:
             raise RuntimeError("Motore ONNX non inizializzato")
         style = self._resolve_style(voice)
-        
+
         # Sanitizzazione automatica dei caratteri non supportati (es. emoji, varianti grafiche, simboli rari)
         sanitized_text = text
         if hasattr(self._tts, "model") and hasattr(self._tts.model, "text_processor"):
@@ -160,13 +268,13 @@ class SupertonicONNXEngine(BaseTTSEngine):
                 for c in unsupported:
                     sanitized_text = sanitized_text.replace(c, " ")
                 sanitized_text = " ".join(sanitized_text.split())
-        
+
         if not sanitized_text.strip():
             sanitized_text = "..."
-            
+
         # Clamping velocità ammesso da Supertonic (0.7 - 2.0)
         safe_speed = max(0.7, min(2.0, float(speed)))
-            
+
         wav, duration = self._tts.synthesize(
             text=sanitized_text,
             voice_style=style,

@@ -165,14 +165,19 @@ class TTSManager:
         assert self._engine is not None
 
         cache_key = (text, lang, voice, steps, speed)
-        with self._cache_lock:
-            if cache_key in self._cache:
-                self._cache.move_to_end(cache_key)
-                logger.info("TTS Cache HIT: %d char", len(text))
-                return self._cache[cache_key]
+        cached = self._cached(cache_key)
+        if cached is not None:
+            logger.info("TTS Cache HIT: %d char", len(text))
+            return cached
 
         effective_lang = self.resolve_lang(text, lang)
         with self._lock:
+            # Un'altra richiesta identica può aver completato la sintesi mentre
+            # questa aspettava il lock: rileggi la cache prima di ricalcolare.
+            cached = self._cached(cache_key)
+            if cached is not None:
+                logger.info("TTS Cache HIT dopo attesa lock: %d char", len(text))
+                return cached
             wav, duration_sec = self._engine.synthesize(
                 text=text,
                 voice=voice,
@@ -180,16 +185,24 @@ class TTSManager:
                 steps=steps,
                 speed=speed,
             )
-        duration_ms = int(duration_sec * 1000.0)
-        wav_bytes = numpy_to_wav_bytes(wav, self.sample_rate)
-        res = (wav_bytes, duration_ms)
-
-        with self._cache_lock:
-            self._cache[cache_key] = res
-            if len(self._cache) > self._cache_max_size:
-                self._cache.popitem(last=False)
+            duration_ms = int(duration_sec * 1000.0)
+            wav_bytes = numpy_to_wav_bytes(wav, self.sample_rate)
+            res = (wav_bytes, duration_ms)
+            # Pubblica il risultato prima di rilasciare il lock: una richiesta
+            # identica in attesa deve trovarlo in cache, non risintetizzarlo.
+            with self._cache_lock:
+                self._cache[cache_key] = res
+                if len(self._cache) > self._cache_max_size:
+                    self._cache.popitem(last=False)
 
         return res
+
+    def _cached(self, cache_key: tuple) -> tuple[bytes, int] | None:
+        with self._cache_lock:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self._cache.move_to_end(cache_key)
+            return cached
 
     @staticmethod
     def resolve_lang(text: str, lang: str) -> str:

@@ -112,6 +112,8 @@ public final class AppState: @unchecked Sendable {
     }
     
     public func setSpeed(_ newSpeed: Float) {
-        self.playbackSpeed = max(0.5, min(3.0, newSpeed))
+        // Il rate di AVAudioPlayer è limitato a 2.0: evita che la UI mostri
+        // un valore che il player non può riprodurre.
+        self.playbackSpeed = max(0.5, min(2.0, newSpeed))
     }
 }

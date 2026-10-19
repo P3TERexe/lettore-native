@@ -79,6 +79,9 @@ backend_tests/test_output/
 test_output/
 scratch/
 
+# Benchmark output (rigenerabile)
+benchmarks/results/
+
 # Logs & Diagnostics
 *.log
 npm-debug.log*

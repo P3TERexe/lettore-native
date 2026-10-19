@@ -15,11 +15,25 @@ public final class PlaybackCoordinator {
     private var isPlayingSupertonic: Bool = true
     private var isSynthesizing: Bool = false
     private var synthesisTask: Task<Void, Never>?
+
+    private struct PreloadedAudio {
+        let cacheKey: String
+        let data: Data
+    }
+
+    private struct ActivePreload {
+        let cacheKey: String
+        let task: Task<Void, Never>
+    }
+
+    /// Il backend sintetizza a velocità neutra. La velocità viene applicata una
+    /// sola volta dal player: i cambi sono immediati e la cache non si fragmenta.
+    private let synthesisSpeed: Float = 1.0
     
     // Cache e Coda Preload Ring Buffer (PERF-2, PERF-3)
     private let cacheManager: AudioCacheManager = AudioCacheManager.shared
-    private var preloadedWAVs: [UUID: Data] = [:]
-    private var activePreloadTasks: [UUID: Task<Void, Never>] = [:]
+    private var preloadedWAVs: [UUID: PreloadedAudio] = [:]
+    private var activePreloadTasks: [UUID: ActivePreload] = [:]
     private var playRequestedTime: CFAbsoluteTime = 0
     
     public init(
@@ -112,7 +126,7 @@ public final class PlaybackCoordinator {
         synthesisTask = nil
         isSynthesizing = false
         playRequestedTime = 0
-        activePreloadTasks.values.forEach { $0.cancel() }
+        activePreloadTasks.values.forEach { $0.task.cancel() }
         activePreloadTasks.removeAll()
         preloadedWAVs.removeAll()
         audioEngine.stop()
@@ -147,66 +161,85 @@ public final class PlaybackCoordinator {
         for idx in startIdx...endIdx {
             let chunk = appState.readingQueue[idx]
             targetChunkIds.insert(chunk.id)
-            
-            // Già in RAM volatile del coordinator
-            if preloadedWAVs[chunk.id] != nil { continue }
-            
-            // Verifica in AudioCacheManager (L1 RAM globale o L2 Disco)
+
             let cacheKey = cacheManager.cacheKey(
                 for: chunk.text,
                 voiceId: appState.selectedVoice.id,
-                speed: appState.playbackSpeed,
+                speed: synthesisSpeed,
                 steps: appState.synthesisSteps
             )
             
+            // Già in RAM volatile del coordinator, ma solo se prodotta con le
+            // stesse impostazioni: un cambio voce/step deve invalidare il preload.
+            if let preloaded = preloadedWAVs[chunk.id] {
+                if preloaded.cacheKey == cacheKey {
+                    continue
+                }
+                preloadedWAVs.removeValue(forKey: chunk.id)
+            }
+
+            // Verifica in AudioCacheManager (L1 RAM globale o L2 Disco)
             if let cached = cacheManager.getAudio(for: cacheKey) {
                 print("[PlaybackCoordinator] Hit cache \(cached.source.rawValue) (0ms latenza) per prefetch chunk \(idx)")
-                preloadedWAVs[chunk.id] = cached.data
+                preloadedWAVs[chunk.id] = PreloadedAudio(cacheKey: cacheKey, data: cached.data)
                 continue
             }
             
-            // Prefetch asincrono se non già in corso
-            if activePreloadTasks[chunk.id] == nil {
-                let chunkText = chunk.text
-                let voice = appState.selectedVoice
-                let speed = appState.playbackSpeed
-                let steps = appState.synthesisSteps
-                let chunkId = chunk.id
-                
-                activePreloadTasks[chunkId] = Task { [weak self] in
-                    guard let self = self else { return }
-                    do {
-                        let wavData = try await self.supertonicPipeline.synthesize(
-                            text: chunkText,
-                            voice: voice,
-                            speed: speed,
-                            steps: steps
-                        )
-                        
-                        if !Task.isCancelled {
-                            self.cacheManager.storeAudio(wavData, for: cacheKey)
-                            await MainActor.run {
-                                self.preloadedWAVs[chunkId] = wavData
-                                self.activePreloadTasks.removeValue(forKey: chunkId)
-                                print("[PlaybackCoordinator] Ring buffer prefetch completato per chunk \(idx)")
-                            }
+            // Prefetch asincrono se non già in corso con la stessa chiave.
+            if let active = activePreloadTasks[chunk.id] {
+                if active.cacheKey == cacheKey {
+                    continue
+                }
+                active.task.cancel()
+                activePreloadTasks.removeValue(forKey: chunk.id)
+            }
+
+            let chunkText = chunk.text
+            let voice = appState.selectedVoice
+            let steps = appState.synthesisSteps
+            let chunkId = chunk.id
+
+            let task = Task { [weak self] in
+                guard let self = self else { return }
+                do {
+                    let wavData = try await self.supertonicPipeline.synthesize(
+                        text: chunkText,
+                        voice: voice,
+                        speed: self.synthesisSpeed,
+                        steps: steps
+                    )
+
+                    if !Task.isCancelled {
+                        self.cacheManager.storeAudio(wavData, for: cacheKey)
+                        await MainActor.run {
+                            // Se voce o step sono cambiati nel frattempo, scarta
+                            // il risultato invece di sovrascrivere il prefetch nuovo.
+                            guard self.activePreloadTasks[chunkId]?.cacheKey == cacheKey else { return }
+                            self.preloadedWAVs[chunkId] = PreloadedAudio(
+                                cacheKey: cacheKey,
+                                data: wavData
+                            )
+                            self.activePreloadTasks.removeValue(forKey: chunkId)
+                            print("[PlaybackCoordinator] Ring buffer prefetch completato per chunk \(idx)")
                         }
-                    } catch {
-                        if !Task.isCancelled {
-                            await MainActor.run {
-                                self.activePreloadTasks.removeValue(forKey: chunkId)
-                                print("[PlaybackCoordinator] Errore prefetch chunk \(idx): \(error.localizedDescription)")
-                            }
+                    }
+                } catch {
+                    if !Task.isCancelled {
+                        await MainActor.run {
+                            guard self.activePreloadTasks[chunkId]?.cacheKey == cacheKey else { return }
+                            self.activePreloadTasks.removeValue(forKey: chunkId)
+                            print("[PlaybackCoordinator] Errore prefetch chunk \(idx): \(error.localizedDescription)")
                         }
                     }
                 }
             }
+            activePreloadTasks[chunkId] = ActivePreload(cacheKey: cacheKey, task: task)
         }
         
         // Cancella task fuori dalla finestra attiva per risparmiare risorse
         let toCancel = activePreloadTasks.filter { !targetChunkIds.contains($0.key) }
-        for (id, task) in toCancel {
-            task.cancel()
+        for (id, active) in toCancel {
+            active.task.cancel()
             activePreloadTasks.removeValue(forKey: id)
         }
     }
@@ -223,29 +256,38 @@ public final class PlaybackCoordinator {
         if playRequestedTime == 0 {
             playRequestedTime = playStartTime
         }
-        
-        // 1. Hit preloadedWAVs (RAM locale)
-        if let cachedWAV = preloadedWAVs[current.id] {
-            print("[PlaybackCoordinator] Hit RAM locale per chunk \(current.index) (0ms latenza)")
-            preloadedWAVs.removeValue(forKey: current.id)
-            isSynthesizing = false
-            isPlayingSupertonic = true
-            appState.playbackState = .playing
-            
-            recordFirstChunkLatency()
-            managePreloadRingBuffer()
-            playAudioData(cachedWAV)
-            return
-        }
-        
-        // 2. Hit AudioCacheManager (L1 RAM / L2 Disco)
+
+        // Il boost del primo chunk deve entrare nella chiave di cache: altrimenti
+        // un audio a 5 step verrebbe riusato come se fosse stato prodotto a 8.
+        let isFirst = current.index == 0 || appState.playbackProgress == 0.0
+        let effectiveSteps = (isFirst && appState.isFirstChunkBoostEnabled)
+            ? min(appState.synthesisSteps, 5)
+            : appState.synthesisSteps
         let cacheKey = cacheManager.cacheKey(
             for: current.text,
             voiceId: appState.selectedVoice.id,
-            speed: appState.playbackSpeed,
-            steps: appState.synthesisSteps
+            speed: synthesisSpeed,
+            steps: effectiveSteps
         )
         
+        // 1. Hit preloadedWAVs (RAM locale), solo con la stessa chiave.
+        if let preloaded = preloadedWAVs[current.id] {
+            preloadedWAVs.removeValue(forKey: current.id)
+            if preloaded.cacheKey == cacheKey {
+                print("[PlaybackCoordinator] Hit RAM locale per chunk \(current.index) (0ms latenza)")
+                isSynthesizing = false
+                isPlayingSupertonic = true
+                appState.playbackState = .playing
+
+                recordFirstChunkLatency()
+                managePreloadRingBuffer()
+                playAudioData(preloaded.data)
+                return
+            }
+            print("[PlaybackCoordinator] Preload stantio scartato per chunk \(current.index)")
+        }
+
+        // 2. Hit AudioCacheManager (L1 RAM / L2 Disco)
         if let cached = cacheManager.getAudio(for: cacheKey) {
             print("[PlaybackCoordinator] Hit cache \(cached.source.rawValue) (0ms latenza) per chunk corrente \(current.index)")
             isSynthesizing = false
@@ -255,6 +297,48 @@ public final class PlaybackCoordinator {
             recordFirstChunkLatency()
             managePreloadRingBuffer()
             playAudioData(cached.data)
+            return
+        }
+
+        // Un prefetch del chunk corrente con impostazioni vecchie non serve più:
+        // annullalo prima di sintetizzare con la chiave nuova.
+        if let active = activePreloadTasks[current.id], active.cacheKey != cacheKey {
+            active.task.cancel()
+            activePreloadTasks.removeValue(forKey: current.id)
+        }
+
+        // 3. Se il chunk corrente era già in prefetch, attendi quel task invece
+        // di inviare una seconda richiesta identica al backend.
+        if let active = activePreloadTasks[current.id], active.cacheKey == cacheKey {
+            print("[PlaybackCoordinator] Attendo il prefetch in corso per chunk \(current.index)...")
+            if isSynthesizing {
+                synthesisTask?.cancel()
+                synthesisTask = nil
+            }
+            isSynthesizing = true
+            appState.playbackState = .synthesizing
+            synthesisTask = Task { [weak self] in
+                await active.task.value
+                guard !Task.isCancelled, let self = self else { return }
+                await MainActor.run {
+                    self.synthesisTask = nil
+                    self.isSynthesizing = false
+                    if let preloaded = self.preloadedWAVs[current.id],
+                       preloaded.cacheKey == cacheKey {
+                        self.preloadedWAVs.removeValue(forKey: current.id)
+                        self.isPlayingSupertonic = true
+                        self.appState.isUsingSpeechFallback = false
+                        self.appState.speechFallbackNotice = nil
+                        self.appState.playbackState = .playing
+                        self.recordFirstChunkLatency()
+                        self.managePreloadRingBuffer()
+                        self.playAudioData(preloaded.data)
+                    } else {
+                        // Prefetch fallito o invalidato: riparti dalla sintesi normale.
+                        self.playCurrentChunk()
+                    }
+                }
+            }
             return
         }
         
@@ -270,17 +354,10 @@ public final class PlaybackCoordinator {
         isSynthesizing = true
         appState.playbackState = .synthesizing
         
-        // Boost primo chunk: se abilitato e siamo a inizio lettura, usa steps ridotti (5) per avvio istantaneo
-        let isFirst = current.index == 0 || appState.playbackProgress == 0.0
-        let effectiveSteps = (isFirst && appState.isFirstChunkBoostEnabled)
-            ? min(appState.synthesisSteps, 5)
-            : appState.synthesisSteps
-            
         print("[PlaybackCoordinator] Sintesi chunk \(current.index) (steps: \(effectiveSteps), firstChunkBoost: \(isFirst && appState.isFirstChunkBoostEnabled))...")
         
         let text = current.text
         let voice = appState.selectedVoice
-        let speed = appState.playbackSpeed
         
         synthesisTask = Task {
             let synthStart = CFAbsoluteTimeGetCurrent()
@@ -288,7 +365,7 @@ public final class PlaybackCoordinator {
                 let wavData = try await supertonicPipeline.synthesize(
                     text: text,
                     voice: voice,
-                    speed: speed,
+                    speed: synthesisSpeed,
                     steps: effectiveSteps
                 )
                 guard !Task.isCancelled else { return }

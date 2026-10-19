@@ -19,6 +19,7 @@ Lo stato attuale del repository riflette il completamento della Fase 3.0 (transi
   - `Sources/LettoreUI`: Componenti visivi floating e morphing elastico stile Dynamic Island (`FloatingPillView`, `DynamicNotchView`, `SuperAccessibleView`).
 - `Confirmed`: **Backend TTS Python Sidecar** (`backend/`):
   - Server FastAPI locale in ascolto sulla porta `7788` (`main.py`, `tts_manager.py`) per la generazione audio ONNX tramite modello Supertonic.
+  - Provider ibrido di default: CoreML solo per `vector_estimator`, CPU per le altre sessioni ONNX; profili `hybrid`/`cpu`/`coreml`/`auto` via `LETTORE_TTS_PROVIDER` e thread configurabili (`LETTORE_TTS_INTRA_THREADS`, default 4). Dettagli e misure in [ADR-009](../docs/adr/009-provider-ibrido-e-thread-tts.md).
 - `Confirmed`: **Configurazione Agenti e Customizzazioni** (`.agents/`):
   - Catalogo di skill registrate in `.agents/skills.json` suddivise per categorie tematiche (audio, code quality, documentazione, ponytail, UI/UX, workflow).
 

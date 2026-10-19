@@ -504,7 +504,7 @@ public struct LettoreStudioView: View {
                             appState.playbackSpeed = floatVal
                             audioEngine.setSpeed(floatVal)
                         }
-                    ), in: 0.5...2.5, step: 0.05)
+                    ), in: 0.5...2.0, step: 0.05)
                     .tint(brandCyan)
                     
                     HStack(spacing: 6) {

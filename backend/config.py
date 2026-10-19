@@ -1,4 +1,10 @@
-"""Configurazione del backend Lettore."""
+"""Configurazione del backend Lettore.
+
+Provider ONNX e thread del motore TTS sono configurati direttamente in
+``backend.engines.onnx_engine`` tramite ``LETTORE_TTS_PROVIDER``,
+``LETTORE_TTS_COREML_SESSIONS``, ``LETTORE_TTS_INTRA_THREADS`` e
+``LETTORE_TTS_INTER_THREADS``.
+"""
 
 import os
 from dataclasses import dataclass, field

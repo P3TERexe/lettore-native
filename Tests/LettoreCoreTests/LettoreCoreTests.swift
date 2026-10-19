@@ -93,6 +93,16 @@ final class LettoreCoreTests: XCTestCase {
         XCTAssertEqual(state.playbackProgress, 1.0)
     }
     
+    func testAppStateSpeedClampMatchesPlayerLimits() {
+        let state = AppState()
+
+        state.setSpeed(3.0)
+        XCTAssertEqual(state.playbackSpeed, 2.0)
+
+        state.setSpeed(0.1)
+        XCTAssertEqual(state.playbackSpeed, 0.5)
+    }
+
     func testPillOrientationState() {
         let state = AppState()
         XCTAssertEqual(state.pillOrientation, .horizontal)

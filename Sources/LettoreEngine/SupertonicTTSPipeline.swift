@@ -5,6 +5,8 @@ import LettoreCore
 /// Pipeline di sintesi vocale neurale Supertonic 3.
 /// Si interfaccia con il backend locale FastAPI (ONNX Runtime / CoreML)
 /// e restituisce i bytes WAV grezzi per la riproduzione con AVAudioPlayer.
+/// La velocità di ascolto è applicata dal player, non dalla sintesi: il client
+/// chiama questo metodo con speed 1.0 per massimizzare i cache hit.
 public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
     
     private let baseURL: URL
