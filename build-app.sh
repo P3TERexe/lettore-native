@@ -31,9 +31,9 @@ cat << PLIST > "$CONTENTS_DIR/Info.plist"
     <key>CFBundleIdentifier</key>
     <string>com.p3ter.lettorenative</string>
     <key>CFBundleVersion</key>
-    <string>0.3.0</string>
+    <string>0.3.1</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3</string>
+    <string>0.3.1</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
@@ -41,7 +41,7 @@ cat << PLIST > "$CONTENTS_DIR/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppTransportSecurity</key>
@@ -64,7 +64,7 @@ echo "🔐 Signing App Bundle with stable Designated Requirement..."
 codesign --force --deep --sign - --identifier "com.p3ter.lettorenative" --requirements '=designated => identifier "com.p3ter.lettorenative"' "$APP_DIR"
 
 echo "📦 Packaging clean zip archive with ditto..."
-rm -f "LettoreNative-v0.3.0-macOS.zip"
-ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "LettoreNative-v0.3.0-macOS.zip"
+rm -f "LettoreNative-v0.3.1-macOS.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "LettoreNative-v0.3.1-macOS.zip"
 
 echo "✅ App Bundle and Zip created successfully at: $(pwd)/$APP_DIR"
