@@ -319,6 +319,14 @@ extension AXCaptureService: ContinuousTextSource {
             return resolved
         }
 
+        // 2.5. Web area / testo con marcatori (Safari): `AXValue` è assente,
+        // ma il contenitore espone AXStartTextMarker/AXEndTextMarker. Gli
+        // attributi parametrici permettono di ottenere il testo completo e
+        // l'offset della selezione o del cursore.
+        if let resolved = resolveTextMarkerDocument(from: focused) {
+            return resolved
+        }
+
         // 3. Documento virtualizzato: ricostruisce la viewport con una DFS e
         // ancora la selezione/cursore al testo visibile.
         if let container = scrollContainer,
@@ -392,6 +400,115 @@ extension AXCaptureService: ContinuousTextSource {
         }
 
         return nil
+    }
+
+    /// Risolve i contenitori basati su `AXTextMarker` (Safari e alcune web
+    /// view). Il testo completo e il prefisso fino al cursore si ottengono con
+    /// gli attributi parametrici, senza dipendere da `AXValue`.
+    private func resolveTextMarkerDocument(from focused: AXUIElement) -> ResolvedDocument? {
+        guard let container = nearestTextMarkerContainer(from: focused),
+              let startMarker = textMarkerAttribute(container, "AXStartTextMarker" as CFString),
+              let endMarker = textMarkerAttribute(container, "AXEndTextMarker" as CFString) else {
+            return nil
+        }
+
+        let fullRange = AXTextMarkerRangeCreate(nil, startMarker, endMarker)
+        guard let fullText = parameterizedString(
+            container,
+            "AXStringForTextMarkerRange" as CFString,
+            fullRange
+        ),
+        !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let selectedRange = textMarkerRangeAttribute(
+            focused,
+            "AXSelectedTextMarkerRange" as CFString
+        ) ?? textMarkerRangeAttribute(
+            container,
+            "AXSelectedTextMarkerRange" as CFString
+        )
+
+        var anchor = 0
+        var notice: String?
+        if let selectedRange {
+            let selectedStart = AXTextMarkerRangeCopyStartMarker(selectedRange)
+            let prefixRange = AXTextMarkerRangeCreate(nil, startMarker, selectedStart)
+            if let prefix = parameterizedString(
+                container,
+                "AXStringForTextMarkerRange" as CFString,
+                prefixRange
+            ) {
+                anchor = (prefix as NSString).length
+            } else {
+                notice = "Non riesco a mappare la selezione nel documento: lettura dall'inizio."
+            }
+        } else {
+            notice = "Cursore non disponibile: lettura dall'inizio del documento."
+        }
+
+        let length = (fullText as NSString).length
+        return ResolvedDocument(
+            text: fullText,
+            anchorUTF16: max(0, min(anchor, length)),
+            canPage: false,
+            usedViewportSnapshot: false,
+            viewportText: fullText,
+            notice: notice
+        )
+    }
+
+    private func nearestTextMarkerContainer(from element: AXUIElement) -> AXUIElement? {
+        var current: AXUIElement? = element
+        var depth = 0
+
+        while let node = current, depth < 12 {
+            if textMarkerAttribute(node, "AXStartTextMarker" as CFString) != nil,
+               textMarkerAttribute(node, "AXEndTextMarker" as CFString) != nil {
+                return node
+            }
+            current = elementAttribute(node, kAXParentAttribute as CFString)
+            depth += 1
+        }
+
+        return nil
+    }
+
+    private func textMarkerAttribute(_ element: AXUIElement, _ name: CFString) -> AXTextMarker? {
+        guard let value = copyAttribute(element, name),
+              CFGetTypeID(value) == AXTextMarkerGetTypeID() else {
+            return nil
+        }
+        return (value as! AXTextMarker)
+    }
+
+    private func textMarkerRangeAttribute(
+        _ element: AXUIElement,
+        _ name: CFString
+    ) -> AXTextMarkerRange? {
+        guard let value = copyAttribute(element, name),
+              CFGetTypeID(value) == AXTextMarkerRangeGetTypeID() else {
+            return nil
+        }
+        return (value as! AXTextMarkerRange)
+    }
+
+    private func parameterizedString(
+        _ element: AXUIElement,
+        _ name: CFString,
+        _ parameter: AnyObject
+    ) -> String? {
+        var value: AnyObject?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element,
+            name,
+            parameter,
+            &value
+        ) == .success else {
+            return nil
+        }
+        return value as? String
     }
 
     private func resolveInAncestors(
