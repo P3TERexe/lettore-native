@@ -8,7 +8,12 @@ import LettoreCore
 ///
 /// Gli elementi `AXUIElement` restano confinati all'attore: verso l'esterno
 /// viaggiano solo stringhe e valori `Sendable`.
+///
+/// L'`id` identifica la sessione lungo gli `await`: se nel frattempo lo stop
+/// ha chiamato `endContinuousCapture()` (o è partita una nuova sessione), le
+/// fetch in sospeso non devono risuscitare lo stato vecchio.
 struct ContinuousAXSession {
+    let id: UUID
     let focusedElement: AXUIElement
     let scrollContainer: AXUIElement?
     let sourcePID: pid_t?
@@ -19,6 +24,24 @@ struct ContinuousAXSession {
     var lastScrollValue: Double?
     var canPage: Bool
     var reachedEnd: Bool
+}
+
+/// Attributi AX dei text marker (web area di Safari e affini).
+///
+/// I valori coincidono con `kAXStartTextMarkerAttribute` e con gli attributi
+/// parametrici `AXIndexForTextMarker`/`AXLengthForTextMarkerRange` descritti
+/// in `AXWebConstants.h`; sono definiti come stringhe locali per non
+/// dipendere dalla versione dell'SDK usata in build. Il supporto effettivo
+/// viene verificato a runtime: se l'attributo non è implementato la query
+/// fallisce e si ripiega sul testo materializzato.
+private enum AXMarkerAttribute {
+    static let start = "AXStartTextMarker"
+    static let end = "AXEndTextMarker"
+    static let selectedRange = "AXSelectedTextMarkerRange"
+    static let stringForRange = "AXStringForTextMarkerRange"
+    static let indexForMarker = "AXIndexForTextMarker"
+    static let lengthForRange = "AXLengthForTextMarkerRange"
+    static let markerForIndex = "AXTextMarkerForIndex"
 }
 
 private struct ResolvedDocument {
@@ -32,16 +55,33 @@ private struct ResolvedDocument {
 
 extension AXCaptureService: ContinuousTextSource {
 
+    private static let safetyCharacterCap = 200_000
+    private static let safetyCapNotice = "Il documento supera 200.000 caratteri: la lettura si ferma al limite di sicurezza."
+    private static let pageLimitNotice = "Limite di 200.000 caratteri raggiunto: la lettura continua si ferma qui."
+
     // MARK: - Avvio
 
     public func startContinuousCapture() async -> ContinuousCaptureStart {
+        await startContinuousCapture(targeting: nil)
+    }
+
+    public func startContinuousCapture(from applicationPID: pid_t) async -> ContinuousCaptureStart {
+        await startContinuousCapture(targeting: applicationPID)
+    }
+
+    private func startContinuousCapture(targeting applicationPID: pid_t?) async -> ContinuousCaptureStart {
         await endContinuousCapture()
 
         if !AXIsProcessTrusted() {
             requestAccessibilityPrompt()
         }
 
-        guard let appElement = focusedApplication() else {
+        let appElement: AXUIElement
+        if let applicationPID {
+            appElement = AXUIElementCreateApplication(applicationPID)
+        } else if let focusedApp = focusedApplication() {
+            appElement = focusedApp
+        } else {
             return ContinuousCaptureStart(
                 text: "",
                 selectedText: "",
@@ -52,7 +92,14 @@ extension AXCaptureService: ContinuousTextSource {
         let appName = applicationName(for: appElement)
         let sourcePID = processIdentifier(of: appElement)
 
-        guard let focused = focusedElement() else {
+        let focused: AXUIElement?
+        if applicationPID != nil {
+            focused = focusedElement(in: appElement)
+        } else {
+            focused = focusedElement()
+        }
+
+        guard let focused else {
             return ContinuousCaptureStart(
                 text: "",
                 selectedText: "",
@@ -82,10 +129,10 @@ extension AXCaptureService: ContinuousTextSource {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             var notice = resolved.notice
-            let safetyCap = 200_000
+            let safetyCap = Self.safetyCharacterCap
             if text.count > safetyCap {
                 text = String(text.prefix(safetyCap))
-                notice = "Il documento supera 200.000 caratteri: la lettura si ferma al limite di sicurezza."
+                notice = Self.safetyCapNotice
             }
 
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -103,6 +150,7 @@ extension AXCaptureService: ContinuousTextSource {
             print("[AXCapture][Continuo] risolto testo=\(resolved.text.count) anchor=\(anchor) canPage=\(resolved.canPage) snapshot=\(resolved.usedViewportSnapshot) output=\(text.count)")
 
             continuousSession = ContinuousAXSession(
+                id: UUID(),
                 focusedElement: focused,
                 scrollContainer: scrollContainer,
                 sourcePID: sourcePID,
@@ -126,8 +174,11 @@ extension AXCaptureService: ContinuousTextSource {
 
         // Ultima spiaggia: la vecchia cattura via clipboard copre le app che
         // non espongono né valore né range. Non può continuare, ma almeno
-        // legge la selezione corrente.
-        if let clipboard = await captureViaClipboardFallback(appName: appName) {
+        // legge la selezione corrente. Con un PID esplicito il fallback è
+        // vietato: Cmd+C finirebbe nell'app in primo piano (lo Studio), non
+        // nell'app di origine.
+        if applicationPID == nil,
+           let clipboard = await captureViaClipboardFallback(appName: appName) {
             return ContinuousCaptureStart(
                 text: clipboard.text,
                 selectedText: clipboard.text,
@@ -147,110 +198,147 @@ extension AXCaptureService: ContinuousTextSource {
     // MARK: - Pagine successive
 
     public func nextContinuousPage() async -> ContinuousTextPage {
-        guard var session = continuousSession else { return .end }
-        guard session.canPage, !session.reachedEnd, let container = session.scrollContainer else {
+        guard !Task.isCancelled else { return .end }
+        guard let local = continuousSession else { return .end }
+        guard local.canPage, !local.reachedEnd, let container = local.scrollContainer else {
             return .end
         }
 
         guard AXIsProcessTrusted() else {
-            session.reachedEnd = true
-            continuousSession = session
-            return ContinuousTextPage(
-                text: "",
-                isFinal: true,
-                notice: "Permesso Accessibilità revocato: la lettura continua si ferma qui."
+            return finishPage(
+                ContinuousTextPage(
+                    text: "",
+                    isFinal: true,
+                    notice: "Permesso Accessibilità revocato: la lettura continua si ferma qui."
+                ),
+                session: local
             )
         }
 
-        if isScrollAtEnd(container) {
-            session.reachedEnd = true
-            continuousSession = session
-            return .end
+        // Una scroll bar con range non leggibile non significa "fine
+        // documento": in Safari `value/min/max` restano a zero su documenti
+        // lunghi. Solo un range valido con `value >= max` dichiara la fine;
+        // negli altri casi si tenta comunque lo scroll AX (o PageDown).
+        if scrollEndState(of: container) == .atEnd {
+            return finishPage(.end, session: local)
         }
 
-        let before = collectViewportText(from: container) ?? session.lastViewportText
+        let before = collectViewportText(from: container) ?? local.lastViewportText
         let attempt = scrollDownOneViewport(container)
-        print("[AXCapture][Continuo] pagina before=\(before.count) attempt=\(String(describing: attempt)) atEnd=\(isScrollAtEnd(container))")
+        print("[AXCapture][Continuo] pagina before=\(before.count) attempt=\(String(describing: attempt)) atEnd=\(scrollEndState(of: container))")
 
         if case .unavailable = attempt {
-            session.reachedEnd = true
-            continuousSession = session
-            return ContinuousTextPage(
-                text: "",
-                isFinal: true,
-                notice: "Questa app non espone un contenitore scorrevole: la lettura continua si ferma qui."
+            return finishPage(
+                ContinuousTextPage(
+                    text: "",
+                    isFinal: true,
+                    notice: "Questa app non espone un contenitore scorrevole: la lettura continua si ferma qui."
+                ),
+                session: local
             )
         }
 
         var after = await waitForViewportChange(container: container, before: before)
+        guard isContinuousSessionCurrent(local) else { return .end }
 
         // Se lo scroll AX non ha prodotto un aggiornamento, l'unico fallback
         // sicuro è PageDown, e solo quando l'app di origine è già in primo
         // piano: non rubiamo mai il focus.
         if after == nil {
-            let isFrontmost = await isSourceFrontmost(session)
+            let isFrontmost = await isSourceFrontmost(local)
+            guard isContinuousSessionCurrent(local) else { return .end }
+
             if isFrontmost {
                 print("[AXCapture][Continuo] fallback PageDown (app di origine in primo piano)")
                 postPageDown()
                 after = await waitForViewportChange(container: container, before: before)
+                guard isContinuousSessionCurrent(local) else { return .end }
             }
         }
 
         guard let after, !after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            session.reachedEnd = true
-            continuousSession = session
-
-            if isScrollAtEnd(container) {
-                return .end
+            if scrollEndState(of: container) == .atEnd {
+                return finishPage(.end, session: local)
             }
 
-            let isFrontmost = await isSourceFrontmost(session)
+            let isFrontmost = await isSourceFrontmost(local)
+            guard isContinuousSessionCurrent(local) else { return .end }
+
             let notice = isFrontmost
                 ? "Il documento non ha risposto allo scorrimento: la lettura continua si ferma qui."
                 : "L'app di origine non è più in primo piano: non posso caricare altre pagine. Torna sull'app e riprova."
-            return ContinuousTextPage(text: "", isFinal: true, notice: notice)
-        }
-
-        let delta = textAfterOverlap(old: before, new: after)
-        session.lastViewportText = after
-        session.lastScrollValue = scrollBarValue(of: container)
-        print("[AXCapture][Continuo] dopo scroll after=\(after.count) delta=\(delta.count) atEnd=\(isScrollAtEnd(container))")
-
-        guard !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            session.reachedEnd = true
-            continuousSession = session
-            if isScrollAtEnd(container) {
-                return .end
-            }
-            return ContinuousTextPage(
-                text: "",
-                isFinal: true,
-                notice: "La pagina successiva non contiene nuovo testo: la lettura continua si ferma qui."
+            return finishPage(
+                ContinuousTextPage(text: "", isFinal: true, notice: notice),
+                session: local
             )
         }
 
-        let remaining = max(0, 200_000 - session.capturedText.count)
+        let delta = DocumentPageOverlap.textAfterOverlap(before, after)
+        print("[AXCapture][Continuo] dopo scroll after=\(after.count) delta=\(delta.count) atEnd=\(scrollEndState(of: container))")
+
+        guard !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            if scrollEndState(of: container) == .atEnd {
+                return finishPage(.end, session: local)
+            }
+            return finishPage(
+                ContinuousTextPage(
+                    text: "",
+                    isFinal: true,
+                    notice: "La pagina successiva non contiene nuovo testo: la lettura continua si ferma qui."
+                ),
+                session: local
+            )
+        }
+
+        let remaining = max(0, Self.safetyCharacterCap - local.capturedText.count)
         guard remaining > 0 else {
-            session.reachedEnd = true
-            continuousSession = session
-            return ContinuousTextPage(
-                text: "",
-                isFinal: true,
-                notice: "Limite di 200.000 caratteri raggiunto: la lettura continua si ferma qui."
+            return finishPage(
+                ContinuousTextPage(text: "", isFinal: true, notice: Self.pageLimitNotice),
+                session: local
             )
         }
 
         let pageText = String(delta.prefix(remaining))
         let hitSafetyCap = pageText.count < delta.count
-        session.capturedText += pageText
-        session.reachedEnd = hitSafetyCap || isScrollAtEnd(container)
-        continuousSession = session
+
+        var updated = local
+        updated.capturedText += pageText
+        updated.lastViewportText = after
+        updated.lastScrollValue = scrollBarValue(of: container)
+        updated.reachedEnd = hitSafetyCap || scrollEndState(of: container) == .atEnd
+
+        guard commitContinuousSession(updated) else { return .end }
 
         return ContinuousTextPage(
             text: pageText,
-            isFinal: session.reachedEnd,
-            notice: hitSafetyCap ? "Limite di 200.000 caratteri raggiunto: la lettura continua si ferma qui." : nil
+            isFinal: updated.reachedEnd,
+            notice: hitSafetyCap ? Self.pageLimitNotice : nil
         )
+    }
+
+    /// Segna la sessione come conclusa senza scrivere se nel frattempo è stata
+    /// chiusa o sostituita: una fetch sospesa non deve mai far risorgere la
+    /// sessione AX vecchia.
+    private func finishPage(
+        _ page: ContinuousTextPage,
+        session: ContinuousAXSession
+    ) -> ContinuousTextPage {
+        var updated = session
+        updated.reachedEnd = true
+        guard commitContinuousSession(updated) else { return .end }
+        return page
+    }
+
+    /// Scrive la sessione aggiornata solo se è ancora quella attiva e il task
+    /// non è stato cancellato.
+    private func commitContinuousSession(_ updated: ContinuousAXSession) -> Bool {
+        guard !Task.isCancelled, continuousSession?.id == updated.id else { return false }
+        continuousSession = updated
+        return true
+    }
+
+    private func isContinuousSessionCurrent(_ session: ContinuousAXSession) -> Bool {
+        continuousSession?.id == session.id && !Task.isCancelled
     }
 
     public func endContinuousCapture() async {
@@ -289,7 +377,7 @@ extension AXCaptureService: ContinuousTextSource {
                     return ResolvedDocument(
                         text: snapshot,
                         anchorUTF16: anchor,
-                        canPage: !isScrollAtEnd(container),
+                        canPage: scrollEndState(of: container) != .atEnd,
                         usedViewportSnapshot: true,
                         viewportText: snapshot,
                         notice: nil
@@ -309,21 +397,26 @@ extension AXCaptureService: ContinuousTextSource {
             }
         }
 
-        // 2. Il valore è su un antenato (es. contenitore web) mentre il range
-        // resta sull'elemento focalizzato.
+        // 2. Web area / testo con marcatori (Safari): `AXValue` è assente, ma
+        // il contenitore espone AXStartTextMarker/AXEndTextMarker e gli
+        // attributi parametrici danno il testo completo. Va provato prima del
+        // walk sugli antenati: un `AXValue` parziale su un antenato non deve
+        // vincere sul documento completo esposto dai marker.
+        if let resolved = resolveTextMarkerDocument(
+            from: focused,
+            scrollContainer: scrollContainer,
+            selectedText: selectedText
+        ) {
+            return resolved
+        }
+
+        // 2.5. Il valore è su un antenato (es. contenitore web) mentre il
+        // range resta sull'elemento focalizzato.
         if let resolved = resolveInAncestors(
             from: focused,
             selectedText: selectedText,
             selectedRange: selectedRange
         ) {
-            return resolved
-        }
-
-        // 2.5. Web area / testo con marcatori (Safari): `AXValue` è assente,
-        // ma il contenitore espone AXStartTextMarker/AXEndTextMarker. Gli
-        // attributi parametrici permettono di ottenere il testo completo e
-        // l'offset della selezione o del cursore.
-        if let resolved = resolveTextMarkerDocument(from: focused) {
             return resolved
         }
 
@@ -340,7 +433,7 @@ extension AXCaptureService: ContinuousTextSource {
                 return ResolvedDocument(
                     text: snapshot,
                     anchorUTF16: anchor,
-                    canPage: !isScrollAtEnd(container),
+                    canPage: scrollEndState(of: container) != .atEnd,
                     usedViewportSnapshot: true,
                     viewportText: snapshot,
                     notice: nil
@@ -403,52 +496,138 @@ extension AXCaptureService: ContinuousTextSource {
     }
 
     /// Risolve i contenitori basati su `AXTextMarker` (Safari e alcune web
-    /// view). Il testo completo e il prefisso fino al cursore si ottengono con
-    /// gli attributi parametrici, senza dipendere da `AXValue`.
-    private func resolveTextMarkerDocument(from focused: AXUIElement) -> ResolvedDocument? {
-        guard let container = nearestTextMarkerContainer(from: focused),
-              let startMarker = textMarkerAttribute(container, "AXStartTextMarker" as CFString),
-              let endMarker = textMarkerAttribute(container, "AXEndTextMarker" as CFString) else {
+    /// view) senza dipendere da `AXValue`.
+    ///
+    /// Quando la selezione (o il cursore) è disponibile si chiede subito il
+    /// range `selectionStart → endMarker`: il documento intero non viene
+    /// materializzato solo per scartarne la testa. `AXLengthForTextMarkerRange`
+    /// e `AXIndexForTextMarker` (UTF-16), quando l'app li supporta, validano il
+    /// limite di sicurezza prima di costruire la stringa; se la query fallisce
+    /// si ripiega esplicitamente sulla stringa del range completo.
+    private func resolveTextMarkerDocument(
+        from focused: AXUIElement,
+        scrollContainer: AXUIElement?,
+        selectedText: String
+    ) -> ResolvedDocument? {
+        guard let container = nearestTextMarkerContainer(from: focused, fallback: scrollContainer),
+              let documentStart = textMarkerAttribute(container, AXMarkerAttribute.start),
+              let documentEnd = textMarkerAttribute(container, AXMarkerAttribute.end) else {
             return nil
         }
 
-        let fullRange = AXTextMarkerRangeCreate(nil, startMarker, endMarker)
-        guard let fullText = parameterizedString(
-            container,
-            "AXStringForTextMarkerRange" as CFString,
-            fullRange
-        ),
-        !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
+        let documentRange = textMarkerRange(from: documentStart, to: documentEnd)
+        let documentLength = documentRange.flatMap { textMarkerRangeLength(of: $0, in: container) }
+
+        // La selezione può stare su un nodo intermedio, non solo
+        // sull'elemento focalizzato: risali fino al contenitore dei marker.
+        let selectionRange = selectedTextMarkerRange(from: focused, in: container)
+        if let selectionStart = selectionRange.flatMap(copyStartMarker),
+           let resolved = resolveMarkedRange(
+               container: container,
+               from: selectionStart,
+               to: documentEnd,
+               documentLength: documentLength
+           ) {
+            return resolved
         }
 
-        let selectedRange = textMarkerRangeAttribute(
-            focused,
-            "AXSelectedTextMarkerRange" as CFString
-        ) ?? textMarkerRangeAttribute(
-            container,
-            "AXSelectedTextMarkerRange" as CFString
+        // Senza marker di selezione utilizzabili si ripiega sul documento
+        // completo, provando prima ad ancorare la selezione testuale.
+        return resolveTextMarkerFallback(
+            container: container,
+            documentStart: documentStart,
+            documentEnd: documentEnd,
+            selectedText: selectedText
         )
+    }
 
-        var anchor = 0
-        var notice: String?
-        if let selectedRange {
-            let selectedStart = AXTextMarkerRangeCopyStartMarker(selectedRange)
-            let prefixRange = AXTextMarkerRangeCreate(nil, startMarker, selectedStart)
-            if let prefix = parameterizedString(
-                container,
-                "AXStringForTextMarkerRange" as CFString,
-                prefixRange
-            ) {
-                anchor = (prefix as NSString).length
-            } else {
-                notice = "Non riesco a mappare la selezione nel documento: lettura dall'inizio."
-            }
-        } else {
-            notice = "Cursore non disponibile: lettura dall'inizio del documento."
+    /// Chiede direttamente il testo da `selectionStart` alla fine del documento
+    /// e, quando le API di indicizzazione dei marker sono disponibili, costruisce
+    /// un range già troncato al limite di sicurezza prima di materializzarlo.
+    private func resolveMarkedRange(
+        container: AXUIElement,
+        from selectionStart: AXTextMarker,
+        to documentEnd: AXTextMarker,
+        documentLength: Int?
+    ) -> ResolvedDocument? {
+        let selectionIndex = textMarkerIndex(of: selectionStart, in: container).flatMap { index -> Int? in
+            guard index >= 0 else { return nil }
+            if let documentLength, index > documentLength { return nil }
+            return index
         }
 
+        if let selectionIndex,
+           let documentLength,
+           documentLength - selectionIndex > Self.safetyCharacterCap,
+           let cappedEnd = textMarker(atIndex: selectionIndex + Self.safetyCharacterCap, in: container),
+           let cappedRange = textMarkerRange(from: selectionStart, to: cappedEnd),
+           let cappedText = parameterizedString(container, AXMarkerAttribute.stringForRange, cappedRange) {
+            return ResolvedDocument(
+                text: cappedText,
+                anchorUTF16: 0,
+                canPage: false,
+                usedViewportSnapshot: false,
+                viewportText: cappedText,
+                notice: Self.safetyCapNotice
+            )
+        }
+
+        guard let anchoredRange = textMarkerRange(from: selectionStart, to: documentEnd),
+              let text = parameterizedString(container, AXMarkerAttribute.stringForRange, anchoredRange) else {
+            return nil
+        }
+
+        // Sanity check: l'ancora più il testo ancorato non possono superare la
+        // lunghezza del documento. Se i marker sono incoerenti si preferisce
+        // il fallback testuale al testo arbitrario.
+        if let selectionIndex,
+           let documentLength,
+           selectionIndex + (text as NSString).length > documentLength {
+            print("[AXCapture][Continuo] marker incoerenti: range più lungo del documento")
+            return nil
+        }
+
+        return ResolvedDocument(
+            text: text,
+            anchorUTF16: 0,
+            canPage: false,
+            usedViewportSnapshot: false,
+            viewportText: text,
+            notice: nil
+        )
+    }
+
+    /// Fallback quando `AXSelectedTextMarkerRange` manca o non è utilizzabile:
+    /// materializza il documento completo e ancora la selezione testuale già
+    /// disponibile prima di ripiegare sull'inizio.
+    private func resolveTextMarkerFallback(
+        container: AXUIElement,
+        documentStart: AXTextMarker,
+        documentEnd: AXTextMarker,
+        selectedText: String
+    ) -> ResolvedDocument? {
+        guard let fullRange = textMarkerRange(from: documentStart, to: documentEnd),
+              let fullText = parameterizedString(container, AXMarkerAttribute.stringForRange, fullRange),
+              !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let trimmedSelection = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
         let length = (fullText as NSString).length
+        let anchor: Int
+        let notice: String?
+
+        if !trimmedSelection.isEmpty, let found = anchorOffset(in: fullText, for: trimmedSelection) {
+            anchor = found
+            notice = nil
+        } else if trimmedSelection.isEmpty {
+            anchor = 0
+            notice = "Cursore non disponibile: lettura dall'inizio del documento."
+        } else {
+            anchor = 0
+            notice = "Non riesco a mappare la selezione nel documento: lettura dall'inizio."
+        }
+
         return ResolvedDocument(
             text: fullText,
             anchorUTF16: max(0, min(anchor, length)),
@@ -459,15 +638,25 @@ extension AXCaptureService: ContinuousTextSource {
         )
     }
 
-    private func nearestTextMarkerContainer(from element: AXUIElement) -> AXUIElement? {
+    private func nearestTextMarkerContainer(
+        from element: AXUIElement,
+        fallback: AXUIElement?
+    ) -> AXUIElement? {
         var current: AXUIElement? = element
         var depth = 0
 
         while let node = current, depth < 12 {
-            if textMarkerAttribute(node, "AXStartTextMarker" as CFString) != nil,
-               textMarkerAttribute(node, "AXEndTextMarker" as CFString) != nil {
-                return node
-            }
+            if hasTextMarkers(node) { return node }
+            current = elementAttribute(node, kAXParentAttribute as CFString)
+            depth += 1
+        }
+
+        // Il walk può fermarsi prima della web area: ripiega sul contenitore
+        // scorrevole e, se serve, sui suoi antenati.
+        current = fallback
+        depth = 0
+        while let node = current, depth < 25 {
+            if hasTextMarkers(node) { return node }
             current = elementAttribute(node, kAXParentAttribute as CFString)
             depth += 1
         }
@@ -475,8 +664,91 @@ extension AXCaptureService: ContinuousTextSource {
         return nil
     }
 
-    private func textMarkerAttribute(_ element: AXUIElement, _ name: CFString) -> AXTextMarker? {
-        guard let value = copyAttribute(element, name),
+    private func hasTextMarkers(_ element: AXUIElement) -> Bool {
+        textMarkerAttribute(element, AXMarkerAttribute.start) != nil
+            && textMarkerAttribute(element, AXMarkerAttribute.end) != nil
+    }
+
+    /// Cerca `AXSelectedTextMarkerRange` risalendo tutti gli antenati fino al
+    /// contenitore dei marker: in Safari l'attributo è sulla web area, ma
+    /// altre web view lo espongono su nodi intermedi.
+    private func selectedTextMarkerRange(
+        from element: AXUIElement,
+        in container: AXUIElement
+    ) -> AXTextMarkerRange? {
+        var current: AXUIElement? = element
+        var depth = 0
+
+        while let node = current, depth < 25 {
+            if let range = textMarkerRangeAttribute(node, AXMarkerAttribute.selectedRange) {
+                return range
+            }
+            if CFEqual(node, container) { break }
+            if hasTextMarkers(node) { break }
+            if role(of: node) == "AXWindow" { break }
+            current = elementAttribute(node, kAXParentAttribute as CFString)
+            depth += 1
+        }
+
+        return textMarkerRangeAttribute(container, AXMarkerAttribute.selectedRange)
+    }
+
+    /// `AXTextMarkerRangeCreate` è importata come non-opzionale: il range
+    /// viene rivalidato per tipo prima di essere passato alle query. Se la
+    /// validazione fallisce i chiamanti ripiegano sul testo materializzato.
+    private func textMarkerRange(from start: AXTextMarker, to end: AXTextMarker) -> AXTextMarkerRange? {
+        let range = AXTextMarkerRangeCreate(nil, start, end)
+        guard CFGetTypeID(range) == AXTextMarkerRangeGetTypeID() else { return nil }
+        return range
+    }
+
+    /// Anche `AXTextMarkerRangeCopyStartMarker` è non-opzionale: il marker
+    /// restituito viene validato per tipo.
+    private func copyStartMarker(of range: AXTextMarkerRange) -> AXTextMarker? {
+        let marker = AXTextMarkerRangeCopyStartMarker(range)
+        guard CFGetTypeID(marker) == AXTextMarkerGetTypeID() else { return nil }
+        return marker
+    }
+
+    private func textMarkerIndex(of marker: AXTextMarker, in container: AXUIElement) -> Int? {
+        parameterizedNumber(container, AXMarkerAttribute.indexForMarker, parameter: marker)
+    }
+
+    private func textMarkerRangeLength(of range: AXTextMarkerRange, in container: AXUIElement) -> Int? {
+        parameterizedNumber(container, AXMarkerAttribute.lengthForRange, parameter: range)
+    }
+
+    private func textMarker(atIndex index: Int, in container: AXUIElement) -> AXTextMarker? {
+        var value: AnyObject?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            container,
+            AXMarkerAttribute.markerForIndex as CFString,
+            NSNumber(value: index),
+            &value
+        ) == .success,
+        let candidate = value,
+        CFGetTypeID(candidate) == AXTextMarkerGetTypeID() else {
+            return nil
+        }
+        return (candidate as! AXTextMarker)
+    }
+
+    private func parameterizedNumber(
+        _ element: AXUIElement,
+        _ name: String,
+        parameter: AnyObject
+    ) -> Int? {
+        var value: AnyObject?
+        guard AXUIElementCopyParameterizedAttributeValue(element, name as CFString, parameter, &value) == .success else {
+            return nil
+        }
+        if let number = value as? NSNumber { return number.intValue }
+        if let number = value as? Int { return number }
+        return nil
+    }
+
+    private func textMarkerAttribute(_ element: AXUIElement, _ name: String) -> AXTextMarker? {
+        guard let value = copyAttribute(element, name as CFString),
               CFGetTypeID(value) == AXTextMarkerGetTypeID() else {
             return nil
         }
@@ -485,9 +757,9 @@ extension AXCaptureService: ContinuousTextSource {
 
     private func textMarkerRangeAttribute(
         _ element: AXUIElement,
-        _ name: CFString
+        _ name: String
     ) -> AXTextMarkerRange? {
-        guard let value = copyAttribute(element, name),
+        guard let value = copyAttribute(element, name as CFString),
               CFGetTypeID(value) == AXTextMarkerRangeGetTypeID() else {
             return nil
         }
@@ -496,13 +768,13 @@ extension AXCaptureService: ContinuousTextSource {
 
     private func parameterizedString(
         _ element: AXUIElement,
-        _ name: CFString,
+        _ name: String,
         _ parameter: AnyObject
     ) -> String? {
         var value: AnyObject?
         guard AXUIElementCopyParameterizedAttributeValue(
             element,
-            name,
+            name as CFString,
             parameter,
             &value
         ) == .success else {
@@ -701,7 +973,9 @@ extension AXCaptureService: ContinuousTextSource {
         attempts: Int = 14
     ) async -> String? {
         for _ in 0..<attempts {
+            if Task.isCancelled { return nil }
             try? await Task.sleep(nanoseconds: 50_000_000)
+            if Task.isCancelled { return nil }
             if let after = collectViewportText(from: container),
                after != before,
                !after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -719,18 +993,30 @@ extension AXCaptureService: ContinuousTextSource {
         return frontmost == sourcePID
     }
 
-    private func isScrollAtEnd(_ container: AXUIElement) -> Bool {
+    /// Esito della lettura della scroll bar verticale.
+    ///
+    /// `unknown` copre sia l'assenza della scroll bar sia un range non
+    /// leggibile (in Safari `value/min/max` restano a zero su documenti
+    /// lunghi): non è una prova di fine documento e obbliga a tentare lo
+    /// scroll.
+    private enum ScrollEndState {
+        case atEnd
+        case notAtEnd
+        case unknown
+    }
+
+    private func scrollEndState(of container: AXUIElement) -> ScrollEndState {
         guard let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString),
               let state = scrollBarState(of: bar) else {
-            return false
+            return .unknown
         }
 
-        // Una scroll bar con range nullo significa che non c'è altro testo
-        // sotto la viewport corrente: non serve paginare.
-        guard state.max > state.min else { return true }
+        // Range nullo o non disponibile: la barra non dice se c'è altro testo
+        // sotto la viewport, quindi si tenta comunque lo scroll.
+        guard state.max > state.min else { return .unknown }
 
         let epsilon = max(0.000_1, (state.max - state.min) * 0.001)
-        return state.value >= state.max - epsilon
+        return state.value >= state.max - epsilon ? .atEnd : .notAtEnd
     }
 
     private func scrollBarValue(of container: AXUIElement) -> Double? {
@@ -747,33 +1033,6 @@ extension AXCaptureService: ContinuousTextSource {
             return nil
         }
         return (value, minValue, maxValue)
-    }
-
-    /// Rimuove dalla nuova viewport la parte già vista, usando il più lungo
-    /// suffisso della vecchia viewport che coincide con un prefisso della nuova.
-    private func textAfterOverlap(old: String, new: String, maxOverlap: Int = 4_000) -> String {
-        guard !new.isEmpty else { return "" }
-        guard !old.isEmpty else { return new }
-
-        let oldLength = (old as NSString).length
-        let newLength = (new as NSString).length
-        let limit = min(maxOverlap, min(oldLength, newLength))
-        guard limit > 0 else { return new }
-
-        let oldTail = (old as NSString).substring(from: oldLength - limit) as NSString
-        let newHead = (new as NSString).substring(to: limit) as NSString
-        var overlap = min(oldTail.length, newHead.length)
-
-        while overlap > 0 {
-            let oldSuffix = oldTail.substring(from: oldTail.length - overlap)
-            let newPrefix = newHead.substring(to: overlap)
-            if oldSuffix == newPrefix {
-                return (new as NSString).substring(from: overlap)
-            }
-            overlap -= 1
-        }
-
-        return new
     }
 
     // MARK: - Raccolta del testo visibile
@@ -889,6 +1148,25 @@ extension AXCaptureService: ContinuousTextSource {
         return elementAttribute(systemWide, kAXFocusedUIElementAttribute as CFString)
     }
 
+    /// Elemento focalizzato nell'app target. Quando l'app non espone il
+    /// focused element si prova con la finestra focalizzata e poi con quella
+    /// principale, così la cattura resta confinata all'app indicata.
+    private func focusedElement(in application: AXUIElement) -> AXUIElement? {
+        let attributes = [
+            kAXFocusedUIElementAttribute,
+            kAXFocusedWindowAttribute,
+            kAXMainWindowAttribute
+        ]
+
+        for attribute in attributes {
+            if let element = elementAttribute(application, attribute as CFString) {
+                return element
+            }
+        }
+
+        return nil
+    }
+
     private func applicationName(for appElement: AXUIElement) -> String? {
         if let title = stringAttribute(appElement, kAXTitleAttribute as CFString), !title.isEmpty {
             return title
@@ -987,3 +1265,5 @@ extension AXCaptureService: ContinuousTextSource {
         return value
     }
 }
+
+extension AXCaptureService: TargetedContinuousTextSource {}

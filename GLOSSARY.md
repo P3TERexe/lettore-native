@@ -20,6 +20,18 @@ _Avoid_: punto di partenza (ambiguo), cursore iniziale
 Caricamento della viewport successiva di un documento virtualizzato, con deduplica del testo già catturato.
 _Avoid_: scroll infinito, autoscroll
 
+**Stato di fine scroll**:
+Classificazione a tre valori della scroll bar (`atEnd`, `notAtEnd`, `unknown`); `unknown` non significa fine documento e impone un tentativo di scroll.
+_Avoid_: isScrollAtEnd, fine scroll presunta
+
+**Text marker**:
+Riferimento opaco a una posizione o a un intervallo di un documento web (Safari/AXWebArea), usato per leggere il documento completo senza materializzare ogni nodo.
+_Avoid_: marker, offset Safari
+
+**Cattura targetizzata**:
+Cattura avviata su un PID esplicito invece che sull'app in primo piano; serve al pulsante "Leggi da qui" dello Studio.
+_Avoid_: cattura esterna, cattura forzata
+
 **Filtro rumore leggero**:
 Pulizia conservativa delle catture documentali che rimuove numeri di pagina, intestazioni/piè di pagina ripetuti e trattini di fine riga, senza toccare note e citazioni.
 _Avoid_: pulizia testo, filtro PDF

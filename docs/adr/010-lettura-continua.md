@@ -1,8 +1,8 @@
 # Lettura continua da selezione o cursore (DSA-11)
 
-**Stato**: Accettata, con validazione empirica AX in corso  
-**Data**: 2026-10-20  
-**Riferimenti**: [DSA-11 nella roadmap](../../ROADMAP.md), [ADR-007](007-universal-reading-layer-fallback-3-livelli.md), [ADR-008](008-rewrite-100-nativo-macos-swift.md)
+- **Stato**: Accettata e validata empiricamente su TextEdit, Safari e VS Code; Word non disponibile, Preview/PDF best effort
+- **Data**: 2026-10-20
+- **Riferimenti**: [DSA-11 nella roadmap](../../ROADMAP.md), [ADR-007](007-universal-reading-layer-fallback-3-livelli.md), [ADR-008](008-rewrite-100-nativo-macos-swift.md)
 
 ## Contesto & Problema
 
@@ -25,15 +25,23 @@ La posizione iniziale viene risolta a cascata:
 
 1. `AXValue` dell'elemento focalizzato combinato con
    `AXSelectedTextRange` (campi di testo ed editor che espongono il documento
-   completo);
-2. valore di un antenato che contiene la selezione (contenitori web);
-3. DFS del contenitore scorrevole per ricostruire la viewport visibile, con
-   ricerca della selezione o del valore focalizzato per mappare l'ancora;
-4. fallback al solo elemento focalizzato, con avviso esplicito, se l'ancora
+   completo).
+2. **Text marker** del documento (`AXStartTextMarker`/`AXEndTextMarker`,
+   `AXSelectedTextMarkerRange` e attributi parametrici) per le web area di
+   Safari e gli engine che espongono solo marker. Questo ramo viene valutato
+   prima del valore degli antenati: in Safari il value parziale di un
+   contenitore non deve oscurare il documento completo.
+3. Valore di un antenato che contiene la selezione.
+4. DFS del contenitore scorrevole per ricostruire la viewport visibile, con
+   ricerca della selezione o del valore focalizzato per mappare l'ancora.
+5. Fallback al solo elemento focalizzato, con avviso esplicito, se l'ancora
    non è mappabile.
 
 L'ancora è un offset UTF-16 nel testo catturato. Se la selezione compare più
-volte nella viewport, la mappatura resta best effort.
+volte nella viewport, la mappatura resta best effort. Nel ramo marker il testo
+restituito è già ancorato alla selezione (`anchorUTF16 = 0`); se la selezione
+marker manca, si ripiega sul `selectedText` e sulla sua posizione nel
+documento.
 
 La cattura è uno **snapshot al momento del Play**: le modifiche successive del
 documento non vengono inseguite.
@@ -43,10 +51,16 @@ documento non vengono inseguite.
 - `ContinuousTextSource` in `LettoreCore` espone `startContinuousCapture()`,
   `nextContinuousPage()` e `endContinuousCapture()`; i valori di scambio sono
   `Sendable` e contengono solo testo, flag e avvisi.
-- `AXCaptureService` implementa la sorgente in `LettoreSystem`. Gli
+- `TargetedContinuousTextSource` estende il contratto per avviare la cattura
+  da un PID esplicito. Serve al pulsante "Leggi da qui" dello Studio, che è
+  per definizione in primo piano e altrimenti catturerebbe se stesso.
+- `AXCaptureService` implementa le sorgenti in `LettoreSystem`. Gli
   `AXUIElement` restano confinati all'attore.
 - `ContinuousReadingController` in `LettoreEngine` orchestra cattura,
-  preparazione, chunking, richieste di pagina e pulizia.
+  preparazione, chunking, richieste di pagina e pulizia. Ogni sessione ha una
+  `sessionGeneration`; i task asincroni la verificano dopo ogni `await` e le
+  scritture avvengono su una copia locale, committata solo alla fine. Una
+  sessione fermata non può più accodare testo o lasciare avvisi.
 - `PlaybackCoordinator` segnala `onQueueLow` quando restano al massimo 3 chunk
   e `onSessionEnded` a fine sessione. Se la coda finisce mentre una pagina è
   in arrivo, attende la pagina prima di dichiarare conclusa la sessione.
@@ -65,6 +79,12 @@ Il resto del documento già catturato viene chunkato in background e accodato
 incompleta di ogni pagina e la unisce alla successiva, evitando che una frase
 venga spezzata al confine di pagina.
 
+Se una pagina non produce alcuna frase (solo numeri, testo filtrato o coda
+senza terminatori), il controller non chiude la sessione: richiede la pagina
+successiva, fino a un massimo di 32 richieste per singola chiamata. A fine
+documento, o al raggiungimento del cap, il carry residuo viene forzato in
+chunk, così il testo trattenuto non resta invisibile.
+
 ### 4. Paging e focus
 
 Ordine di paging:
@@ -76,8 +96,21 @@ Ordine di paging:
 3. `CGEvent` PageDown **solo** se l'app di origine è già in primo piano.
 
 Non si attiva mai l'app di origine e non si sposta il focus. L'app resta nella
-posizione raggiunta. La nuova viewport viene deduplicata cercando il più lungo
-suffisso della viewport precedente che coincide con un prefisso della nuova.
+posizione raggiunta.
+
+La fine dello scroll è uno stato a tre valori:
+
+- `atEnd`: la scroll bar espone un range valido e `value >= max`;
+- `notAtEnd`: il range è valido e c'è ancora spazio;
+- `unknown`: range assente, nullo o `max == min` (per esempio Safari e alcune
+  scroll bar che non pubblicano min/max). In questo caso si tenta comunque lo
+  scroll; la sessione termina solo quando lo scroll non produce testo nuovo.
+
+La nuova viewport viene deduplicata con `DocumentPageOverlap`: il più lungo
+suffisso della viewport precedente che coincide con un prefisso della nuova
+viene rimosso. L'algoritmo è KMP, con limite dinamico
+`min(old.count, new.count)` e confronto per `Character`, non un cap fisso a
+4.000 caratteri.
 
 Se lo scroll non produce testo nuovo, la sessione si ferma con un avviso
 persistente fino alla prossima cattura. Se l'app perde il primo piano e lo
@@ -104,14 +137,24 @@ La modalità è attivabile da:
 - card nello Studio con sotto-toggle e picker del filtro.
 
 La cattura continua parte da `Cmd+Shift+C`, dal Play della pillola in idle e
-dal pulsante "Leggi da qui" nello Studio. Lo Studio mostra il testo
-catturato/preparato e la coda contiene tutto il testo.
+dal pulsante "Leggi da qui" nello Studio. La scorciatoia e la pillola leggono
+l'app davvero in primo piano. Il pulsante dello Studio usa invece il PID
+dell'ultima applicazione esterna attivata, perché al momento del clic lo
+Studio è in primo piano; se il PID non è più valido, la cattura fallisce con
+un avviso invece di leggere l'interfaccia di Lettore. Lo Studio mostra il
+testo catturato/preparato e la coda contiene tutto il testo.
 
 ### 7. Limite di sicurezza
 
 Una sessione continua si ferma a 200.000 caratteri, con avviso. Il limite
 evita catture accidentali di documenti enormi e mantiene il footprint di
 memoria sotto controllo.
+
+Nel ramo marker il cap viene verificato con gli attributi parametrici
+(`AXIndexForTextMarker`, `AXLengthForTextMarkerRange`, `AXTextMarkerForIndex`)
+prima di materializzare il documento: quando supportati, si costruisce
+direttamente il range troncato. Se non lo sono, si ripiega sulla
+materializzazione completa e sul taglio successivo, con la stessa semantica.
 
 ## Conseguenze
 
@@ -122,16 +165,26 @@ memoria sotto controllo.
 - Focus e posizione dell'app di origine sono preservati.
 - Il comportamento è testabile: la sorgente è un protocollo e il controller
   non dipende dalle API AX.
+- Le sessioni sono isolate: stop, toggle e nuove catture non mescolano testo
+  vecchio e nuovo.
+- Safari non richiede più una copia integrale del documento prima del taglio.
 
 **Negative / limiti**
 
-- Safari, Word e Preview possono esporre attributi AX diversi; il resolver è
-  best effort finché la sonda empirica non è completata.
+- Word non è installato nell'ambiente di validazione: la matrice non è
+  coperta.
+- Preview/PDF non espone un'ancora AX utilizzabile: la lettura continua resta
+  best effort e può richiedere OCR o una strategia dedicata.
+- Safari non ha mostrato una pagina realmente virtualizzata nel documento di
+  prova: il percorso marker è validato sul documento completo, non sul paging
+  reale.
+- VS Code con `AXValue` troncato (`numberOfCharacters > value`) non è ancora
+  stato provato; il resolver lo tratta come valore incompleto e prosegue nella
+  cascata.
 - Il paging può richiedere un fallback PageDown, che funziona solo con l'app
   di origine in primo piano.
 - La mappatura dell'ancora è ambigua se la selezione compare più volte nella
   viewport.
-- I PDF in Preview possono richiedere OCR o una strategia dedicata.
 - Il testo mostrato nello Studio è una copia dello snapshot: non riflette
   modifiche successive del documento.
 
@@ -150,13 +203,26 @@ memoria sotto controllo.
   selezione.
 - **Attendere la cattura completa prima di parlare**: aumenta la latenza
   percepita e rende inutile l'ascolto immediato.
+- **Leggere l'app in primo piano dal pulsante dello Studio**: lo Studio è
+  inevitabilmente in primo piano al clic; servirebbe attivare l'app di origine,
+  rubando il focus.
 
 ## Verifica
 
-- `swift build` e `swift test` verdi; 46 test totali, di cui 10 nuovi su
-  filtro, carry buffer, split point, append e preferenze.
-- Matrice manuale TextEdit / Safari / VS Code / Word / Preview ancora da
-  eseguire. I ticket di sonda e validazione sono in
-  `.scratch/dsa-11-lettura-continua/`.
-- La validazione empirica può portare a correzioni del resolver e del pager
-  senza cambiare il contratto tra le sorgenti e il controller.
+- `swift build` e `swift test` verdi: **66 test, 0 fallimenti** (46 iniziali,
+  9 `DocumentPageOverlap`, 9 `ContinuousReadingController`, 2 cattura
+  targetizzata).
+- Matrice manuale:
+  - **TextEdit**: `AXValue` completo, 17.212 caratteri, ancora 1.488.
+  - **Safari**: text marker, 17.509 caratteri, ancora 1.785.
+  - **VS Code**: `AXValue` completo, 17.212 caratteri, ancora 1.488.
+  - **Preview/PDF**: nessuna ancora; il fallback clipboard legge 17.130
+    caratteri ma non abilita la continuazione.
+  - **Word**: non installato, test non eseguibile.
+- La sonda AX e i report della matrice vivono in
+  `.scratch/dsa-11-lettura-continua/probe/`.
+- La code review ha prodotto i fix `B1` (race di sessione), `B2` (pulsante
+  Studio che catturava Lettore), `B3` (fine scroll con scroll bar senza range),
+  `I4` (pagina senza frasi), `I5` (cap prima della materializzazione), `I6`
+  (fallback selezione), `I7` (overlap KMP), `I8` (ordine marker/antenati) e
+  `N10` (mutazioni premature), tutti coperti da test o verifiche mirate.

@@ -46,6 +46,12 @@ public final class AppState: @unchecked Sendable {
     /// Ultimo tempo di sintesi per chunk in ms
     public var lastSynthesisLatencyMs: Double? = nil
     
+    // MARK: - App di Origine (B2)
+    /// Ultima applicazione esterna attivata prima di Lettore. Serve a catturare
+    /// il testo dall'app da cui l'utente è arrivato anche quando lo Studio è in
+    /// primo piano. Non persistita: vale solo per la sessione corrente.
+    public var lastExternalApplicationPID: pid_t? = nil
+
     // MARK: - Finestre & Modalità
     public var presentationMode: WindowPresentationMode = .floatingPill
     public var accessibilityProfile: AccessibilityProfile = .standard

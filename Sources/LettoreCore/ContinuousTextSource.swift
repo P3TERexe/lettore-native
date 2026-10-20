@@ -59,3 +59,12 @@ public protocol ContinuousTextSource: Sendable {
     /// Chiude la sessione AX e libera i riferimenti agli elementi di sistema.
     func endContinuousCapture() async
 }
+
+/// Sorgente in grado di avviare la cattura da un'applicazione esplicita.
+///
+/// Serve allo Studio: quando l'utente preme "Leggi da qui" la finestra di
+/// Lettore è in primo piano, quindi il PID dell'ultima app esterna impedisce
+/// di catturare la UI dell'app stessa.
+public protocol TargetedContinuousTextSource: ContinuousTextSource {
+    func startContinuousCapture(from applicationPID: pid_t) async -> ContinuousCaptureStart
+}

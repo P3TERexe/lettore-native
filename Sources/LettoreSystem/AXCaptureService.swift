@@ -55,11 +55,24 @@ public actor AXCaptureService {
     
     /// Cattura il testo attualmente selezionato nell'applicazione attiva in primo piano.
     public func captureSelectedText() async -> AXCaptureResult? {
+        await captureSelectedText(from: nil)
+    }
+
+    /// Cattura il testo selezionato nell'app indicata, oppure nell'app in primo
+    /// piano se il PID è `nil`.
+    ///
+    /// Con un PID esplicito non si usa il fallback clipboard: Cmd+C verrebbe
+    /// inviato all'app in primo piano (lo Studio), non all'app di origine.
+    public func captureSelectedText(from applicationPID: pid_t?) async -> AXCaptureResult? {
         if !AXIsProcessTrusted() {
             print("[AXCapture] ⚠️ Accessibilità NON concessa dal sistema operativo (AXIsProcessTrusted == false).")
             requestAccessibilityPrompt()
         }
-        
+
+        if let applicationPID {
+            return captureSelectedText(fromApplication: applicationPID)
+        }
+
         let systemWide = AXUIElementCreateSystemWide()
         var focusedAppValue: AnyObject?
         
@@ -111,6 +124,75 @@ public actor AXCaptureService {
         
         // Fallback su simulazione Cmd+C via clipboard se AX non espone il testo selezionato
         return await captureViaClipboardFallback(appName: appName)
+    }
+
+    /// Cattura la selezione dall'app target leggendo solo l'AX, senza inviare
+    /// eventi di tastiera. Restituisce `nil` se l'app non espone la selezione.
+    private func captureSelectedText(fromApplication pid: pid_t) -> AXCaptureResult? {
+        let appElement = AXUIElementCreateApplication(pid)
+        let appName = applicationName(for: appElement, pid: pid)
+
+        guard let focusedElement = focusedElement(in: appElement) else {
+            print("[AXCapture] App target (PID \(pid)) senza elemento focalizzato: nessuna cattura.")
+            return nil
+        }
+
+        var selectedTextValue: AnyObject?
+        let textResult = AXUIElementCopyAttributeValue(
+            focusedElement,
+            kAXSelectedTextAttribute as CFString,
+            &selectedTextValue
+        )
+
+        guard textResult == .success,
+              let selectedStr = selectedTextValue as? String,
+              !selectedStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("[AXCapture] Nessuna selezione AX nell'app target (PID \(pid), textResult: \(textResult.rawValue)).")
+            return nil
+        }
+
+        return AXCaptureResult(
+            text: selectedStr,
+            sourceAppName: appName,
+            selectionBounds: nil,
+            usedClipboardFallback: false
+        )
+    }
+
+    /// Elemento focalizzato nell'app target, con fallback alla finestra
+    /// focalizzata/principale quando il focused element non è disponibile.
+    private func focusedElement(in application: AXUIElement) -> AXUIElement? {
+        let attributes = [
+            kAXFocusedUIElementAttribute,
+            kAXFocusedWindowAttribute,
+            kAXMainWindowAttribute
+        ]
+
+        for attribute in attributes {
+            var value: AnyObject?
+            guard AXUIElementCopyAttributeValue(
+                application,
+                attribute as CFString,
+                &value
+            ) == .success,
+            let value,
+            CFGetTypeID(value) == AXUIElementGetTypeID() else {
+                continue
+            }
+            return (value as! AXUIElement)
+        }
+
+        return nil
+    }
+
+    private func applicationName(for application: AXUIElement, pid: pid_t) -> String? {
+        var titleValue: AnyObject?
+        if AXUIElementCopyAttributeValue(application, kAXTitleAttribute as CFString, &titleValue) == .success,
+           let title = titleValue as? String,
+           !title.isEmpty {
+            return title
+        }
+        return NSRunningApplication(processIdentifier: pid)?.localizedName
     }
     
     func captureViaClipboardFallback(appName: String?) async -> AXCaptureResult? {

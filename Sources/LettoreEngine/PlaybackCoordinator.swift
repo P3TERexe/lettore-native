@@ -537,3 +537,9 @@ public final class PlaybackCoordinator {
         playCurrentChunk()
     }
 }
+
+// MARK: - Lettura continua (DSA-11)
+
+/// Il coordinatore reale è il sink usato in produzione dal
+/// `ContinuousReadingController`; nei test viene sostituito da un finto.
+extension PlaybackCoordinator: ContinuousPlaybackSink {}

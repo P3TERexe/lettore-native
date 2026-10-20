@@ -2,6 +2,18 @@ import Foundation
 import Observation
 import LettoreCore
 
+/// Interfaccia minima verso il motore di riproduzione usata dal controller.
+///
+/// In produzione è `PlaybackCoordinator`; nei test un sink finto evita di
+/// istanziare sintesi vocale, audio e rete.
+@MainActor
+protocol ContinuousPlaybackSink: AnyObject {
+    var onQueueLow: (() async -> Bool)? { get set }
+    var onSessionEnded: (() -> Void)? { get set }
+    func stop(endingSession: Bool)
+    func playCurrentChunk()
+}
+
 /// Orchestra la modalità "Lettura continua" (DSA-11).
 ///
 /// Responsabilità:
@@ -11,14 +23,25 @@ import LettoreCore
 /// - chiedere le pagine successive quando la coda si avvicina alla fine;
 /// - fermare il paging (ma non la coda già catturata) quando l'utente
 ///   disattiva la modalità o il caricamento automatico.
+///
+/// Ogni sessione ha una `sessionGeneration`: i task asincroni la catturano
+/// all'avvio e la verificano dopo ogni `await`. Un task rimasto in volo da una
+/// sessione precedente non può più accodare testo né mutare lo stato della
+/// sessione nuova.
 @MainActor
 public final class ContinuousReadingController {
 
     public static let immediatePlaybackLength = 8_000
 
+    /// Tetto di sicurezza per una singola `fetchNextPage`: evita che un
+    /// documento senza terminatori di frase o una sorgente che non avanza
+    /// tengano il controller in un ciclo senza fine.
+    private static let maxPageFetchesPerRequest = 32
+
     public let appState: AppState
     public let coordinator: PlaybackCoordinator
     private let source: any ContinuousTextSource
+    private let playback: any ContinuousPlaybackSink
 
     private let normalizer = TextNormalizer()
     private let chunker = SentenceChunker()
@@ -26,32 +49,60 @@ public final class ContinuousReadingController {
 
     private var rawCarry = SentenceCarryBuffer()
     private var isSessionActive = false
+    /// Identifica la sessione corrente: incrementata all'avvio di una nuova
+    /// sessione e alla sua chiusura. I task asincroni la catturano all'avvio e
+    /// la ricontrollano dopo ogni `await`.
+    private var sessionGeneration = 0
     private var didReachEnd = false
     private var pagingEnabled = true
     private var remainderTask: Task<[ReadingChunk], Never>?
     private var sourceCleanupTask: Task<Void, Never>?
 
-    public init(
+    public convenience init(
         appState: AppState,
         coordinator: PlaybackCoordinator,
         source: any ContinuousTextSource
     ) {
+        self.init(
+            appState: appState,
+            coordinator: coordinator,
+            source: source,
+            playback: coordinator
+        )
+    }
+
+    /// Inizializzatore interno per i test: usa un sink finto al posto del
+    /// `PlaybackCoordinator` reale, senza modificare l'API pubblica.
+    init(
+        appState: AppState,
+        coordinator: PlaybackCoordinator,
+        source: any ContinuousTextSource,
+        playback: any ContinuousPlaybackSink
+    ) {
         self.appState = appState
         self.coordinator = coordinator
         self.source = source
+        self.playback = playback
         self.pagingEnabled = appState.isContinuousReadingEnabled && appState.isAutoPageEnabled
 
-        coordinator.onQueueLow = { [weak self] in
+        playback.onQueueLow = { [weak self] in
             guard let self else { return false }
             return await self.fetchNextPage()
         }
 
-        coordinator.onSessionEnded = { [weak self] in
+        playback.onSessionEnded = { [weak self] in
             self?.finishSession()
         }
 
         observePagingPreferences()
     }
+
+    /// Solo per test: porzione incompleta attualmente trattenuta in attesa di
+    /// una frase completa.
+    var pendingCarryText: String { rawCarry.pendingText }
+
+    /// Solo per test: stato del paging dopo l'ultima osservazione dei toggle.
+    var isPagingEnabled: Bool { pagingEnabled }
 
     // MARK: - API pubblica
 
@@ -60,6 +111,17 @@ public final class ContinuousReadingController {
     /// se non c'era nulla di leggibile.
     @discardableResult
     public func captureAndPlay() async -> String? {
+        await captureAndPlay(from: nil)
+    }
+
+    /// Cattura il testo dall'app indicata (o da quella in primo piano se il PID
+    /// è `nil`) e avvia la lettura continua.
+    ///
+    /// Il PID esplicito è necessario quando la richiesta parte dallo Studio:
+    /// la finestra di Lettore è in primo piano, ma il testo da leggere vive
+    /// nell'ultima app esterna attivata.
+    @discardableResult
+    public func captureAndPlay(from applicationPID: pid_t? = nil) async -> String? {
         if isSessionActive || appState.isContinuousSessionActive {
             stopSession()
         }
@@ -71,18 +133,26 @@ public final class ContinuousReadingController {
             sourceCleanupTask = nil
         }
 
+        let generation = beginSession()
         isSessionActive = true
         didReachEnd = false
         pagingEnabled = appState.isContinuousReadingEnabled && appState.isAutoPageEnabled
         rawCarry = SentenceCarryBuffer()
+        remainderTask = nil
         appState.continuationNotice = nil
         appState.isContinuousSessionActive = true
         appState.isContinuousDocumentPaged = false
         appState.capturedDocumentText = ""
         appState.isFetchingMoreText = false
 
-        let start = await source.startContinuousCapture()
-        guard isSessionActive else { return nil }
+        let start: ContinuousCaptureStart
+        if let applicationPID,
+           let targeted = source as? any TargetedContinuousTextSource {
+            start = await targeted.startContinuousCapture(from: applicationPID)
+        } else {
+            start = await source.startContinuousCapture()
+        }
+        guard isCurrent(generation) else { return nil }
 
         if let notice = start.notice {
             appState.continuationNotice = notice
@@ -125,7 +195,7 @@ public final class ContinuousReadingController {
             )
         }.value
 
-        guard isSessionActive else { return nil }
+        guard isCurrent(generation) else { return nil }
 
         guard !preparation.chunks.isEmpty else {
             finishSession()
@@ -143,34 +213,45 @@ public final class ContinuousReadingController {
             }
         }
 
-        coordinator.playCurrentChunk()
+        playback.playCurrentChunk()
         return preparation.displayText
     }
 
     /// Ferma esplicitamente la sessione continua e la riproduzione.
     public func stopSession() {
         guard isSessionActive || appState.isContinuousSessionActive else { return }
-        coordinator.stop()
+        playback.stop(endingSession: true)
         finishSession()
     }
 
     /// Chiamata dal `PlaybackCoordinator` quando la coda sta per esaurirsi.
     /// Restituisce `true` se sono stati accodati nuovi chunk.
+    ///
+    /// Il testo trattenuto incompleto non fa terminare la sessione: il ciclo
+    /// continua a chiedere pagine finché non produce almeno un chunk, la
+    /// sorgente dichiara la fine del documento, o scatta il tetto di sicurezza.
     public func fetchNextPage() async -> Bool {
         guard isSessionActive else { return false }
+        let generation = sessionGeneration
 
         appState.isFetchingMoreText = true
-        defer { appState.isFetchingMoreText = false }
+        defer {
+            // Se nel frattempo è nata una sessione nuova, il flag appartiene a
+            // quella sessione: non azzerarlo da qui.
+            if generation == sessionGeneration {
+                appState.isFetchingMoreText = false
+            }
+        }
 
         // Il resto del documento già catturato ha precedenza sulle nuove
         // pagine: l'ordine di lettura deve restare quello del documento.
         if let task = remainderTask {
             let chunks = await task.value
+            guard isCurrent(generation) else { return false }
             remainderTask = nil
 
             // Anche se il task di paging è stato cancellato da uno skip, il
             // resto già catturato va accodato: fa parte della coda corrente.
-            guard isSessionActive else { return false }
             if !chunks.isEmpty {
                 appState.appendChunks(chunks)
                 return true
@@ -184,63 +265,103 @@ public final class ContinuousReadingController {
             return false
         }
 
-        let page = await source.nextContinuousPage()
+        // Il carry viene lavorato su una copia locale e committato solo alla
+        // fine: se la sessione cambia a metà fetch non resta alcuna scrittura
+        // parziale nello stato della sessione nuova.
+        var carry = rawCarry
+        var pendingChunks: [ReadingChunk] = []
+        var appendedText = ""
+        var pendingNotice: String?
+        var reachedEnd = false
+        var appendedChunk = false
+        var fetchCount = 0
 
-        // Se l'utente ha disattivato la modalità mentre la pagina era in
-        // arrivo, la scartiamo: non si aggiunge testo dopo lo stop.
-        guard isSessionActive,
-              pagingEnabled,
-              appState.isContinuousReadingEnabled,
-              appState.isAutoPageEnabled else {
-            return false
+        while !reachedEnd, !appendedChunk, fetchCount < Self.maxPageFetchesPerRequest {
+            fetchCount += 1
+
+            let page = await source.nextContinuousPage()
+            guard isCurrent(generation),
+                  pagingEnabled,
+                  appState.isContinuousReadingEnabled,
+                  appState.isAutoPageEnabled else {
+                return false
+            }
+
+            if let notice = page.notice {
+                pendingNotice = notice
+            }
+            reachedEnd = page.isFinal
+
+            let completeRaw = carry.append(page.text, isFinal: page.isFinal)
+            if !completeRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard let batch = await preparedBatch(from: completeRaw, generation: generation) else {
+                    return false
+                }
+                if !batch.prepared.isEmpty, !batch.chunks.isEmpty {
+                    appendedText = appendedText.isEmpty
+                        ? batch.prepared
+                        : appendedText + "\n\n" + batch.prepared
+                    pendingChunks.append(contentsOf: batch.chunks)
+                    appendedChunk = true
+                }
+            }
         }
 
-        if let notice = page.notice {
-            appState.continuationNotice = notice
+        // Tetto di sicurezza raggiunto senza chunk: il residuo trattenuto non
+        // potrà più essere completato da una pagina successiva e va letto
+        // comunque. A fine documento `append(isFinal:)` lo restituisce già.
+        if !appendedChunk, !reachedEnd {
+            let tail = carry.flush()
+            if !tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard let batch = await preparedBatch(from: tail, generation: generation) else {
+                    return false
+                }
+                if !batch.prepared.isEmpty, !batch.chunks.isEmpty {
+                    appendedText = appendedText.isEmpty
+                        ? batch.prepared
+                        : appendedText + "\n\n" + batch.prepared
+                    pendingChunks.append(contentsOf: batch.chunks)
+                }
+            }
         }
 
-        if page.isFinal {
+        guard isCurrent(generation) else { return false }
+
+        rawCarry = carry
+        if let pendingNotice {
+            appState.continuationNotice = pendingNotice
+        }
+        if reachedEnd {
             didReachEnd = true
             appState.isContinuousDocumentPaged = false
         }
 
-        let completeRaw = rawCarry.append(page.text, isFinal: page.isFinal)
-        guard !completeRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return false
-        }
+        guard !pendingChunks.isEmpty else { return false }
 
-        let filter = noiseFilter
-        let normalizer = self.normalizer
-        let chunker = self.chunker
-        let mode = appState.noiseFilterMode
-        let preparedAndChunks = await Task.detached(priority: .userInitiated) {
-            let prepared = Self.prepare(
-                completeRaw,
-                normalizer: normalizer,
-                filter: filter,
-                mode: mode
-            )
-            return (prepared, chunker.chunk(text: prepared))
-        }.value
-
-        guard isSessionActive,
-              pagingEnabled,
-              appState.isContinuousReadingEnabled,
-              appState.isAutoPageEnabled else {
-            return false
-        }
-
-        let (prepared, chunks) = preparedAndChunks
-        guard !prepared.isEmpty, !chunks.isEmpty else { return false }
-
-        appState.appendChunks(chunks)
-        if appState.capturedDocumentText.isEmpty {
-            appState.capturedDocumentText = prepared
-        } else {
-            appState.capturedDocumentText += "\n\n" + prepared
+        appState.appendChunks(pendingChunks)
+        if !appendedText.isEmpty {
+            if appState.capturedDocumentText.isEmpty {
+                appState.capturedDocumentText = appendedText
+            } else {
+                appState.capturedDocumentText += "\n\n" + appendedText
+            }
         }
 
         return true
+    }
+
+    // MARK: - Generazione di sessione
+
+    /// Avvia una nuova sessione e restituisce il token da verificare dopo ogni
+    /// `await`.
+    private func beginSession() -> Int {
+        sessionGeneration &+= 1
+        return sessionGeneration
+    }
+
+    /// `true` solo se il task appartiene ancora alla sessione corrente.
+    private func isCurrent(_ generation: Int) -> Bool {
+        generation == sessionGeneration && isSessionActive
     }
 
     // MARK: - Pulizia sessione
@@ -248,6 +369,8 @@ public final class ContinuousReadingController {
     private func finishSession() {
         guard isSessionActive || appState.isContinuousSessionActive else { return }
 
+        // Invalida ogni task in volo: da qui in poi non può più scrivere.
+        sessionGeneration &+= 1
         isSessionActive = false
         didReachEnd = true
         remainderTask?.cancel()
@@ -288,6 +411,26 @@ public final class ContinuousReadingController {
     }
 
     // MARK: - Preparazione testo
+
+    private struct PreparedBatch: Sendable {
+        let prepared: String
+        let chunks: [ReadingChunk]
+    }
+
+    private func preparedBatch(from raw: String, generation: Int) async -> PreparedBatch? {
+        let filter = noiseFilter
+        let normalizer = self.normalizer
+        let chunker = self.chunker
+        let mode = appState.noiseFilterMode
+
+        let batch = await Task.detached(priority: .userInitiated) {
+            let prepared = Self.prepare(raw, normalizer: normalizer, filter: filter, mode: mode)
+            return PreparedBatch(prepared: prepared, chunks: chunker.chunk(text: prepared))
+        }.value
+
+        guard isCurrent(generation) else { return nil }
+        return batch
+    }
 
     nonisolated private static func prepare(
         _ text: String,

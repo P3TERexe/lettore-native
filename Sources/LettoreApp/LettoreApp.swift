@@ -46,6 +46,10 @@ struct LettoreApp: App {
         let chunks = chunker.chunk(text: sample)
         let state = AppState()
         state.setQueue(chunks)
+        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+           frontmostPID != ProcessInfo.processInfo.processIdentifier {
+            state.lastExternalApplicationPID = frontmostPID
+        }
         _appState = State(initialValue: state)
 
         let audioEngine = AudioEngineService()
@@ -129,6 +133,22 @@ struct LettoreApp: App {
         // Ascolta richieste di cattura provenienti dalla UI (es. Pillola)
         NotificationCenter.default.addObserver(forName: NSNotification.Name("CaptureAXText"), object: nil, queue: .main) { _ in
             captureAction()
+        }
+
+        // Traccia l'ultima app esterna attivata. Lo Studio è in primo piano
+        // quando si preme "Leggi da qui": il PID permette di leggere il testo
+        // dall'app da cui l'utente è arrivato invece che dalla UI di Lettore.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            let activatedPID = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated {
+                guard let activatedPID else { return }
+                guard activatedPID != ProcessInfo.processInfo.processIdentifier else { return }
+                state.lastExternalApplicationPID = activatedPID
+            }
         }
         
         // Ri-sincronizza permessi e monitor scorciatoie quando l'utente torna sull'applicazione

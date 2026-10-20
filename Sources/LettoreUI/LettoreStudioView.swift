@@ -918,8 +918,23 @@ public struct LettoreStudioView: View {
     
     private func captureFromFrontmostApp() {
         Task {
+            let sourcePID = activeExternalApplicationPID()
+
+            guard let sourcePID else {
+                await MainActor.run {
+                    appState.continuationNotice = "Nessuna app di origine disponibile: porta in primo piano l'app con il testo, poi torna qui e riprova."
+                    if !appState.isAccessibilityGranted {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("CheckAccessibilityPermissions"),
+                            object: nil
+                        )
+                    }
+                }
+                return
+            }
+
             if appState.isContinuousReadingEnabled {
-                let captured = await captureController.captureAndPlay()
+                let captured = await captureController.captureAndPlay(from: sourcePID)
                 await MainActor.run {
                     if let captured {
                         self.inputText = captured
@@ -933,7 +948,7 @@ public struct LettoreStudioView: View {
                 return
             }
 
-            if let result = await axCapture.captureSelectedText() {
+            if let result = await axCapture.captureSelectedText(from: sourcePID) {
                 await MainActor.run {
                     self.inputText = result.text
                     processNewInput()
@@ -946,6 +961,18 @@ public struct LettoreStudioView: View {
                 }
             }
         }
+    }
+
+    /// PID dell'ultima app esterna ancora in esecuzione, oppure `nil` se non
+    /// c'è un'app di origine valida (mai il PID di Lettore stesso).
+    private func activeExternalApplicationPID() -> pid_t? {
+        guard let pid = appState.lastExternalApplicationPID,
+              pid != ProcessInfo.processInfo.processIdentifier,
+              let application = NSRunningApplication(processIdentifier: pid),
+              !application.isTerminated else {
+            return nil
+        }
+        return pid
     }
     
     private func pasteFromClipboard() {
