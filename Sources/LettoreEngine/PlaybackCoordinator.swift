@@ -16,6 +16,18 @@ public final class PlaybackCoordinator {
     private var isSynthesizing: Bool = false
     private var synthesisTask: Task<Void, Never>?
 
+    // MARK: - Lettura continua (DSA-11)
+    /// Chiamata quando la coda sta per esaurirsi. Restituisce `true` se sono
+    /// stati accodati nuovi chunk.
+    public var onQueueLow: (() async -> Bool)?
+    /// Chiamata quando la sessione di riproduzione termina (coda finita o
+    /// stop esplicito dell'utente).
+    public var onSessionEnded: (() -> Void)?
+
+    private var pagingTask: Task<Void, Never>?
+    private var isFetchingMoreText = false
+    private var pendingPlayAfterFetch = false
+
     private struct PreloadedAudio {
         let cacheKey: String
         let data: Data
@@ -81,11 +93,7 @@ public final class PlaybackCoordinator {
         
         speechFallback.onFinish = { [weak self] in
             guard let self = self else { return }
-            if self.appState.advanceChunk() != nil {
-                self.playCurrentChunk()
-            } else {
-                self.appState.playbackState = .idle
-            }
+            self.handleChunkFinished()
         }
     }
     
@@ -121,7 +129,12 @@ public final class PlaybackCoordinator {
         appState.playbackState = .paused
     }
     
-    public func stop() {
+    /// Ferma la riproduzione.
+    ///
+    /// `endingSession` è `false` per gli stop interni di skip/jump: in quel
+    /// caso la sessione di lettura continua resta aperta, perché l'utente si
+    /// sta solo muovendo dentro la coda già catturata.
+    public func stop(endingSession: Bool = true) {
         synthesisTask?.cancel()
         synthesisTask = nil
         isSynthesizing = false
@@ -129,11 +142,22 @@ public final class PlaybackCoordinator {
         activePreloadTasks.values.forEach { $0.task.cancel() }
         activePreloadTasks.removeAll()
         preloadedWAVs.removeAll()
+        if endingSession {
+            // Uno skip/jump interno non deve interrompere una richiesta di
+            // pagina già in volo: la coda continua a vivere.
+            pagingTask?.cancel()
+            pagingTask = nil
+            isFetchingMoreText = false
+            pendingPlayAfterFetch = false
+        }
         audioEngine.stop()
         speechFallback.stop()
         appState.playbackState = .idle
         if appState.currentChunk == nil {
             appState.playbackProgress = 0.0
+        }
+        if endingSession {
+            onSessionEnded?()
         }
     }
     
@@ -251,7 +275,11 @@ public final class PlaybackCoordinator {
             appState.playbackState = .idle
             return
         }
-        
+
+        // Pianifica il caricamento della pagina successiva quando restano
+        // pochi chunk. La richiesta è idempotente e non blocca la sintesi.
+        requestMoreTextIfNeeded()
+
         let playStartTime = CFAbsoluteTimeGetCurrent()
         if playRequestedTime == 0 {
             playRequestedTime = playStartTime
@@ -420,27 +448,78 @@ public final class PlaybackCoordinator {
         audioEngine.playWAVData(data, speed: appState.playbackSpeed) { [weak self] in
             Task { @MainActor in
                 guard let self = self else { return }
-                if self.appState.advanceChunk() != nil {
-                    self.playCurrentChunk()
-                } else {
-                    self.appState.playbackState = .idle
-                }
+                self.handleChunkFinished()
             }
         }
     }
+
+    // MARK: - Continuazione della coda
+
+    /// Richiede nuove pagine quando mancano al massimo 3 chunk alla fine.
+    /// Se la coda è già esaurita, `handleChunkFinished` attende la richiesta
+    /// in corso prima di dichiarare finita la sessione.
+    private func requestMoreTextIfNeeded() {
+        guard let current = appState.currentChunk,
+              let currentIndex = appState.readingQueue.firstIndex(where: { $0.id == current.id }),
+              appState.readingQueue.count - currentIndex <= 3,
+              !isFetchingMoreText,
+              let onQueueLow else {
+            return
+        }
+
+        isFetchingMoreText = true
+        pagingTask = Task { [weak self, onQueueLow] in
+            let appended = await onQueueLow()
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+
+            self.isFetchingMoreText = false
+            self.pagingTask = nil
+
+            if appended {
+                self.managePreloadRingBuffer()
+                if self.pendingPlayAfterFetch, self.appState.currentChunk != nil {
+                    self.pendingPlayAfterFetch = false
+                    self.playCurrentChunk()
+                }
+            } else if self.pendingPlayAfterFetch {
+                self.pendingPlayAfterFetch = false
+                self.appState.playbackState = .idle
+                self.onSessionEnded?()
+            }
+        }
+    }
+
+    private func handleChunkFinished() {
+        if appState.advanceChunk() != nil {
+            playCurrentChunk()
+            return
+        }
+
+        // La coda è finita, ma una pagina potrebbe essere in arrivo: non
+        // dichiarare conclusa la sessione prima di saperlo.
+        if isFetchingMoreText {
+            pendingPlayAfterFetch = true
+            appState.playbackState = .synthesizing
+            return
+        }
+
+        appState.playbackState = .idle
+        onSessionEnded?()
+    }
     
     public func skipForward() {
-        stop()
+        stop(endingSession: false)
         playRequestedTime = CFAbsoluteTimeGetCurrent()
         if appState.advanceChunk() != nil {
             playCurrentChunk()
         } else {
-            appState.playbackState = .idle
+            handleChunkFinished()
         }
     }
     
     public func skipBackward() {
-        stop()
+        stop(endingSession: false)
         playRequestedTime = CFAbsoluteTimeGetCurrent()
         if appState.rewindChunk() != nil {
             playCurrentChunk()
@@ -448,7 +527,7 @@ public final class PlaybackCoordinator {
     }
     
     public func jumpToChunk(_ chunk: ReadingChunk) {
-        stop()
+        stop(endingSession: false)
         playRequestedTime = CFAbsoluteTimeGetCurrent()
         appState.currentChunk = chunk
         let total = Double(appState.readingQueue.count)

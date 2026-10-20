@@ -207,12 +207,19 @@ public struct FloatingPillView: View {
 
     private var horizontalWaveformSection: some View {
         HStack(spacing: 2.5) {
-            ForEach(0..<min(5, appState.liveWaveformLevels.count), id: \.self) { idx in
-                let level = waveformLevel(at: idx)
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(waveformGradient)
-                    .frame(width: 2.8, height: max(5, level * 20))
-                    .shadow(color: brandCyan.opacity(0.4), radius: 2)
+            if appState.isContinuousSessionActive {
+                Image(systemName: "text.line.last.and.arrowtriangle.forward")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color(red: 0.2, green: 0.95, blue: 0.5))
+                    .shadow(color: Color(red: 0.2, green: 0.95, blue: 0.5).opacity(0.5), radius: 3)
+            } else {
+                ForEach(0..<min(5, appState.liveWaveformLevels.count), id: \.self) { idx in
+                    let level = waveformLevel(at: idx)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(waveformGradient)
+                        .frame(width: 2.8, height: max(5, level * 20))
+                        .shadow(color: brandCyan.opacity(0.4), radius: 2)
+                }
             }
         }
         .frame(width: 32, height: 22, alignment: .center)
@@ -287,12 +294,19 @@ public struct FloatingPillView: View {
 
     private var verticalWaveformSection: some View {
         HStack(spacing: 2.2) {
-            ForEach(0..<min(4, appState.liveWaveformLevels.count), id: \.self) { idx in
-                let level = waveformLevel(at: idx)
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(waveformGradient)
-                    .frame(width: 2.6, height: max(5, level * 18))
-                    .shadow(color: brandCyan.opacity(0.4), radius: 2)
+            if appState.isContinuousSessionActive {
+                Image(systemName: "text.line.last.and.arrowtriangle.forward")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color(red: 0.2, green: 0.95, blue: 0.5))
+                    .shadow(color: Color(red: 0.2, green: 0.95, blue: 0.5).opacity(0.5), radius: 3)
+            } else {
+                ForEach(0..<min(4, appState.liveWaveformLevels.count), id: \.self) { idx in
+                    let level = waveformLevel(at: idx)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(waveformGradient)
+                        .frame(width: 2.6, height: max(5, level * 18))
+                        .shadow(color: brandCyan.opacity(0.4), radius: 2)
+                }
             }
         }
         .frame(width: 22, height: 20, alignment: .center)

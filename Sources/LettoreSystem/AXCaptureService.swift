@@ -26,7 +26,11 @@ public struct AXCaptureResult: Sendable {
 
 /// Servizio di cattura del testo nativo macOS basato su Accessibility APIs (AXUIElement).
 public actor AXCaptureService {
-    
+
+    /// Sessione AX aperta dalla modalità di lettura continua. Vive solo
+    /// all'interno dell'attore: gli elementi AX non sono `Sendable`.
+    var continuousSession: ContinuousAXSession?
+
     public init() {}
     
     /// Verifica se l'applicazione ha i permessi di Accessibilità concessi nelle Preferenze di Sistema.
@@ -109,7 +113,7 @@ public actor AXCaptureService {
         return await captureViaClipboardFallback(appName: appName)
     }
     
-    private func captureViaClipboardFallback(appName: String?) async -> AXCaptureResult? {
+    func captureViaClipboardFallback(appName: String?) async -> AXCaptureResult? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
         

@@ -11,6 +11,7 @@ public struct LettoreStudioView: View {
     @Bindable public var appState: AppState
     public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator
+    public var captureController: ContinuousReadingController
     public var axCapture: AXCaptureService
     
     @State private var inputText: String = ""
@@ -20,11 +21,13 @@ public struct LettoreStudioView: View {
         appState: AppState,
         audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator,
+        captureController: ContinuousReadingController,
         axCapture: AXCaptureService = AXCaptureService()
     ) {
         self.appState = appState
         self.audioEngine = audioEngine
         self.coordinator = coordinator
+        self.captureController = captureController
         self.axCapture = axCapture
     }
     
@@ -54,6 +57,13 @@ public struct LettoreStudioView: View {
                 Divider()
                     .background(Color.white.opacity(0.12))
             }
+
+            if let notice = appState.continuationNotice {
+                continuationNoticeBanner(notice: notice)
+
+                Divider()
+                    .background(Color.white.opacity(0.12))
+            }
             
             // Corpo Principale: Canvas di Lettura & Sidebar Parametri
             HStack(spacing: 0) {
@@ -76,6 +86,10 @@ public struct LettoreStudioView: View {
         }
         .sheet(isPresented: $showingNotchPreview) {
             notchPreviewSheet
+        }
+        .onChange(of: appState.capturedDocumentText) { _, newValue in
+            guard appState.isContinuousSessionActive else { return }
+            inputText = newValue
         }
     }
     
@@ -130,11 +144,41 @@ public struct LettoreStudioView: View {
             .padding(4)
             .background(Color.black.opacity(0.4))
             .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            if appState.isContinuousReadingEnabled {
+                HStack(spacing: 5) {
+                    Image(systemName: appState.isFetchingMoreText
+                          ? "arrow.triangle.2.circlepath"
+                          : "text.line.last.and.arrowtriangle.forward")
+                        .font(.system(size: 10, weight: .bold))
+                    Text(appState.isFetchingMoreText
+                         ? "Carico..."
+                         : (appState.isContinuousDocumentPaged ? "Continua · pagine" : "Continua"))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                }
+                .foregroundStyle(appState.isContinuousSessionActive ? brandGreen : brandCyan)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder((appState.isContinuousSessionActive ? brandGreen : brandCyan).opacity(0.35), lineWidth: 1)
+                )
+            }
             
             Spacer()
             
             // Strumenti & Finestre Ausiliarie
             HStack(spacing: 8) {
+                actionButton(
+                    icon: "text.cursor",
+                    title: "Leggi da qui",
+                    isActive: appState.isContinuousReadingEnabled
+                ) {
+                    captureFromFrontmostApp()
+                }
+
                 actionButton(
                     icon: "capsule.portrait",
                     title: "Pillola",
@@ -279,6 +323,36 @@ public struct LettoreStudioView: View {
         .background(Color(red: 0.20, green: 0.14, blue: 0.05))
     }
     
+    // MARK: - Lettura Continua: Avviso Persistente
+
+    private func continuationNoticeBanner(notice: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "text.line.last.and.arrowtriangle.forward")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(brandCyan)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Lettura continua")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Text(notice)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            Text("⌘⇧L")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.45))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.06, green: 0.15, blue: 0.18))
+    }
+
     // MARK: - Canvas di Lettura Centrale
     
     private var mainReadingCanvas: some View {
@@ -605,6 +679,76 @@ public struct LettoreStudioView: View {
                 .padding(12)
                 .background(Color.white.opacity(0.04))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                // Lettura Continua (DSA-11)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "text.line.last.and.arrowtriangle.forward")
+                            .foregroundStyle(brandCyan)
+                        Text("LETTURA CONTINUA")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.8))
+                        Spacer()
+                        Text("⌘⇧L")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+
+                    Toggle(isOn: $appState.isContinuousReadingEnabled) {
+                        Text("Leggi dalla selezione o dal cursore")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: brandGreen))
+
+                    Text("Il punto di partenza è solo l'inizio: la lettura prosegue nel documento.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Toggle(isOn: $appState.isAutoPageEnabled) {
+                        Text("Carica le pagine successive")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: brandGreen))
+                    .disabled(!appState.isContinuousReadingEnabled)
+
+                    HStack(spacing: 8) {
+                        Text("Filtro rumore")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+
+                        Spacer()
+
+                        Picker("Filtro rumore", selection: $appState.noiseFilterMode) {
+                            ForEach(NoiseFilterMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 120)
+                        .disabled(!appState.isContinuousReadingEnabled)
+                    }
+
+                    if appState.isContinuousSessionActive {
+                        HStack(spacing: 6) {
+                            Image(systemName: appState.isContinuousDocumentPaged
+                                  ? "rectangle.stack.fill"
+                                  : "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                            Text(appState.isContinuousDocumentPaged
+                                 ? "Documento caricato a pagine"
+                                 : "Sessione continua attiva")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(brandGreen)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .padding(18)
         }
@@ -759,6 +903,9 @@ public struct LettoreStudioView: View {
         guard !text.isEmpty else { return }
         
         coordinator.stop()
+        appState.continuationNotice = nil
+        appState.capturedDocumentText = ""
+
         let normalizer = TextNormalizer()
         let normalized = normalizer.normalize(text: text)
         let chunker = SentenceChunker()
@@ -771,6 +918,21 @@ public struct LettoreStudioView: View {
     
     private func captureFromFrontmostApp() {
         Task {
+            if appState.isContinuousReadingEnabled {
+                let captured = await captureController.captureAndPlay()
+                await MainActor.run {
+                    if let captured {
+                        self.inputText = captured
+                    } else if !appState.isAccessibilityGranted {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("CheckAccessibilityPermissions"),
+                            object: nil
+                        )
+                    }
+                }
+                return
+            }
+
             if let result = await axCapture.captureSelectedText() {
                 await MainActor.run {
                     self.inputText = result.text

@@ -33,12 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct LettoreApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState: AppState
-    private let audioEngine = AudioEngineService()
-    private let axCapture = AXCaptureService()
-    private let shortcutManager = GlobalShortcutManager()
+    private let audioEngine: AudioEngineService
+    private let axCapture: AXCaptureService
+    private let shortcutManager: GlobalShortcutManager
     private let coordinator: PlaybackCoordinator
+    private let captureController: ContinuousReadingController
     @State private var isCaptureLogicSetup = false
-    
+
     init() {
         let chunker = SentenceChunker()
         let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
@@ -46,38 +47,60 @@ struct LettoreApp: App {
         let state = AppState()
         state.setQueue(chunks)
         _appState = State(initialValue: state)
-        
-        self.coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
+
+        let audioEngine = AudioEngineService()
+        let axCapture = AXCaptureService()
+        let shortcutManager = GlobalShortcutManager()
+        let coordinator = PlaybackCoordinator(appState: state, audioEngine: audioEngine)
+        let captureController = ContinuousReadingController(
+            appState: state,
+            coordinator: coordinator,
+            source: axCapture
+        )
+
+        self.audioEngine = audioEngine
+        self.axCapture = axCapture
+        self.shortcutManager = shortcutManager
+        self.coordinator = coordinator
+        self.captureController = captureController
     }
     
     private func setupCaptureLogic(state: AppState) {
         guard !isCaptureLogicSetup else { return }
         isCaptureLogicSetup = true
         
-        let captureAction: @Sendable () -> Void = { [axCapture] in
-            Task {
+        let captureAction: @Sendable () -> Void = { [axCapture, captureController] in
+            Task { @MainActor in
+                if state.isContinuousReadingEnabled {
+                    await captureController.captureAndPlay()
+                    return
+                }
+
                 let result = await axCapture.captureSelectedText()
                 let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                
-                await MainActor.run {
-                    guard !text.isEmpty else {
-                        // Nessuna selezione leggibile: se esiste una coda non
-                        // ancora finita, riprendila invece di non fare nulla.
-                        if state.playbackState != .playing, state.currentChunk != nil {
-                            self.coordinator.playCurrentChunk()
-                        }
-                        return
-                    }
-                    
-                    let normalizer = TextNormalizer()
-                    let normalized = normalizer.normalize(text: text)
-                    let chunker = SentenceChunker()
-                    let chunks = chunker.chunk(text: normalized)
-                    
-                    state.setQueue(chunks)
-                    if state.playbackState != .playing {
+
+                guard !text.isEmpty else {
+                    // Nessuna selezione leggibile: se esiste una coda non
+                    // ancora finita, riprendila invece di non fare nulla.
+                    if state.playbackState != .playing, state.currentChunk != nil {
                         self.coordinator.playCurrentChunk()
                     }
+                    return
+                }
+
+                // Una nuova cattura (anche non continua) chiude l'avviso
+                // persistente della sessione precedente.
+                state.continuationNotice = nil
+                state.capturedDocumentText = ""
+
+                let normalizer = TextNormalizer()
+                let normalized = normalizer.normalize(text: text)
+                let chunker = SentenceChunker()
+                let chunks = chunker.chunk(text: normalized)
+
+                state.setQueue(chunks)
+                if state.playbackState != .playing {
+                    self.coordinator.playCurrentChunk()
                 }
             }
         }
@@ -90,6 +113,10 @@ struct LettoreApp: App {
             } else {
                 coordinator?.playCurrentChunk()
             }
+        }
+
+        shortcutManager.onToggleContinuousReadingRequested = {
+            state.isContinuousReadingEnabled.toggle()
         }
         
         shortcutManager.onCaptureRequested = captureAction
@@ -154,6 +181,7 @@ struct LettoreApp: App {
                     appState: appState,
                     audioEngine: audioEngine,
                     coordinator: coordinator,
+                    captureController: captureController,
                     axCapture: axCapture
                 )
                 .frame(minWidth: 960, minHeight: 640)
@@ -171,6 +199,20 @@ struct LettoreApp: App {
                     FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
+
+                Divider()
+
+                Toggle("Lettura continua", isOn: Binding(
+                    get: { appState.isContinuousReadingEnabled },
+                    set: { appState.isContinuousReadingEnabled = $0 }
+                ))
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+
+                Toggle("Carica le pagine successive", isOn: Binding(
+                    get: { appState.isAutoPageEnabled },
+                    set: { appState.isAutoPageEnabled = $0 }
+                ))
+                .disabled(!appState.isContinuousReadingEnabled)
             }
             CommandGroup(replacing: .appInfo) {
                 Button("Informazioni su Lettore Native") {
@@ -197,6 +239,20 @@ struct LettoreApp: App {
             Button("Mostra / Nascondi Pillola Fluttuante") {
                 FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
             }
+
+            Divider()
+
+            Toggle("Lettura continua", isOn: Binding(
+                get: { appState.isContinuousReadingEnabled },
+                set: { appState.isContinuousReadingEnabled = $0 }
+            ))
+
+            Toggle("Carica le pagine successive", isOn: Binding(
+                get: { appState.isAutoPageEnabled },
+                set: { appState.isAutoPageEnabled = $0 }
+            ))
+            .disabled(!appState.isContinuousReadingEnabled)
+
             Divider()
             Button("Profilo Bassa Visione (WCAG AAA)") {
                 appState.accessibilityProfile = (appState.accessibilityProfile == .lowVision) ? .standard : .lowVision

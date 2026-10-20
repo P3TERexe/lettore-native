@@ -55,7 +55,33 @@ public final class AppState: @unchecked Sendable {
     public var pillOrientation: PillOrientation = .horizontal
     public var pillDockSide: PillDockSide = .center
     public var isAccessibilityGranted: Bool = false
-    
+
+    // MARK: - Lettura Continua (DSA-11)
+    /// La selezione (o il cursore) è solo il punto di partenza: la lettura
+    /// prosegue nel documento fino alla fine.
+    public var isContinuousReadingEnabled: Bool {
+        didSet { preferences.isContinuousReadingEnabled = isContinuousReadingEnabled }
+    }
+    /// Carica automaticamente le pagine successive quando la coda si avvicina
+    /// alla fine. Può essere disattivato mantenendo la modalità principale.
+    public var isAutoPageEnabled: Bool {
+        didSet { preferences.isAutoPageEnabled = isAutoPageEnabled }
+    }
+    /// Filtro del rumore tipografico applicato solo alle catture documentali.
+    public var noiseFilterMode: NoiseFilterMode {
+        didSet { preferences.noiseFilterMode = noiseFilterMode }
+    }
+    /// Avviso persistente mostrato fino alla prossima cattura.
+    public var continuationNotice: String? = nil
+    /// Una sessione continua è in corso (cattura o riproduzione della coda).
+    public var isContinuousSessionActive: Bool = false
+    /// Il documento è virtualizzato e verrà caricato a pagine.
+    public var isContinuousDocumentPaged: Bool = false
+    /// Testo documentale catturato e preparato, mostrato nello Studio.
+    public var capturedDocumentText: String = ""
+    /// Una richiesta di pagina successiva è in corso.
+    public var isFetchingMoreText: Bool = false
+
     // MARK: - Stato Motore Vocale & Fallback
     public var isUsingSpeechFallback: Bool = false
     public var speechFallbackNotice: String? = nil
@@ -67,15 +93,56 @@ public final class AppState: @unchecked Sendable {
     // MARK: - Blocchi Universali Estratti (URLayer)
     public var detectedBlocks: [ReadingBlock] = []
     public var selectedBlockIndex: Int? = nil
-    
-    public init() {}
-    
+
+    @ObservationIgnored
+    private let preferences: PreferencesStore
+
+    public init(preferences: PreferencesStore = PreferencesStore()) {
+        self.preferences = preferences
+        self.isContinuousReadingEnabled = preferences.isContinuousReadingEnabled
+        self.isAutoPageEnabled = preferences.isAutoPageEnabled
+        self.noiseFilterMode = preferences.noiseFilterMode
+    }
+
     // MARK: - Metodi di Mutazione Stato
     
     public func setQueue(_ chunks: [ReadingChunk]) {
         self.readingQueue = chunks
         self.currentChunk = chunks.first
         self.playbackProgress = 0.0
+    }
+
+    /// Aggiunge in coda nuovi chunk preservandone l'identità (e quindi la cache
+    /// audio) e ricalcolando gli indici in modo che restino contigui.
+    @discardableResult
+    public func appendChunks(_ chunks: [ReadingChunk]) -> [ReadingChunk] {
+        guard !chunks.isEmpty else { return [] }
+
+        let baseIndex = readingQueue.count
+        let reindexed = chunks.enumerated().map { offset, chunk in
+            ReadingChunk(
+                id: chunk.id,
+                index: baseIndex + offset,
+                text: chunk.text,
+                rawText: chunk.rawText,
+                isSpoken: chunk.isSpoken,
+                durationSeconds: chunk.durationSeconds,
+                synthesisLatencyMs: chunk.synthesisLatencyMs
+            )
+        }
+
+        readingQueue.append(contentsOf: reindexed)
+
+        // Se la coda era terminata (currentChunk == nil), la prima pagina nuova
+        // diventa il punto di ripresa senza richiedere un altro tap su Play.
+        if currentChunk == nil {
+            currentChunk = reindexed.first
+            if baseIndex == 0 {
+                playbackProgress = 0.0
+            }
+        }
+
+        return reindexed
     }
     
     public func advanceChunk() -> ReadingChunk? {

@@ -8,9 +8,21 @@ Applicazione macOS di lettura vocale assistita per testi catturati da altre appl
 Unità minima di testo inviata al motore vocale e riprodotta come segmento audio continuo.
 _Avoid_: blocco, frammento, pezzo
 
-**Read-From-Here**:
-Modalità di lettura che parte dalla posizione corrente del cursore e prosegue fino alla fine del testo, senza richiedere una selezione manuale.
-_Avoid_: leggi da qui, lettura dal cursore
+**Lettura continua (Read-From-Here)**:
+Modalità DSA-11 in cui la selezione o il cursore è solo il punto di partenza: la sintesi prosegue nel documento, con paging automatico per i documenti virtualizzati.
+_Avoid_: leggi da qui (nome della feature), lettura dal cursore (descrizione parziale), read-from-here (nome storico)
+
+**Ancora**:
+Offset UTF-16, all'interno del testo catturato, in cui è mappata la selezione o il cursore di partenza.
+_Avoid_: punto di partenza (ambiguo), cursore iniziale
+
+**Paging automatico**:
+Caricamento della viewport successiva di un documento virtualizzato, con deduplica del testo già catturato.
+_Avoid_: scroll infinito, autoscroll
+
+**Filtro rumore leggero**:
+Pulizia conservativa delle catture documentali che rimuove numeri di pagina, intestazioni/piè di pagina ripetuti e trattini di fine riga, senza toccare note e citazioni.
+_Avoid_: pulizia testo, filtro PDF
 
 **Smart Academic Skip**:
 Filtro che rimuove citazioni bibliografiche e rimandi a note durante la lettura, per ridurre il carico sulla memoria di lavoro.

@@ -129,17 +129,28 @@ La community denuncia costantemente:
 ---
 
 #### `DSA-11` · Lettura Continua da Cursore — "Read-From-Here"
-> **Priorità**: `P1` · **Focus UX**: Zero selezioni manuali estese per testi lunghi · **Moduli**: [AXCaptureService.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreSystem/AXCaptureService.swift) & [PlaybackCoordinator.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreEngine/PlaybackCoordinator.swift)
+> **Priorità**: `P1` · **Focus UX**: Zero selezioni manuali estese per testi lunghi · **Moduli**: [AXCaptureService+Continuous.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreSystem/AXCaptureService+Continuous.swift), [ContinuousReadingController.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreEngine/ContinuousReadingController.swift) & [PlaybackCoordinator.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreEngine/PlaybackCoordinator.swift)
 
 * 🚨 **Il Problema Reale:**
   Attualmente tutti i lettori vocali richiedono di selezionare manualmente con il cursore il punto di inizio e il punto di fine del blocco da leggere. Per documenti lunghi (libri, tesi da 50 pagine, contratti), trascinare il mouse verso il basso per decine di schermate è stancante, porta a deselezioni accidentali e fa perdere il segno. Chi ha dislessia finisce per selezionare blocchi troppo corti, dovendosi fermare ogni minuto per selezionare il paragrafo successivo.
 * 💡 **La Soluzione in Lettore Native:**
-  **Zero selezioni manuali estese**: l'utente posiziona semplicemente il cursore all'inizio del paragrafo o seleziona una singola parola di partenza nell'editor (Word, Pages, Anteprima, Safari, VS Code). Premendo Play, Lettore Native inizia a leggere da quel punto esatto e **prosegue in streaming ininterrotto verso il basso fino alla fine del documento o del campo di testo**, a meno che non venga premuto Stop.
-* 🛠️ **Implementazione Tecnica:**
-  - `AXCaptureService.swift`: rileva l'offset del cursore via `kAXSelectedTextRangeAttribute` (`CFRange.location`).
-  - Estrae il flusso di testo da `cursor.location` fino a `totalLength` tramite `kAXValueAttribute`.
-  - `PlaybackCoordinator.swift`: buffering circolare dinamico (mantiene solo 3-4 frasi in RAM, consumando <80MB totali).
-  - Paginazione automatica (`kAXScrollToVisibleAttribute` / macro `PageDown`) quando il reader di terze parti visualizza solo le pagine renderizzate a video.
+  **Zero selezioni manuali estese**: l'utente posiziona semplicemente il cursore all'inizio del paragrafo o seleziona una singola parola di partenza nell'editor (Word, Pages, Anteprima, Safari, VS Code). Premendo Play, Lettore Native inizia a leggere da quel punto esatto e **prosegue in streaming ininterrotto verso il basso fino alla fine del documento o del campo di testo**, a meno che non venga premuto Stop. Per i documenti virtualizzati la viewport viene caricata una pagina alla volta, senza rubare il focus all'app di origine.
+* 🛠️ **Implementazione Tecnica (stato 2026-10-20, branch `feature/dsa-11-lettura-continua`):**
+  - **Core** (`LettoreCore`): `ContinuousTextSource` con `ContinuousCaptureStart`/`ContinuousTextPage`; `DocumentNoiseFilter` (numeri di pagina, header/footer ripetuti, de-hyphenation); `SentenceCarryBuffer`; `PreferencesStore` per toggle, paging e filtro. `AppState.appendChunks` preserva gli ID e rinumera gli indici.
+  - **Resolver AX** (`AXCaptureService+Continuous`): selezione o cursore come ancora; valore + `AXSelectedTextRange` dell'elemento focalizzato → valore di un antenato → DFS della viewport scorrevole → fallback al solo elemento focalizzato con avviso. La cattura è uno snapshot al momento del Play: le modifiche successive non vengono inseguite.
+  - **Primo chunk**: i primi ~8.000 caratteri vengono preparati e accodati subito, tagliati sull'ultimo confine di frase disponibile; il resto del documento catturato viene chunkato in background e accodato prima delle nuove pagine.
+  - **Paging**: prima azioni/valore della scroll bar AX; `CGEvent` PageDown solo se l'app di origine è già in primo piano. La viewport successiva viene deduplicata con overlap; l'app resta nella posizione raggiunta e il focus non viene mai spostato. In caso di blocco, avviso persistente fino alla prossima cattura.
+  - **Coda** (`PlaybackCoordinator`): `onQueueLow` quando restano ≤3 chunk, `onSessionEnded` a fine sessione, attesa della pagina se la coda finisce durante il caricamento. `stop(endingSession: false)` per skip/jump interni, così non chiudono la sessione continua.
+  - **UI**: card nello Studio con toggle modalità, sotto-toggle paging e picker `Nessuno`/`Leggero`; banner di avviso; pulsante "Leggi da qui"; toggle nella menu bar; scorciatoia globale `Cmd+Shift+L`; badge nella pillola flottante.
+  - **Limite di sicurezza**: 200.000 caratteri per sessione, con stop e avviso.
+  - **Test**: 10 nuovi test Core su filtro, carry buffer, split point, append e preferenze; suite totale 46 test verdi.
+  - **Validazione empirica**: la matrice TextEdit / Safari / VS Code / Word / Preview è ancora da eseguire. La sonda AX e i ticket di validazione vivono in `.scratch/dsa-11-lettura-continua/`; fino ad allora Safari/Word/PDF restano best effort.
+* 📋 **Criteri di accettazione:**
+  - La selezione o il cursore sono solo il punto di partenza; la lettura prosegue fino alla fine del documento.
+  - Il primo chunk termina la frase corrente e non parte con un frammento appeso.
+  - Il paging automatico preserva il focus e si ferma con un avviso quando non può proseguire.
+  - Toggle e filtro persistono tra i riavvii; disattivare la modalità ferma solo le nuove pagine.
+  - La coda e il testo mostrato nello Studio contengono tutto il testo catturato.
 
 ---
 

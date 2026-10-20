@@ -14,6 +14,9 @@ public final class GlobalShortcutManager {
     
     /// Azione da eseguire quando l'utente preme Option+P
     public var onTogglePlaybackRequested: (() -> Void)?
+
+    /// Azione da eseguire quando l'utente preme Cmd+Shift+L
+    public var onToggleContinuousReadingRequested: (() -> Void)?
     
     public init() {}
     
@@ -56,6 +59,11 @@ public final class GlobalShortcutManager {
         // Option+P → Toggle Play/Pausa
         if event.keyCode == 35 && flags.contains(.option) {
             onTogglePlaybackRequested?()
+        }
+
+        // Cmd+Shift+L → Toggle Lettura continua (DSA-11)
+        if event.keyCode == 37 && flags.contains([.command, .shift]) {
+            onToggleContinuousReadingRequested?()
         }
     }
 }
