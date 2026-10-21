@@ -133,7 +133,9 @@ public final class AppState: @unchecked Sendable {
                 rawText: chunk.rawText,
                 isSpoken: chunk.isSpoken,
                 durationSeconds: chunk.durationSeconds,
-                synthesisLatencyMs: chunk.synthesisLatencyMs
+                synthesisLatencyMs: chunk.synthesisLatencyMs,
+                sourceDocumentID: chunk.sourceDocumentID,
+                sourceRange: chunk.sourceRange
             )
         }
 

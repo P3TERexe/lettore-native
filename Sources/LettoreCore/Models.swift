@@ -55,6 +55,12 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
     public var isSpoken: Bool
     public var durationSeconds: Double?
     public var synthesisLatencyMs: Double?
+    /// Documento sorgente da cui proviene il chunk, quando la cattura è
+    /// documentale. Resta `nil` per il testo manuale o senza sessione AX.
+    public let sourceDocumentID: UUID?
+    /// Range UTF-16 della frase nel testo originale catturato. `nil` quando la
+    /// sorgente non è mappabile (testo manuale, pagine virtualizzate).
+    public let sourceRange: SourceTextRange?
     
     public init(
         id: UUID = UUID(),
@@ -63,7 +69,9 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         rawText: String? = nil,
         isSpoken: Bool = false,
         durationSeconds: Double? = nil,
-        synthesisLatencyMs: Double? = nil
+        synthesisLatencyMs: Double? = nil,
+        sourceDocumentID: UUID? = nil,
+        sourceRange: SourceTextRange? = nil
     ) {
         self.id = id
         self.index = index
@@ -72,6 +80,24 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         self.isSpoken = isSpoken
         self.durationSeconds = durationSeconds
         self.synthesisLatencyMs = synthesisLatencyMs
+        self.sourceDocumentID = sourceDocumentID
+        self.sourceRange = sourceRange
+    }
+
+    /// Copia con testo sostituito, preservando identità, indici, telemetria e
+    /// mappa sorgente. Serve alla normalizzazione dopo il chunking.
+    public func replacingText(_ newText: String, rawText newRawText: String? = nil) -> ReadingChunk {
+        ReadingChunk(
+            id: id,
+            index: index,
+            text: newText,
+            rawText: newRawText ?? rawText,
+            isSpoken: isSpoken,
+            durationSeconds: durationSeconds,
+            synthesisLatencyMs: synthesisLatencyMs,
+            sourceDocumentID: sourceDocumentID,
+            sourceRange: sourceRange
+        )
     }
 }
 

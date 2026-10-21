@@ -95,6 +95,22 @@ public struct TextNormalizer: Sendable {
         return processed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    /// Normalizza il testo di un chunk già segmentato, senza toccare la mappa
+    /// sorgente.
+    ///
+    /// Il range è stato calcolato sul testo grezzo/filtrato prima della
+    /// normalizzazione: espandere valute o URL cambia la lunghezza del testo
+    /// pronunciato, non la geometria della frase nel documento.
+    public func normalize(_ chunk: ReadingChunk, exclusions: [String] = []) -> ReadingChunk {
+        let normalized = normalize(text: chunk.rawText, exclusions: exclusions)
+        return chunk.replacingText(normalized)
+    }
+
+    /// Applica `normalize(_:exclusions:)` a una coda già segmentata.
+    public func normalize(_ chunks: [ReadingChunk], exclusions: [String] = []) -> [ReadingChunk] {
+        chunks.map { normalize($0, exclusions: exclusions) }
+    }
+
     /// Rimuove dal testo le stringhe blacklistate configurate dall'utente.
     public func filterExclusions(text: String, exclusions: [String]) -> String {
         var cleaned = text
