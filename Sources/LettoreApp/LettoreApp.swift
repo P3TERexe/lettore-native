@@ -75,12 +75,45 @@ struct LettoreApp: App {
         
         let captureAction: @Sendable () -> Void = { [axCapture, captureController] in
             Task { @MainActor in
-                if state.isContinuousReadingEnabled {
-                    await captureController.captureAndPlay()
+                // Quando il Play parte dalla UI di Lettore (pillola incorporata
+                // o fluttuante mentre lo Studio è attivo) l'app in primo piano
+                // è Lettore stesso: leggere il suo focused element non trova
+                // testo. Si usa l'ultima app esterna attivata, come fa il
+                // pulsante "Leggi da qui". La scorciatoia globale continua a
+                // leggere l'app davvero in primo piano.
+                let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                let isRequestFromLettoreUI = frontmostPID == ProcessInfo.processInfo.processIdentifier
+                let sourcePID = isRequestFromLettoreUI
+                    ? self.validExternalApplicationPID(for: state)
+                    : nil
+
+                if isRequestFromLettoreUI, sourcePID == nil {
+                    guard state.playbackState != .playing else { return }
+                    // Nessuna app di origine valida: non leggere la UI di
+                    // Lettore. Il Play riprende la coda già pronta, se c'è.
+                    if state.currentChunk != nil {
+                        state.continuationNotice = nil
+                        self.coordinator.playCurrentChunk()
+                    } else {
+                        state.continuationNotice = "Nessuna app di origine disponibile: porta in primo piano l'app con il testo, poi torna qui e riprova."
+                    }
                     return
                 }
 
-                let result = await axCapture.captureSelectedText()
+                if state.isContinuousReadingEnabled {
+                    let captured = await captureController.captureAndPlay(from: sourcePID)
+                    if captured == nil,
+                       state.playbackState != .playing,
+                       state.currentChunk != nil {
+                        // La cattura non ha prodotto testo: il Play non deve
+                        // restare muto se c'è una coda già pronta.
+                        state.continuationNotice = nil
+                        self.coordinator.playCurrentChunk()
+                    }
+                    return
+                }
+
+                let result = await axCapture.captureSelectedText(from: sourcePID)
                 let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
                 guard !text.isEmpty else {
@@ -189,6 +222,19 @@ struct LettoreApp: App {
         }
     }
     
+    /// PID dell'ultima app esterna ancora in esecuzione, mai il PID di
+    /// Lettore. Usato quando la cattura parte dalla UI dell'app, che è
+    /// inevitabilmente in primo piano.
+    private func validExternalApplicationPID(for state: AppState) -> pid_t? {
+        guard let pid = state.lastExternalApplicationPID,
+              pid != ProcessInfo.processInfo.processIdentifier,
+              let application = NSRunningApplication(processIdentifier: pid),
+              !application.isTerminated else {
+            return nil
+        }
+        return pid
+    }
+
     var body: some Scene {
         // Finestra Principale Studio / Super Accessibile
         WindowGroup("Lettore Studio", id: "studio-window") {

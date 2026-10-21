@@ -536,6 +536,12 @@ public struct FloatingPillView: View {
     // MARK: - Azioni Comuni
 
     private func handlePlayPause() {
+        if appState.playbackState == .synthesizing {
+            // La sintesi è già in corso: un tap ora non deve interromperla
+            // riaprendo una cattura (che ripartirebbe da capo).
+            return
+        }
+
         if appState.playbackState == .playing || appState.playbackState == .paused {
             // Riproduzione in corso o in pausa: il pulsante resta play/pausa.
             if let coordinator = coordinator {

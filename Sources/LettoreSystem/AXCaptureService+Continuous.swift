@@ -82,6 +82,20 @@ extension AXCaptureService: ContinuousTextSource {
         } else if let focusedApp = focusedApplication() {
             appElement = focusedApp
         } else {
+            // Alcune app (editor PDF, Electron) non espongono nemmeno
+            // l'applicazione focalizzata a livello di sistema. Se stiamo
+            // leggendo l'app in primo piano, l'unica strada è Cmd+C: non
+            // ruba il focus e permette almeno di leggere la selezione.
+            let frontmostName = NSWorkspace.shared.frontmostApplication?.localizedName
+            if let clipboard = await captureViaClipboardFallback(appName: frontmostName) {
+                return ContinuousCaptureStart(
+                    text: clipboard.text,
+                    selectedText: clipboard.text,
+                    sourceAppName: frontmostName,
+                    canPage: false,
+                    notice: "Continuazione non disponibile in questa app: letta solo la selezione."
+                )
+            }
             return ContinuousCaptureStart(
                 text: "",
                 selectedText: "",
@@ -100,6 +114,20 @@ extension AXCaptureService: ContinuousTextSource {
         }
 
         guard let focused else {
+            // Alcune app (per esempio editor PDF o app Electron) non espongono
+            // il focused element via AX. Se stiamo leggendo l'app in primo piano
+            // possiamo usare Cmd+C senza rubare il focus; con un PID esplicito
+            // il fallback è vietato perché Cmd+C finirebbe nell'app sbagliata.
+            if applicationPID == nil,
+               let clipboard = await captureViaClipboardFallback(appName: appName) {
+                return ContinuousCaptureStart(
+                    text: clipboard.text,
+                    selectedText: clipboard.text,
+                    sourceAppName: appName,
+                    canPage: false,
+                    notice: "Continuazione non disponibile in questa app: letta solo la selezione."
+                )
+            }
             return ContinuousCaptureStart(
                 text: "",
                 selectedText: "",

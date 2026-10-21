@@ -20,6 +20,14 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
     private let horizontalGripZone: CGFloat = 30
     private let verticalGripZone: CGFloat = 26
 
+    /// Il pannello è non-attivante: senza questo, il primo click su un
+    /// controllo espanso (Play, skip, velocità) verrebbe consumato per dare
+    /// il key status alla finestra e l'azione non partirebbe. Il click deve
+    /// arrivare subito a SwiftUI senza attivare Lettore.
+    public override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     public override func mouseDown(with event: NSEvent) {
         guard self.window != nil else {
             super.mouseDown(with: event)

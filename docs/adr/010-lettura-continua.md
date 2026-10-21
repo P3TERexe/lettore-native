@@ -137,12 +137,26 @@ La modalità è attivabile da:
 - card nello Studio con sotto-toggle e picker del filtro.
 
 La cattura continua parte da `Cmd+Shift+C`, dal Play della pillola in idle e
-dal pulsante "Leggi da qui" nello Studio. La scorciatoia e la pillola leggono
-l'app davvero in primo piano. Il pulsante dello Studio usa invece il PID
-dell'ultima applicazione esterna attivata, perché al momento del clic lo
-Studio è in primo piano; se il PID non è più valido, la cattura fallisce con
-un avviso invece di leggere l'interfaccia di Lettore. Lo Studio mostra il
+dal pulsante "Leggi da qui" nello Studio. La scorciatoia globale legge l'app
+davvero in primo piano. Le richieste che partono dalla UI di Lettore (pulsante
+dello Studio e Play della pillola incorporata, o della pillola flottante
+quando lo Studio è attivo) usano invece il PID dell'ultima applicazione
+esterna attivata, perché al momento del clic l'app in primo piano è Lettore
+stesso. Se il PID non è più valido, la cattura non legge l'interfaccia di
+Lettore: il Play riprende la coda già pronta oppure mostra un avviso. Anche
+una cattura continua fallita (nessun testo nel punto di partenza) ripiega
+sulla coda esistente invece di lasciare il player muto. Lo Studio mostra il
 testo catturato/preparato e la coda contiene tutto il testo.
+
+Alcune app — tipicamente editor PDF e applicazioni Electron — non espongono
+via AX né l'applicazione focalizzata né l'elemento focalizzato. In quel caso,
+se la lettura riguarda l'app davvero in primo piano, la modalità continua
+ripiega su `Cmd+C` per leggere la selezione corrente. È una sessione
+sola-selezione: non c'è paging e lo Studio mostra l'avviso "Continuazione non
+disponibile in questa app: letta solo la selezione." Il fallback clipboard
+non viene usato quando la cattura è targetizzata a un PID esplicito, perché
+`Cmd+C` finirebbe nell'app in primo piano (Lettore) invece che nell'app di
+origine.
 
 ### 7. Limite di sicurezza
 
