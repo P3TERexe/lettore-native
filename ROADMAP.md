@@ -92,8 +92,9 @@ La community denuncia costantemente:
 | 🟡 **P2** | **DSA-3** | **Area Snipping OCR Rapido** | Selezione rettangolare al volo per ritagliare colonne isolate | `LettoreSystem/VisionOCRService` |
 | 🟡 **P2** | **DSA-4** | **Tipografia Multipla & Tinte Antiriflesso** | Contrasto al *Visual Stress* (Sindrome di Irlen) e font sans-serif ad alta leggibilità | `LettoreUI/SuperAccessibleView` |
 | 🟡 **P2** | **DSA-5** | **Modalità Proofreading & Revisione** | Rilevamento di parole duplicate e supporto per chi rilegge i propri testi | `LettoreCore/TextNormalizer` |
-| 🟢 **P3** | **DSA-10** | **In-Place System-Wide Word Tracking** | Doppia codifica con evidenziazione parola-per-parola dentro app terze | `LettoreEngine/ForcedAligner` + `AXOverlay` |
-| 🟢 **P3** | **DSA-6** | **Teleprompter HUD & Dual Coding** | Visualizzazione del testo sincronizzata con la voce stile karaoke | `LettoreUI/FloatingPillView` |
+| 🟢 **P3** | **DSA-10 fase 1** | **Evidenziazione della frase nell'app di origine** | Doppia codifica a granularità di frase tramite selezione AX nativa, senza overlay | `LettoreSystem/AXCaptureService+Highlight` + `LettoreApp/SourceHighlightCoordinator` |
+| 🟢 **P3** | **DSA-10 fase 2** | **In-Place System-Wide Word Tracking** | Evidenziazione parola-per-parola con forced alignment e overlay dentro app terze | `LettoreEngine/ForcedAligner` + `LettoreSystem/AXHighlightOverlay` |
+| 🟢 **P3** | **DSA-6** | **Teleprompter HUD & Dual Coding** | Visualizzazione sincronizzata nello Studio, separata dall'evidenziazione in-app di DSA-10 | `LettoreUI/FloatingPillView` |
 
 ---
 
@@ -229,18 +230,48 @@ La community denuncia costantemente:
 
 ---
 
-#### `DSA-10` · In-Place System-Wide Word Tracking
-> **Priorità**: `P3 (Deep Tech)` · **Focus Clinico**: Dual Coding con evidenziazione parola-per-parola dentro app terze · **Moduli**: `LettoreEngine/ForcedAligner` + `LettoreSystem/AXHighlightOverlay`
+#### `DSA-10 fase 1` · Evidenziazione della frase nell'app di origine
+> **Priorità**: `P3` · **Focus Clinico**: Dual Coding a granularità di frase dentro app terze · **Moduli**: [AXCaptureService+Highlight.swift](Sources/LettoreSystem/AXCaptureService+Highlight.swift), [SourceSelectionController.swift](Sources/LettoreSystem/SourceSelectionController.swift) e [SourceHighlightCoordinator.swift](Sources/LettoreApp/SourceHighlightCoordinator.swift) · **Stato**: implementata e testata; matrice GUI end-to-end residua
 
 * 🚨 **Il Problema Reale:**
-  La ricerca clinica dimostra che la **doppia codifica (Dual Coding)** — leggere con gli occhi mentre si ascolta — raddoppia la ritenzione mnemonica e riduce lo sforzo attentivo. Tuttavia, gli utenti odiano dover leggere il testo dentro una finestrella separata dell'applicazione: vogliono che la singola parola **si illumini direttamente dentro Safari, Anteprima, Word o Pages** mentre viene pronunciata.
-* 💡 **La Soluzione in Lettore Native:**
+  La ricerca clinica dimostra che la **doppia codifica (Dual Coding)** — leggere con gli occhi mentre si ascolta — migliora la ritenzione e riduce lo sforzo attentivo. Tuttavia, gli utenti non vogliono leggere il testo dentro una finestrella separata: vogliono che la frase **si evidenzi direttamente dentro Safari, TextEdit, VS Code, Word o Anteprima** mentre viene pronunciata.
+* 💡 **La Soluzione in Lettore Native (fase 1, a frase):**
+  Lettore evidenzia la **frase corrente intera** nell'app di origine tramite la selezione Accessibility nativa, senza overlay, senza modificare il testo e senza rubare il focus. La fase 1 non promette karaoke, timing delle parole o allineamento forzato: quelle sono la fase 2.
+* 🛠️ **Implementazione Tecnica (stato 2026-10-22, branch `feature/dsa-10-frase`, commit `437c3d5`):**
+  - **Cattura e mappa**: `AXCaptureService` registra alla cattura una sessione con `documentID`, PID, elemento/marker e range UTF-16 assoluto. `ContinuousCaptureStart` e `AXCaptureResult` espongono `sourceDocumentID`, `sourceRange` e `sourcePID`; `ReadingChunk` trasporta `sourceDocumentID` e `sourceRange`.
+  - **Filtro e chunking**: `DocumentNoiseFilter.filterWithMapping` produce un `FilteredText` con mappa a segmenti verso gli offset sorgente; `SentenceChunker` produce range relativi, la base assoluta viene sommata una sola volta e il trimming avanza di unità UTF-16. `TextNormalizer` normalizza dopo il chunking preservando la mappa.
+  - **Playback**: `PlaybackCoordinator.onCurrentChunkChanged` notifica play, skip, jump e ripresa (non il progresso audio). `SourceHighlightCoordinator` serializza `begin`/`update` e chiama `SourceSelectionController`; il controller scrive `AXSelectedTextRange` (TextEdit/VS Code) o `AXSelectedTextMarkerRange` (Safari) tramite `AXCaptureService.highlightSourceRange`, con readback.
+  - **Visibilità**: in background gli aggiornamenti sono sospesi e l'audio continua; al ritorno frontmost si riapplica l'ultimo range. Pausa/stop non deselezionano. Lo stop scatta una sola volta su digitazione/paste e click/drag nell'app sorgente; lo scroll con rotella/trackpad è consentito.
+  - **Auto-scroll**: solo quello nativo della selezione. TextEdit e Safari portano in vista la frase; VS Code no e non espone bounds affidabili, quindi una frase fuori viewport resta non visibile e si usa il fallback Studio. Nessun PageDown o overlay.
+  - **Fallback Studio**: la lista evidenzia il chunk corrente quando manca un range, l'app non è supportata o la scrittura fallisce. È il comportamento previsto, non un bug. Toggle persistito, attivo di default, con avviso discreto se l'Accessibilità non è concessa.
+  - **Limiti**: Safari richiede la web area focalizzata per mostrare l'highlight; Word non è installato e resta best effort; Preview/PDF non espone un'ancora AX; le pagine virtualizzate possono perdere il range. Race Q20 accettata: la prima digitazione può sostituire la selezione prima che il monitor fermi la sessione.
+  - **Test**: `swift test` con **109 test, 0 failure**; `swift build` verde. La matrice GUI end-to-end non è ancora stata eseguita in sessione headless.
+* 📋 **Criteri di accettazione:**
+  - La frase corrente è selezionata nell'app di origine senza modificare testo, focus o appunti.
+  - In background l'audio continua e al ritorno frontmost la selezione viene riapplicata.
+  - Digitazione, paste e click/drag fermano la lettura una sola volta; lo scroll no.
+  - Testo manuale, app non supportate e chunk senza range ripiegano sullo Studio.
+  - La documentazione non promette word-level, karaoke o allineamento reale in fase 1.
+
+---
+
+#### `DSA-10 fase 2` · In-Place System-Wide Word Tracking
+> **Priorità**: `P3 (Deep Tech)` · **Focus Clinico**: Dual Coding con evidenziazione parola-per-parola dentro app terze · **Moduli**: `LettoreEngine/ForcedAligner` + `LettoreSystem/AXHighlightOverlay` · **Stato**: pianificata, fuori dal perimetro della fase 1
+
+* 🚨 **Il Problema Reale:**
+  La fase 1 evidenzia la frase intera. Per la singola parola serve conoscere il timing reale della voce e la geometria del testo nell'app di origine: senza questi dati l'evidenziazione sarebbe proporzionale e inaffidabile.
+* 💡 **La Soluzione in Lettore Native (fase 2):**
   Sincronizzazione acustica precisa tramite modello di **Forced Alignment CTC** on-device (CoreML). Lettore Native interroga le coordinate a schermo della parola (`kAXBoundsForRangeParameterizedAttribute`) e proietta un alone evidenziatore animato tramite una finestra trasparente invisibile (`NSWindow` fluttuante a 60 fps) esattamente sopra il testo dell'app terza attiva.
+* 📋 **Fuori perimetro fase 1:**
+  - Word-level tracking, forced alignment, timing dei fonemi.
+  - Overlay custom sopra l'app di origine.
+  - Karaoke proporzionale o sincronizzato alle parole.
+  La fase 2 richiede una decisione separata su allineamento, geometria e overlay.
 
 ---
 
 #### `DSA-6` · Teleprompter HUD & Dual Coding
-> **Priorità**: `P3` · **Focus Clinico**: Sincronizzazione karaoke della frase per prevenire distrazioni · **Moduli**: [FloatingPillView.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreUI/FloatingPillView.swift) & [DynamicNotchView.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreUI/DynamicNotchView.swift)
+> **Priorità**: `P3` · **Focus Clinico**: Sincronizzazione karaoke della frase per prevenire distrazioni · **Moduli**: [FloatingPillView.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreUI/FloatingPillView.swift) & [DynamicNotchView.swift](file:///Users/pepe/Stuff/lettore-native/Sources/LettoreUI/DynamicNotchView.swift) · **Nota**: iniziativa distinta da DSA-10, agisce nello Studio/pillola e non evidenzia testo dentro app terze
 
 * 🚨 **Il Problema Reale:**
   Per chi ha dislessia o deficit dell'attenzione (ADHD), ascoltare passivamente una voce fuori campo senza un aggancio visivo chiaro favorisce distrazioni, vagare dello sguardo (*mind-wandering*) e rapida perdita del filo logico. Chi usa il sintetizzatore vocale per studio trae il massimo beneficio dalla **doppia codifica (Dual Coding)**: vedere il testo mentre viene pronunciato per ancorare i fonemi ai grafemi.

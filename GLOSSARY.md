@@ -16,6 +16,18 @@ _Avoid_: leggi da qui (nome della feature), lettura dal cursore (descrizione par
 Offset UTF-16, all'interno del testo catturato, in cui è mappata la selezione o il cursore di partenza.
 _Avoid_: punto di partenza (ambiguo), cursore iniziale
 
+**Range sorgente**:
+Intervallo UTF-16 assoluto di una frase nel testo originale dell'app di origine, trasportato da `ReadingChunk.sourceRange`. Resta assente quando la sorgente non è mappabile: non si inventa una posizione.
+_Avoid_: offset del chunk (ambiguo), posizione nel documento
+
+**Sessione di evidenziazione**:
+Sessione aperta alla cattura che lega un `documentID`, il PID dell'app di origine e l'ultimo range selezionato; viene chiusa senza deselezionare il testo.
+_Avoid_: highlight globale, selezione persistente
+
+**Selezione AX nativa**:
+Scrittura di `AXSelectedTextRange` o `AXSelectedTextMarkerRange` per evidenziare la frase corrente nell'app di origine, senza modificare il testo, inviare eventi di tastiera o rubare il focus.
+_Avoid_: overlay, highlight custom, karaoke
+
 **Paging automatico**:
 Caricamento della viewport successiva di un documento virtualizzato, con deduplica del testo già catturato.
 _Avoid_: scroll infinito, autoscroll
