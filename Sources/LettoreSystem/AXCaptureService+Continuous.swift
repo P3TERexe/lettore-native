@@ -34,7 +34,7 @@ struct ContinuousAXSession {
 /// dipendere dalla versione dell'SDK usata in build. Il supporto effettivo
 /// viene verificato a runtime: se l'attributo non è implementato la query
 /// fallisce e si ripiega sul testo materializzato.
-private enum AXMarkerAttribute {
+enum AXMarkerAttribute {
     static let start = "AXStartTextMarker"
     static let end = "AXEndTextMarker"
     static let selectedRange = "AXSelectedTextMarkerRange"
@@ -51,6 +51,13 @@ private struct ResolvedDocument {
     let usedViewportSnapshot: Bool
     let viewportText: String
     let notice: String?
+    /// Offset UTF-16 assoluto dell'inizio di `text` nella sorgente AX.
+    /// `nil` quando il testo è una viewport virtualizzata o uno snapshot non
+    /// mappabile: in quel caso non si inventano offset.
+    let sourceOffset: Int?
+    /// Contenitore dei marker per le sorgenti Safari, se il documento è stato
+    /// risolto tramite `AXTextMarker`.
+    let markerContainer: AXUIElement?
 }
 
 extension AXCaptureService: ContinuousTextSource {
@@ -153,7 +160,9 @@ extension AXCaptureService: ContinuousTextSource {
         ) {
             let source = resolved.text as NSString
             let anchor = max(0, min(resolved.anchorUTF16, source.length))
-            var text = source.substring(from: anchor)
+            let rawText = source.substring(from: anchor)
+            let leadingTrim = SourceTextTrimming.leadingUTF16Count(of: rawText)
+            var text = rawText
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             var notice = resolved.notice
@@ -166,6 +175,8 @@ extension AXCaptureService: ContinuousTextSource {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return selectionOnlyFallback(
                     selectedText: selectedText,
+                    focused: focused,
+                    sourcePID: sourcePID,
                     appName: appName,
                     notice: "Il punto di partenza non contiene testo leggibile. Seleziona del testo o sposta il cursore."
                 )
@@ -175,7 +186,26 @@ extension AXCaptureService: ContinuousTextSource {
                 && scrollContainer != nil
                 && text.count < safetyCap
 
-            print("[AXCapture][Continuo] risolto testo=\(resolved.text.count) anchor=\(anchor) canPage=\(resolved.canPage) snapshot=\(resolved.usedViewportSnapshot) output=\(text.count)")
+            // La base assoluta avanza delle unità UTF-16 rimosse dal trimming:
+            // il range deve descrivere `text`, non il testo grezzo.
+            let capturedRange: SourceTextRange?
+            if let sourceOffset = resolved.sourceOffset {
+                capturedRange = SourceTextRange(
+                    location: sourceOffset + anchor + leadingTrim,
+                    length: (text as NSString).length
+                )
+            } else {
+                capturedRange = nil
+            }
+
+            let registration = registerResolvedHighlightSession(
+                focused: focused,
+                markerContainer: resolved.markerContainer,
+                sourcePID: sourcePID,
+                capturedRange: capturedRange
+            )
+
+            print("[AXCapture][Continuo] risolto testo=\(resolved.text.count) anchor=\(anchor) canPage=\(resolved.canPage) snapshot=\(resolved.usedViewportSnapshot) output=\(text.count) range=\(capturedRange.map { "\($0.location)+\($0.length)" } ?? "nil")")
 
             continuousSession = ContinuousAXSession(
                 id: UUID(),
@@ -196,7 +226,10 @@ extension AXCaptureService: ContinuousTextSource {
                 selectedText: selectedText,
                 sourceAppName: appName,
                 canPage: canPage,
-                notice: notice
+                notice: notice,
+                sourceDocumentID: registration.documentID,
+                sourceRange: registration.sourceRange,
+                sourcePID: registration.sourcePID
             )
         }
 
@@ -218,6 +251,8 @@ extension AXCaptureService: ContinuousTextSource {
 
         return selectionOnlyFallback(
             selectedText: selectedText,
+            focused: focused,
+            sourcePID: sourcePID,
             appName: appName,
             notice: "Continuazione non disponibile in questa app: seleziona del testo e riprova."
         )
@@ -371,6 +406,9 @@ extension AXCaptureService: ContinuousTextSource {
 
     public func endContinuousCapture() async {
         continuousSession = nil
+        // Rilascia observer e sessione di highlight senza deselezionare il
+        // testo: dopo pausa/stop la selezione resta dov'è.
+        clearHighlightSession()
     }
 
     // MARK: - Risoluzione del documento
@@ -408,7 +446,9 @@ extension AXCaptureService: ContinuousTextSource {
                         canPage: scrollEndState(of: container) != .atEnd,
                         usedViewportSnapshot: true,
                         viewportText: snapshot,
-                        notice: nil
+                        notice: nil,
+                        sourceOffset: nil,
+                        markerContainer: nil
                     )
                 }
 
@@ -420,7 +460,9 @@ extension AXCaptureService: ContinuousTextSource {
                     viewportText: value,
                     notice: isFragment
                         ? "Non riesco a mappare il cursore nel documento: leggo solo l'elemento selezionato."
-                        : nil
+                        : nil,
+                    sourceOffset: 0,
+                    markerContainer: nil
                 )
             }
         }
@@ -464,7 +506,9 @@ extension AXCaptureService: ContinuousTextSource {
                     canPage: scrollEndState(of: container) != .atEnd,
                     usedViewportSnapshot: true,
                     viewportText: snapshot,
-                    notice: nil
+                    notice: nil,
+                    sourceOffset: nil,
+                    markerContainer: nil
                 )
             }
 
@@ -479,7 +523,9 @@ extension AXCaptureService: ContinuousTextSource {
                     canPage: false,
                     usedViewportSnapshot: false,
                     viewportText: value,
-                    notice: "Non riesco a mappare il cursore nel documento: leggo solo l'elemento selezionato."
+                    notice: "Non riesco a mappare il cursore nel documento: leggo solo l'elemento selezionato.",
+                    sourceOffset: 0,
+                    markerContainer: nil
                 )
             }
         }
@@ -516,7 +562,9 @@ extension AXCaptureService: ContinuousTextSource {
                 canPage: false,
                 usedViewportSnapshot: false,
                 viewportText: value,
-                notice: notice
+                notice: notice,
+                sourceOffset: 0,
+                markerContainer: nil
             )
         }
 
@@ -596,7 +644,9 @@ extension AXCaptureService: ContinuousTextSource {
                 canPage: false,
                 usedViewportSnapshot: false,
                 viewportText: cappedText,
-                notice: Self.safetyCapNotice
+                notice: Self.safetyCapNotice,
+                sourceOffset: selectionIndex,
+                markerContainer: container
             )
         }
 
@@ -621,7 +671,9 @@ extension AXCaptureService: ContinuousTextSource {
             canPage: false,
             usedViewportSnapshot: false,
             viewportText: text,
-            notice: nil
+            notice: nil,
+            sourceOffset: selectionIndex,
+            markerContainer: container
         )
     }
 
@@ -662,11 +714,13 @@ extension AXCaptureService: ContinuousTextSource {
             canPage: false,
             usedViewportSnapshot: false,
             viewportText: fullText,
-            notice: notice
+            notice: notice,
+            sourceOffset: 0,
+            markerContainer: container
         )
     }
 
-    private func nearestTextMarkerContainer(
+    func nearestTextMarkerContainer(
         from element: AXUIElement,
         fallback: AXUIElement?
     ) -> AXUIElement? {
@@ -700,7 +754,7 @@ extension AXCaptureService: ContinuousTextSource {
     /// Cerca `AXSelectedTextMarkerRange` risalendo tutti gli antenati fino al
     /// contenitore dei marker: in Safari l'attributo è sulla web area, ma
     /// altre web view lo espongono su nodi intermedi.
-    private func selectedTextMarkerRange(
+    func selectedTextMarkerRange(
         from element: AXUIElement,
         in container: AXUIElement
     ) -> AXTextMarkerRange? {
@@ -724,7 +778,7 @@ extension AXCaptureService: ContinuousTextSource {
     /// `AXTextMarkerRangeCreate` è importata come non-opzionale: il range
     /// viene rivalidato per tipo prima di essere passato alle query. Se la
     /// validazione fallisce i chiamanti ripiegano sul testo materializzato.
-    private func textMarkerRange(from start: AXTextMarker, to end: AXTextMarker) -> AXTextMarkerRange? {
+    func textMarkerRange(from start: AXTextMarker, to end: AXTextMarker) -> AXTextMarkerRange? {
         let range = AXTextMarkerRangeCreate(nil, start, end)
         guard CFGetTypeID(range) == AXTextMarkerRangeGetTypeID() else { return nil }
         return range
@@ -732,21 +786,21 @@ extension AXCaptureService: ContinuousTextSource {
 
     /// Anche `AXTextMarkerRangeCopyStartMarker` è non-opzionale: il marker
     /// restituito viene validato per tipo.
-    private func copyStartMarker(of range: AXTextMarkerRange) -> AXTextMarker? {
+    func copyStartMarker(of range: AXTextMarkerRange) -> AXTextMarker? {
         let marker = AXTextMarkerRangeCopyStartMarker(range)
         guard CFGetTypeID(marker) == AXTextMarkerGetTypeID() else { return nil }
         return marker
     }
 
-    private func textMarkerIndex(of marker: AXTextMarker, in container: AXUIElement) -> Int? {
+    func textMarkerIndex(of marker: AXTextMarker, in container: AXUIElement) -> Int? {
         parameterizedNumber(container, AXMarkerAttribute.indexForMarker, parameter: marker)
     }
 
-    private func textMarkerRangeLength(of range: AXTextMarkerRange, in container: AXUIElement) -> Int? {
+    func textMarkerRangeLength(of range: AXTextMarkerRange, in container: AXUIElement) -> Int? {
         parameterizedNumber(container, AXMarkerAttribute.lengthForRange, parameter: range)
     }
 
-    private func textMarker(atIndex index: Int, in container: AXUIElement) -> AXTextMarker? {
+    func textMarker(atIndex index: Int, in container: AXUIElement) -> AXTextMarker? {
         var value: AnyObject?
         guard AXUIElementCopyParameterizedAttributeValue(
             container,
@@ -775,7 +829,7 @@ extension AXCaptureService: ContinuousTextSource {
         return nil
     }
 
-    private func textMarkerAttribute(_ element: AXUIElement, _ name: String) -> AXTextMarker? {
+    func textMarkerAttribute(_ element: AXUIElement, _ name: String) -> AXTextMarker? {
         guard let value = copyAttribute(element, name as CFString),
               CFGetTypeID(value) == AXTextMarkerGetTypeID() else {
             return nil
@@ -783,7 +837,7 @@ extension AXCaptureService: ContinuousTextSource {
         return (value as! AXTextMarker)
     }
 
-    private func textMarkerRangeAttribute(
+    func textMarkerRangeAttribute(
         _ element: AXUIElement,
         _ name: String
     ) -> AXTextMarkerRange? {
@@ -848,7 +902,9 @@ extension AXCaptureService: ContinuousTextSource {
                         canPage: false,
                         usedViewportSnapshot: false,
                         viewportText: value,
-                        notice: nil
+                        notice: nil,
+                        sourceOffset: 0,
+                        markerContainer: nil
                     )
                 }
             }
@@ -861,7 +917,9 @@ extension AXCaptureService: ContinuousTextSource {
                     canPage: false,
                     usedViewportSnapshot: false,
                     viewportText: value,
-                    notice: nil
+                    notice: nil,
+                    sourceOffset: 0,
+                    markerContainer: nil
                 )
             }
         }
@@ -908,6 +966,8 @@ extension AXCaptureService: ContinuousTextSource {
 
     private func selectionOnlyFallback(
         selectedText: String,
+        focused: AXUIElement?,
+        sourcePID: pid_t?,
         appName: String?,
         notice: String
     ) -> ContinuousCaptureStart {
@@ -922,12 +982,23 @@ extension AXCaptureService: ContinuousTextSource {
             )
         }
 
+        let registration = focused.map {
+            registerTrimmedSelectionHighlight(
+                focused: $0,
+                sourcePID: sourcePID,
+                selectedText: selectedText
+            )
+        }
+
         return ContinuousCaptureStart(
             text: trimmed,
             selectedText: selectedText,
             sourceAppName: appName,
             canPage: false,
-            notice: "Continuazione non disponibile in questa app: letta solo la selezione."
+            notice: "Continuazione non disponibile in questa app: letta solo la selezione.",
+            sourceDocumentID: registration?.documentID,
+            sourceRange: registration?.sourceRange,
+            sourcePID: registration?.sourcePID ?? sourcePID
         )
     }
 
@@ -1203,7 +1274,7 @@ extension AXCaptureService: ContinuousTextSource {
         return NSRunningApplication(processIdentifier: pid)?.localizedName
     }
 
-    private func processIdentifier(of element: AXUIElement) -> pid_t? {
+    func processIdentifier(of element: AXUIElement) -> pid_t? {
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success else { return nil }
         return pid
@@ -1274,7 +1345,7 @@ extension AXCaptureService: ContinuousTextSource {
         return (value as! AXUIElement)
     }
 
-    private func copySelectedRange(of element: AXUIElement) -> CFRange? {
+    func copySelectedRange(of element: AXUIElement) -> CFRange? {
         guard let value = copyAttribute(element, kAXSelectedTextRangeAttribute as CFString),
               CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
@@ -1286,7 +1357,7 @@ extension AXCaptureService: ContinuousTextSource {
         return range
     }
 
-    private func copyAttribute(_ element: AXUIElement, _ attribute: CFString) -> AnyObject? {
+    func copyAttribute(_ element: AXUIElement, _ attribute: CFString) -> AnyObject? {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, attribute, &value)
         guard result == .success else { return nil }

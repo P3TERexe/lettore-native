@@ -10,17 +10,28 @@ public struct AXCaptureResult: Sendable {
     public let sourceAppName: String?
     public let selectionBounds: CGRect?
     public let usedClipboardFallback: Bool
-    
+    /// Sessione sorgente registrata per l'highlight, se la selezione è stata
+    /// letta via AX. Resta `nil` quando si usa il fallback clipboard.
+    public let sourceDocumentID: UUID?
+    public let sourceRange: SourceTextRange?
+    public let sourcePID: pid_t?
+
     public init(
         text: String,
         sourceAppName: String? = nil,
         selectionBounds: CGRect? = nil,
-        usedClipboardFallback: Bool = false
+        usedClipboardFallback: Bool = false,
+        sourceDocumentID: UUID? = nil,
+        sourceRange: SourceTextRange? = nil,
+        sourcePID: pid_t? = nil
     ) {
         self.text = text
         self.sourceAppName = sourceAppName
         self.selectionBounds = selectionBounds
         self.usedClipboardFallback = usedClipboardFallback
+        self.sourceDocumentID = sourceDocumentID
+        self.sourceRange = sourceRange
+        self.sourcePID = sourcePID
     }
 }
 
@@ -30,6 +41,11 @@ public actor AXCaptureService {
     /// Sessione AX aperta dalla modalità di lettura continua. Vive solo
     /// all'interno dell'attore: gli elementi AX non sono `Sendable`.
     var continuousSession: ContinuousAXSession?
+
+    /// Sessione di highlight nativa registrata alla cattura.
+    var highlightSession: SourceHighlightSession?
+    var selectionObserverHandle: AXSelectionObserverHandle?
+    var selectionNotificationGeneration = 0
 
     public init() {}
     
@@ -110,11 +126,18 @@ public actor AXCaptureService {
             )
             
             if textResult == .success, let selectedStr = selectedTextValue as? String, !selectedStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let registration = registerSelectionHighlight(
+                    focused: focusedElement,
+                    sourcePID: processIdentifier(of: focusedElement)
+                )
                 return AXCaptureResult(
                     text: selectedStr,
                     sourceAppName: appName,
                     selectionBounds: nil,
-                    usedClipboardFallback: false
+                    usedClipboardFallback: false,
+                    sourceDocumentID: registration.documentID,
+                    sourceRange: registration.sourceRange,
+                    sourcePID: registration.sourcePID
                 )
             }
             print("[AXCapture] Focused element senza testo selezionato (app: \(appName ?? "?"), textResult: \(textResult.rawValue)). Provo il fallback clipboard.")
@@ -123,6 +146,7 @@ public actor AXCaptureService {
         }
         
         // Fallback su simulazione Cmd+C via clipboard se AX non espone il testo selezionato
+        clearHighlightSession()
         return await captureViaClipboardFallback(appName: appName)
     }
 
@@ -151,11 +175,18 @@ public actor AXCaptureService {
             return nil
         }
 
+        let registration = registerSelectionHighlight(
+            focused: focusedElement,
+            sourcePID: pid
+        )
         return AXCaptureResult(
             text: selectedStr,
             sourceAppName: appName,
             selectionBounds: nil,
-            usedClipboardFallback: false
+            usedClipboardFallback: false,
+            sourceDocumentID: registration.documentID,
+            sourceRange: registration.sourceRange,
+            sourcePID: registration.sourcePID
         )
     }
 

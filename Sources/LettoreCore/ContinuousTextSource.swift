@@ -5,25 +5,40 @@ import Foundation
 /// `text` contiene il testo già disponibile al momento della cattura, a partire
 /// dalla selezione o dal cursore. `selectedText` è conservato separatamente per
 /// diagnostica e per il fallback "solo selezione".
+///
+/// `sourceDocumentID`, `sourceRange` e `sourcePID` descrivono la sessione AX
+/// registrata alla cattura. Sono `nil` quando il testo arriva dal fallback
+/// clipboard o da una sorgente non mappabile. `sourceRange` è il range UTF-16
+/// assoluto di `text` nella sorgente, già avanzato se il testo è stato
+/// ritagliato ai bordi.
 public struct ContinuousCaptureStart: Sendable {
     public let text: String
     public let selectedText: String
     public let sourceAppName: String?
     public let canPage: Bool
     public let notice: String?
+    public let sourceDocumentID: UUID?
+    public let sourceRange: SourceTextRange?
+    public let sourcePID: pid_t?
 
     public init(
         text: String,
         selectedText: String,
         sourceAppName: String? = nil,
         canPage: Bool = false,
-        notice: String? = nil
+        notice: String? = nil,
+        sourceDocumentID: UUID? = nil,
+        sourceRange: SourceTextRange? = nil,
+        sourcePID: pid_t? = nil
     ) {
         self.text = text
         self.selectedText = selectedText
         self.sourceAppName = sourceAppName
         self.canPage = canPage
         self.notice = notice
+        self.sourceDocumentID = sourceDocumentID
+        self.sourceRange = sourceRange
+        self.sourcePID = sourcePID
     }
 }
 
