@@ -77,6 +77,15 @@ public final class AppState: @unchecked Sendable {
     public var noiseFilterMode: NoiseFilterMode {
         didSet { preferences.noiseFilterMode = noiseFilterMode }
     }
+    /// Evidenzia la frase corrente nell'app di origine tramite selezione AX.
+    /// Attivo di default; resta inattivo (senza spegnersi) se l'accessibilità
+    /// non è concessa o la sorgente non supporta la scrittura.
+    public var isSourceHighlightEnabled: Bool {
+        didSet { preferences.isSourceHighlightEnabled = isSourceHighlightEnabled }
+    }
+    /// Avviso discreto mostrato quando l'evidenziazione nella sorgente non è
+    /// disponibile. Non è un errore bloccante: la lettura continua.
+    public var sourceHighlightNotice: String? = nil
     /// Avviso persistente mostrato fino alla prossima cattura.
     public var continuationNotice: String? = nil
     /// Una sessione continua è in corso (cattura o riproduzione della coda).
@@ -107,6 +116,7 @@ public final class AppState: @unchecked Sendable {
         self.preferences = preferences
         self.isContinuousReadingEnabled = preferences.isContinuousReadingEnabled
         self.isAutoPageEnabled = preferences.isAutoPageEnabled
+        self.isSourceHighlightEnabled = preferences.isSourceHighlightEnabled
         self.noiseFilterMode = preferences.noiseFilterMode
     }
 

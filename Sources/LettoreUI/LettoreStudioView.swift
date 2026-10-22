@@ -13,6 +13,10 @@ public struct LettoreStudioView: View {
     public var coordinator: PlaybackCoordinator
     public var captureController: ContinuousReadingController
     public var axCapture: AXCaptureService
+    /// Apre la sessione di highlight dopo una cattura non continua. `nil` nei
+    /// test o nelle anteprime senza composizione App.
+    public var onSourceHighlightBegin: ((UUID, pid_t) -> Void)?
+    public var onSourceHighlightEnd: (() -> Void)?
     
     @State private var inputText: String = ""
     @State private var showingNotchPreview: Bool = false
@@ -22,13 +26,17 @@ public struct LettoreStudioView: View {
         audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator,
         captureController: ContinuousReadingController,
-        axCapture: AXCaptureService = AXCaptureService()
+        axCapture: AXCaptureService = AXCaptureService(),
+        onSourceHighlightBegin: ((UUID, pid_t) -> Void)? = nil,
+        onSourceHighlightEnd: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.audioEngine = audioEngine
         self.coordinator = coordinator
         self.captureController = captureController
         self.axCapture = axCapture
+        self.onSourceHighlightBegin = onSourceHighlightBegin
+        self.onSourceHighlightEnd = onSourceHighlightEnd
     }
     
     private let brandCyan = Color(red: 0.0, green: 0.9, blue: 1.0)
@@ -714,6 +722,25 @@ public struct LettoreStudioView: View {
                     .toggleStyle(SwitchToggleStyle(tint: brandGreen))
                     .disabled(!appState.isContinuousReadingEnabled)
 
+                    Toggle(isOn: $appState.isSourceHighlightEnabled) {
+                        Text("Evidenzia la frase nell'app di origine")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: brandGreen))
+
+                    Text("Se l'app non supporta la selezione nativa, la frase corrente resta evidenziata nello Studio.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let notice = appState.sourceHighlightNotice {
+                        Text(notice)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.2))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     HStack(spacing: 8) {
                         Text("Filtro rumore")
                             .font(.system(size: 11, weight: .medium))
@@ -903,6 +930,7 @@ public struct LettoreStudioView: View {
         guard !text.isEmpty else { return }
         
         coordinator.stop()
+        onSourceHighlightEnd?()
         appState.continuationNotice = nil
         appState.capturedDocumentText = ""
 
@@ -913,6 +941,41 @@ public struct LettoreStudioView: View {
         
         appState.setQueue(chunks)
         inputText = ""
+        coordinator.playCurrentChunk()
+    }
+
+    /// Riproduce una cattura non continua usando lo stesso mapping del
+    /// percorso documentale. Senza range i chunk restano `nil` e vale il
+    /// fallback Studio.
+    private func playCapturedResult(_ result: AXCaptureResult) {
+        let text = result.trimmedText
+        guard !text.isEmpty else { return }
+
+        coordinator.stop()
+        appState.continuationNotice = nil
+        appState.capturedDocumentText = ""
+
+        let sourceRange = result.trimmedSourceRange
+        let chunks = TextNormalizer().normalize(
+            SentenceChunker().chunk(
+                text: text,
+                sourceRange: sourceRange,
+                sourceDocumentID: result.sourceDocumentID
+            )
+        )
+        guard !chunks.isEmpty else { return }
+
+        appState.setQueue(chunks)
+        inputText = result.text
+
+        if let documentID = result.sourceDocumentID,
+           let sourcePID = result.sourcePID,
+           sourceRange != nil {
+            onSourceHighlightBegin?(documentID, sourcePID)
+        } else {
+            onSourceHighlightEnd?()
+        }
+
         coordinator.playCurrentChunk()
     }
     
@@ -950,8 +1013,7 @@ public struct LettoreStudioView: View {
 
             if let result = await axCapture.captureSelectedText(from: sourcePID) {
                 await MainActor.run {
-                    self.inputText = result.text
-                    processNewInput()
+                    playCapturedResult(result)
                 }
             } else {
                 await MainActor.run {

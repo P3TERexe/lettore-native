@@ -9,7 +9,7 @@ import LettoreCore
 public final class PlaybackCoordinator {
     public let appState: AppState
     public let audioEngine: AudioEngineService
-    public let supertonicPipeline: SupertonicTTSPipeline
+    public let supertonicPipeline: any TTSPipelineProtocol
     public let speechFallback: NativeSpeechService
     
     private var isPlayingSupertonic: Bool = true
@@ -23,10 +23,20 @@ public final class PlaybackCoordinator {
     /// Chiamata quando la sessione di riproduzione termina (coda finita o
     /// stop esplicito dell'utente).
     public var onSessionEnded: (() -> Void)?
+    /// Chiamata all'inizio di ogni `playCurrentChunk`, prima della sintesi:
+    /// copre play, skip, jump, avanzamento automatico e ripresa da pausa.
+    /// Non viene chiamata a ogni aggiornamento di progresso audio.
+    public var onCurrentChunkChanged: ((ReadingChunk) -> Void)?
+    /// Chiamata una sola volta quando la sessione di riproduzione finisce
+    /// davvero: stop esplicito, coda esaurita, pagina finale senza nuovi chunk
+    /// o assenza di un chunk corrente.
+    public var onPlaybackEnded: (() -> Void)?
 
     private var pagingTask: Task<Void, Never>?
     private var isFetchingMoreText = false
     private var pendingPlayAfterFetch = false
+    /// Evita `onPlaybackEnded` duplicati per lo stesso stop o fine coda.
+    private var didNotifyPlaybackEnd = false
 
     private struct PreloadedAudio {
         let cacheKey: String
@@ -51,7 +61,7 @@ public final class PlaybackCoordinator {
     public init(
         appState: AppState,
         audioEngine: AudioEngineService,
-        supertonicPipeline: SupertonicTTSPipeline = SupertonicTTSPipeline(),
+        supertonicPipeline: any TTSPipelineProtocol = SupertonicTTSPipeline(),
         speechFallback: NativeSpeechService = NativeSpeechService()
     ) {
         self.appState = appState
@@ -114,6 +124,9 @@ public final class PlaybackCoordinator {
                 speechFallback.resume()
                 appState.playbackState = .playing
             }
+            // La selezione resta dov'è durante la pausa: alla ripresa si
+            // rivaluta il chunk corrente, che potrebbe essere cambiato.
+            notifyCurrentChunkChanged()
         } else {
             playRequestedTime = CFAbsoluteTimeGetCurrent()
             playCurrentChunk()
@@ -158,6 +171,7 @@ public final class PlaybackCoordinator {
         }
         if endingSession {
             onSessionEnded?()
+            notifyPlaybackEnded()
         }
     }
     
@@ -272,9 +286,24 @@ public final class PlaybackCoordinator {
     
     public func playCurrentChunk() {
         guard let current = appState.currentChunk else {
+            // Una pagina può essere già in volo: in quel caso la sessione non è
+            // finita e il Play deve attendere i nuovi chunk, non chiudere
+            // l'highlight prima che arrivino.
+            if isFetchingMoreText {
+                pendingPlayAfterFetch = true
+                appState.playbackState = .synthesizing
+                return
+            }
             appState.playbackState = .idle
+            notifyPlaybackEnded()
             return
         }
+
+        // Segnala il chunk prima della sintesi: il cambio copre play, skip,
+        // jump e avanzamento automatico, senza toccare l'highlight a ogni
+        // aggiornamento di progresso.
+        didNotifyPlaybackEnd = false
+        onCurrentChunkChanged?(current)
 
         // Pianifica il caricamento della pagina successiva quando restano
         // pochi chunk. La richiesta è idempotente e non blocca la sintesi.
@@ -485,6 +514,7 @@ public final class PlaybackCoordinator {
             } else if self.pendingPlayAfterFetch {
                 self.pendingPlayAfterFetch = false
                 self.appState.playbackState = .idle
+                self.notifyPlaybackEnded()
                 self.onSessionEnded?()
             }
         }
@@ -505,6 +535,7 @@ public final class PlaybackCoordinator {
         }
 
         appState.playbackState = .idle
+        notifyPlaybackEnded()
         onSessionEnded?()
     }
     
@@ -535,6 +566,22 @@ public final class PlaybackCoordinator {
             appState.playbackProgress = Double(chunk.index) / total
         }
         playCurrentChunk()
+    }
+
+    // MARK: - Callback sessione
+
+    private func notifyCurrentChunkChanged() {
+        guard let current = appState.currentChunk else { return }
+        didNotifyPlaybackEnd = false
+        onCurrentChunkChanged?(current)
+    }
+
+    /// `onPlaybackEnded` deve arrivare una sola volta per sessione: stop
+    /// ripetuti o una fine coda seguita da stop non devono duplicarlo.
+    private func notifyPlaybackEnded() {
+        guard !didNotifyPlaybackEnd else { return }
+        didNotifyPlaybackEnd = true
+        onPlaybackEnded?()
     }
 }
 

@@ -500,6 +500,125 @@ final class ContinuousReadingControllerTests: XCTestCase {
         XCTAssertEqual(source.startCallCount, 1)
     }
 
+    // MARK: - Range sorgente e callbacks (DSA-10)
+
+    func testContinuousStartMapsAbsoluteRangesInImmediateChunksAndRemainder() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+
+        let documentID = UUID()
+        let unit = "Questa è una frase di prova con 12,50 € e un numero. "
+        let text = String(repeating: unit, count: 220)
+        let base = SourceTextRange(location: 500, length: text.utf16.count)
+
+        let source = FakeContinuousTextSource()
+        source.startResults = [
+            ContinuousCaptureStart(
+                text: text,
+                selectedText: "",
+                canPage: false,
+                sourceDocumentID: documentID,
+                sourceRange: base,
+                sourcePID: 42
+            )
+        ]
+
+        let (controller, sink) = makeController(state: state, source: source)
+        var started: [(UUID, pid_t)] = []
+        var queueCountAtStart = -1
+        var endedCount = 0
+        controller.onSourceSessionStarted = { documentID, pid in
+            started.append((documentID, pid))
+            queueCountAtStart = state.readingQueue.count
+        }
+        controller.onSourceSessionEnded = { endedCount += 1 }
+
+        let captured = await controller.captureAndPlay()
+
+        XCTAssertNotNil(captured)
+        XCTAssertEqual(started.count, 1, "La sessione sorgente parte una sola volta")
+        XCTAssertEqual(started.first?.0, documentID)
+        XCTAssertEqual(started.first?.1, 42)
+        XCTAssertGreaterThan(queueCountAtStart, 0, "I chunk devono essere già in coda prima del callback")
+        XCTAssertEqual(sink.playCallCount, 1)
+
+        // Il prefisso immediato è mappato in assoluto e normalizzato senza
+        // perdere il range: il testo diventa "12 euro e 50 centesimi".
+        let immediate = state.readingQueue
+        XCTAssertFalse(immediate.isEmpty)
+        XCTAssertTrue(immediate.first?.text.contains("12 euro e 50 centesimi") == true)
+
+        // Il resto del documento viene chunkato sullo stesso FilteredText.
+        let appended = await controller.fetchNextPage()
+        XCTAssertTrue(appended)
+        XCTAssertGreaterThan(state.readingQueue.count, immediate.count)
+
+        let nsText = text as NSString
+        for chunk in state.readingQueue {
+            XCTAssertEqual(chunk.sourceDocumentID, documentID)
+            guard let range = chunk.sourceRange else {
+                XCTFail("Chunk senza range: \(chunk.text)")
+                continue
+            }
+            XCTAssertGreaterThanOrEqual(range.location, base.location)
+            XCTAssertLessThanOrEqual(range.end, base.end)
+            let slice = nsText.substring(
+                with: NSRange(
+                    location: range.location - base.location,
+                    length: range.length
+                )
+            )
+            XCTAssertEqual(slice, chunk.rawText)
+            XCTAssertFalse(chunk.text.contains("12,50 €"), "Il testo TTS è normalizzato")
+        }
+
+        XCTAssertLessThan(
+            immediate.last!.sourceRange!.location,
+            state.readingQueue.last!.sourceRange!.location,
+            "Il remainder deve stare dopo il prefisso"
+        )
+
+        controller.stopSession()
+        XCTAssertEqual(endedCount, 1)
+        controller.stopSession()
+        XCTAssertEqual(endedCount, 1, "La chiusura della sessione sorgente è idempotente")
+    }
+
+    func testContinuousStartWithoutRangeLeavesChunksUnmappedAndSkipsSourceCallback() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+
+        let source = FakeContinuousTextSource()
+        source.startResults = [
+            ContinuousCaptureStart(
+                text: "Prima frase. Seconda frase.",
+                selectedText: "",
+                canPage: false,
+                sourceDocumentID: UUID(),
+                sourceRange: nil,
+                sourcePID: 42
+            )
+        ]
+
+        let (controller, _) = makeController(state: state, source: source)
+        var startedCount = 0
+        var endedCount = 0
+        controller.onSourceSessionStarted = { _, _ in startedCount += 1 }
+        controller.onSourceSessionEnded = { endedCount += 1 }
+
+        _ = await controller.captureAndPlay()
+
+        XCTAssertEqual(startedCount, 0, "Senza range non si apre nessuna sessione di highlight")
+        XCTAssertEqual(state.readingQueue.count, 2)
+        for chunk in state.readingQueue {
+            XCTAssertNil(chunk.sourceRange)
+            XCTAssertNil(chunk.sourceDocumentID)
+        }
+
+        controller.stopSession()
+        XCTAssertEqual(endedCount, 0, "Non c'era una sessione sorgente da chiudere")
+    }
+
     // MARK: - Helper
 
     private func makeState() -> (AppState, () -> Void) {

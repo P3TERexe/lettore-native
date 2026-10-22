@@ -18,6 +18,10 @@ struct ContinuousAXSession {
     let scrollContainer: AXUIElement?
     let sourcePID: pid_t?
     let appName: String?
+    /// Documento della sessione di highlight aperta con questa cattura. Serve
+    /// a chiudere solo la propria selezione: una cleanup asincrona non deve
+    /// cancellare una sessione più recente registrata nel frattempo.
+    let highlightDocumentID: UUID?
     let selectedText: String
     var capturedText: String
     var lastViewportText: String
@@ -213,6 +217,7 @@ extension AXCaptureService: ContinuousTextSource {
                 scrollContainer: scrollContainer,
                 sourcePID: sourcePID,
                 appName: appName,
+                highlightDocumentID: registration.documentID,
                 selectedText: selectedText,
                 capturedText: text,
                 lastViewportText: resolved.viewportText,
@@ -405,10 +410,15 @@ extension AXCaptureService: ContinuousTextSource {
     }
 
     public func endContinuousCapture() async {
+        let documentID = continuousSession?.highlightDocumentID
         continuousSession = nil
-        // Rilascia observer e sessione di highlight senza deselezionare il
-        // testo: dopo pausa/stop la selezione resta dov'è.
-        clearHighlightSession()
+
+        // Chiude solo la selezione appartenuta a questa sessione. La cleanup
+        // può arrivare dopo che è stata aperta una cattura più recente: in quel
+        // caso `endSourceHighlight` non tocca il documento nuovo.
+        if let documentID {
+            await endSourceHighlight(documentID: documentID)
+        }
     }
 
     // MARK: - Risoluzione del documento

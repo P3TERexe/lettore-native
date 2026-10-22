@@ -43,6 +43,14 @@ public final class ContinuousReadingController {
     private let source: any ContinuousTextSource
     private let playback: any ContinuousPlaybackSink
 
+    /// Chiamata quando anche il resto del documento è stato accodato e il
+    /// playback può partire. Arriva solo quando la sorgente espone documento,
+    /// PID e range: senza tutti e tre l'highlight non è mappabile.
+    public var onSourceSessionStarted: ((UUID, pid_t) -> Void)?
+    /// Chiamata una sola volta alla chiusura della sessione (stop, fine coda o
+    /// errore di cattura). Non deseleziona nulla nell'app di origine.
+    public var onSourceSessionEnded: (() -> Void)?
+
     private let normalizer = TextNormalizer()
     private let chunker = SentenceChunker()
     private let noiseFilter = DocumentNoiseFilter()
@@ -57,6 +65,7 @@ public final class ContinuousReadingController {
     private var pagingEnabled = true
     private var remainderTask: Task<[ReadingChunk], Never>?
     private var sourceCleanupTask: Task<Void, Never>?
+    private var hasSourceSession = false
 
     public convenience init(
         appState: AppState,
@@ -173,25 +182,45 @@ public final class ContinuousReadingController {
         let chunker = self.chunker
         let mode = appState.noiseFilterMode
         let targetLength = Self.immediatePlaybackLength
+        let sourceBase = start.sourceRange
+        let sourceDocumentID = start.sourceDocumentID
+        let hasMapping = sourceBase != nil && sourceDocumentID != nil
 
         let preparation = await Task.detached(priority: .userInitiated) {
-            let prepared = Self.prepare(
-                start.text,
-                normalizer: normalizer,
-                filter: filter,
-                mode: mode
-            )
+            let filtered = filter.filterWithMapping(start.text, mode: mode)
             let split = SentenceCarryBuffer.splitPoint(
-                in: prepared,
+                in: filtered.text,
                 targetLength: targetLength
             )
-            let prefix = String(prepared[..<split])
-            let remainder = String(prepared[split...])
+            let splitOffset = filtered.text[..<split].utf16.count
+            let prefixRange = SourceTextRange(location: 0, length: splitOffset)
+            let remainderRange = SourceTextRange(
+                location: splitOffset,
+                length: max(0, filtered.utf16Length - splitOffset)
+            )
+
+            // I range prodotti dal chunker sono relativi a `start.text`: la
+            // base assoluta AX va sommata una sola volta, qui.
+            let chunks: [ReadingChunk]
+            if hasMapping, let sourceBase, let sourceDocumentID {
+                chunks = chunker.chunk(
+                    filteredText: filtered,
+                    range: prefixRange,
+                    sourceDocumentID: sourceDocumentID
+                ).map { $0.offsettingSourceRange(by: sourceBase.location) }
+            } else {
+                let prefixText = (filtered.text as NSString)
+                    .substring(with: prefixRange.nsRange)
+                chunks = chunker.chunk(text: prefixText)
+            }
 
             return InitialPreparation(
-                displayText: prepared,
-                chunks: chunker.chunk(text: prefix),
-                remainder: remainder
+                displayText: filtered.text,
+                chunks: normalizer.normalize(chunks),
+                filteredText: filtered,
+                remainderRange: remainderRange,
+                sourceDocumentID: hasMapping ? sourceDocumentID : nil,
+                mappingBase: hasMapping ? sourceBase?.location : nil
             )
         }.value
 
@@ -206,11 +235,32 @@ public final class ContinuousReadingController {
         appState.capturedDocumentText = preparation.displayText
         appState.setQueue(preparation.chunks)
 
-        if !preparation.remainder.isEmpty {
-            let remainder = preparation.remainder
+        if !preparation.remainderRange.isEmpty {
+            let filtered = preparation.filteredText
+            let range = preparation.remainderRange
+            let documentID = preparation.sourceDocumentID
+            let mappingBase = preparation.mappingBase
             remainderTask = Task.detached(priority: .utility) {
-                chunker.chunk(text: remainder)
+                let chunks: [ReadingChunk]
+                if let documentID, let mappingBase {
+                    chunks = chunker.chunk(
+                        filteredText: filtered,
+                        range: range,
+                        sourceDocumentID: documentID
+                    ).map { $0.offsettingSourceRange(by: mappingBase) }
+                } else {
+                    let slice = (filtered.text as NSString).substring(with: range.nsRange)
+                    chunks = chunker.chunk(text: slice)
+                }
+                return normalizer.normalize(chunks)
             }
+        }
+
+        if let documentID = start.sourceDocumentID,
+           let sourcePID = start.sourcePID,
+           start.sourceRange != nil {
+            hasSourceSession = true
+            onSourceSessionStarted?(documentID, sourcePID)
         }
 
         playback.playCurrentChunk()
@@ -381,6 +431,11 @@ public final class ContinuousReadingController {
         appState.isContinuousDocumentPaged = false
         appState.isFetchingMoreText = false
 
+        if hasSourceSession {
+            hasSourceSession = false
+            onSourceSessionEnded?()
+        }
+
         let previousCleanup = sourceCleanupTask
         sourceCleanupTask = Task {
             await previousCleanup?.value
@@ -455,5 +510,8 @@ public final class ContinuousReadingController {
 private struct InitialPreparation: Sendable {
     let displayText: String
     let chunks: [ReadingChunk]
-    let remainder: String
+    let filteredText: FilteredText
+    let remainderRange: SourceTextRange
+    let sourceDocumentID: UUID?
+    let mappingBase: Int?
 }

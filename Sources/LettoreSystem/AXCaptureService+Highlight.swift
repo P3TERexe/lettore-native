@@ -39,11 +39,11 @@ struct SourceHighlightRegistration {
 /// Il trimming lavora su `Character`, ma la base assoluta AX è in UTF-16:
 /// contare i caratteri rimossi senza convertirli produrrebbe offset sbagliati
 /// su emoji e altri caratteri fuori dal BMP.
-enum SourceTextTrimming {
+public enum SourceTextTrimming {
 
     /// Numero di unità UTF-16 rimosse all'inizio da
     /// `trimmingCharacters(in: .whitespacesAndNewlines)`.
-    static func leadingUTF16Count(of raw: String) -> Int {
+    public static func leadingUTF16Count(of raw: String) -> Int {
         guard !raw.isEmpty else { return 0 }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return (raw as NSString).length }
@@ -55,7 +55,7 @@ enum SourceTextTrimming {
     ///
     /// La lunghezza non supera mai quella della selezione originale: un range
     /// più lungo è peggio di nessun range.
-    static func trimmedRange(
+    public static func trimmedRange(
         selection: SourceTextRange,
         selectedText: String
     ) -> SourceTextRange {
@@ -133,8 +133,20 @@ extension AXCaptureService {
     ) -> SourceHighlightRegistration {
         clearHighlightSession()
 
-        let mode: SourceHighlightMode = markerContainer == nil ? .textRange : .textMarker
         let documentID = UUID()
+
+        // Senza un range non esiste una selezione da scrivere: non trattenere
+        // l'elemento AX né installare un observer che non potrebbe applicare
+        // nulla. Il chiamante userà il fallback Studio.
+        guard let capturedRange else {
+            return SourceHighlightRegistration(
+                documentID: documentID,
+                sourceRange: nil,
+                sourcePID: sourcePID
+            )
+        }
+
+        let mode: SourceHighlightMode = markerContainer == nil ? .textRange : .textMarker
         highlightSession = SourceHighlightSession(
             documentID: documentID,
             sourcePID: sourcePID,
@@ -144,7 +156,7 @@ extension AXCaptureService {
             capturedRange: capturedRange
         )
 
-        print("[AXCapture][Highlight] sessione=\(documentID.uuidString.prefix(8)) mode=\(mode == .textMarker ? "marker" : "range") range=\(capturedRange.map { "\($0.location)+\($0.length)" } ?? "nil") pid=\(sourcePID.map(String.init) ?? "nil")")
+        print("[AXCapture][Highlight] sessione=\(documentID.uuidString.prefix(8)) mode=\(mode == .textMarker ? "marker" : "range") range=\(capturedRange.location)+\(capturedRange.length) pid=\(sourcePID.map(String.init) ?? "nil")")
 
         return SourceHighlightRegistration(
             documentID: documentID,

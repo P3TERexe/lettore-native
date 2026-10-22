@@ -84,6 +84,29 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         self.sourceRange = sourceRange
     }
 
+    /// Copia con il range sorgente traslato di `offset` unità UTF-16.
+    ///
+    /// Serve a convertire i range relativi al testo catturato (`start.text`)
+    /// nella posizione assoluta dell'app di origine. I chunk senza range
+    /// restano senza range: non si inventa una posizione.
+    public func offsettingSourceRange(by offset: Int) -> ReadingChunk {
+        guard let sourceRange else { return self }
+        return ReadingChunk(
+            id: id,
+            index: index,
+            text: text,
+            rawText: rawText,
+            isSpoken: isSpoken,
+            durationSeconds: durationSeconds,
+            synthesisLatencyMs: synthesisLatencyMs,
+            sourceDocumentID: sourceDocumentID,
+            sourceRange: SourceTextRange(
+                location: sourceRange.location + offset,
+                length: sourceRange.length
+            )
+        )
+    }
+
     /// Copia con testo sostituito, preservando identità, indici, telemetria e
     /// mappa sorgente. Serve alla normalizzazione dopo il chunking.
     public func replacingText(_ newText: String, rawText newRawText: String? = nil) -> ReadingChunk {

@@ -11,6 +11,7 @@ public struct PreferencesStore: @unchecked Sendable {
         public static let continuousReadingEnabled = "lettore.continuousReading.enabled"
         public static let continuousReadingAutoPage = "lettore.continuousReading.autoPage"
         public static let continuousReadingNoiseFilter = "lettore.continuousReading.noiseFilter"
+        public static let sourceHighlightEnabled = "lettore.sourceHighlight.enabled"
     }
 
     private let defaults: UserDefaults
@@ -36,6 +37,16 @@ public struct PreferencesStore: @unchecked Sendable {
         }
         nonmutating set {
             defaults.set(newValue, forKey: Key.continuousReadingAutoPage)
+        }
+    }
+
+    /// L'evidenziazione della frase nell'app di origine è attiva di default.
+    public var isSourceHighlightEnabled: Bool {
+        get {
+            defaults.object(forKey: Key.sourceHighlightEnabled) as? Bool ?? true
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Key.sourceHighlightEnabled)
         }
     }
 

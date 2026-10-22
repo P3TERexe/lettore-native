@@ -184,6 +184,26 @@ final class SourceSelectionControllerTests: XCTestCase {
         await harness.controller.end()
     }
 
+    func testClearingLastRangePreventsReapplyOnActivation() async {
+        let harness = makeHarness(frontmostPID: 42)
+        let documentID = UUID()
+        let range = SourceTextRange(location: 10, length: 4)
+
+        await harness.controller.begin(documentID: documentID, sourcePID: 42)
+        _ = await harness.controller.update(range: range, documentID: documentID)
+
+        harness.controller.clearLastRange()
+        harness.frontmost.pid = 99
+        await harness.controller.handleApplicationActivation(pid: 99)
+        harness.frontmost.pid = 42
+        await harness.controller.handleApplicationActivation(pid: 42)
+
+        let writes = await harness.highlighter.writes
+        XCTAssertEqual(writes, [range], "Senza range corrente non si riapplica la frase precedente")
+
+        await harness.controller.end()
+    }
+
     // MARK: - Stop su input
 
     func testInputInSourceAppCallsCallbackOncePerSession() async {

@@ -38,6 +38,7 @@ struct LettoreApp: App {
     private let shortcutManager: GlobalShortcutManager
     private let coordinator: PlaybackCoordinator
     private let captureController: ContinuousReadingController
+    @State private var sourceHighlightCoordinator: SourceHighlightCoordinator
     @State private var isCaptureLogicSetup = false
 
     init() {
@@ -61,12 +62,40 @@ struct LettoreApp: App {
             coordinator: coordinator,
             source: axCapture
         )
+        let sourceHighlightCoordinator = SourceHighlightCoordinator(
+            appState: state,
+            highlighter: axCapture,
+            isAccessibilityGranted: { AXIsProcessTrusted() },
+            stopReading: {
+                // La sessione continua possiede già lo stop completo; per il
+                // playback non continuo basta fermare il coordinatore.
+                if state.isContinuousSessionActive {
+                    captureController.stopSession()
+                } else {
+                    coordinator.stop()
+                }
+            }
+        )
+
+        captureController.onSourceSessionStarted = { [weak sourceHighlightCoordinator] documentID, pid in
+            sourceHighlightCoordinator?.begin(documentID: documentID, sourcePID: pid)
+        }
+        captureController.onSourceSessionEnded = { [weak sourceHighlightCoordinator] in
+            sourceHighlightCoordinator?.end()
+        }
+        coordinator.onCurrentChunkChanged = { [weak sourceHighlightCoordinator] chunk in
+            sourceHighlightCoordinator?.update(chunk: chunk)
+        }
+        coordinator.onPlaybackEnded = { [weak sourceHighlightCoordinator] in
+            sourceHighlightCoordinator?.end()
+        }
 
         self.audioEngine = audioEngine
         self.axCapture = axCapture
         self.shortcutManager = shortcutManager
         self.coordinator = coordinator
         self.captureController = captureController
+        _sourceHighlightCoordinator = State(initialValue: sourceHighlightCoordinator)
     }
     
     private func setupCaptureLogic(state: AppState) {
@@ -113,9 +142,16 @@ struct LettoreApp: App {
                     return
                 }
 
-                let result = await axCapture.captureSelectedText(from: sourcePID)
-                let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard let result = await axCapture.captureSelectedText(from: sourcePID) else {
+                    // Nessuna selezione leggibile: se esiste una coda non
+                    // ancora finita, riprendila invece di non fare nulla.
+                    if state.playbackState != .playing, state.currentChunk != nil {
+                        self.coordinator.playCurrentChunk()
+                    }
+                    return
+                }
 
+                let text = result.trimmedText
                 guard !text.isEmpty else {
                     // Nessuna selezione leggibile: se esiste una coda non
                     // ancora finita, riprendila invece di non fare nulla.
@@ -130,12 +166,30 @@ struct LettoreApp: App {
                 state.continuationNotice = nil
                 state.capturedDocumentText = ""
 
+                // Il testo è contiguo nella sorgente: il range della selezione
+                // (già avanzato dal trimming) è la base assoluta dei chunk.
+                let sourceRange = result.trimmedSourceRange
                 let normalizer = TextNormalizer()
-                let normalized = normalizer.normalize(text: text)
-                let chunker = SentenceChunker()
-                let chunks = chunker.chunk(text: normalized)
+                let chunks = normalizer.normalize(
+                    SentenceChunker().chunk(
+                        text: text,
+                        sourceRange: sourceRange,
+                        sourceDocumentID: result.sourceDocumentID
+                    )
+                )
 
                 state.setQueue(chunks)
+                if let documentID = result.sourceDocumentID,
+                   let sourcePID = result.sourcePID,
+                   sourceRange != nil {
+                    self.sourceHighlightCoordinator.begin(
+                        documentID: documentID,
+                        sourcePID: sourcePID
+                    )
+                } else {
+                    self.sourceHighlightCoordinator.end()
+                }
+
                 if state.playbackState != .playing {
                     self.coordinator.playCurrentChunk()
                 }
@@ -248,7 +302,13 @@ struct LettoreApp: App {
                     audioEngine: audioEngine,
                     coordinator: coordinator,
                     captureController: captureController,
-                    axCapture: axCapture
+                    axCapture: axCapture,
+                    onSourceHighlightBegin: { documentID, pid in
+                        sourceHighlightCoordinator.begin(documentID: documentID, sourcePID: pid)
+                    },
+                    onSourceHighlightEnd: {
+                        sourceHighlightCoordinator.end()
+                    }
                 )
                 .frame(minWidth: 960, minHeight: 640)
                 .task { setupCaptureLogic(state: appState) }
@@ -279,6 +339,11 @@ struct LettoreApp: App {
                     set: { appState.isAutoPageEnabled = $0 }
                 ))
                 .disabled(!appState.isContinuousReadingEnabled)
+
+                Toggle("Evidenzia la frase nell'app di origine", isOn: Binding(
+                    get: { appState.isSourceHighlightEnabled },
+                    set: { appState.isSourceHighlightEnabled = $0 }
+                ))
             }
             CommandGroup(replacing: .appInfo) {
                 Button("Informazioni su Lettore Native") {
@@ -318,6 +383,11 @@ struct LettoreApp: App {
                 set: { appState.isAutoPageEnabled = $0 }
             ))
             .disabled(!appState.isContinuousReadingEnabled)
+
+            Toggle("Evidenzia la frase nell'app di origine", isOn: Binding(
+                get: { appState.isSourceHighlightEnabled },
+                set: { appState.isSourceHighlightEnabled = $0 }
+            ))
 
             Divider()
             Button("Profilo Bassa Visione (WCAG AAA)") {

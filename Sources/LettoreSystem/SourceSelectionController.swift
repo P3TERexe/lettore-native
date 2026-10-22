@@ -193,9 +193,11 @@ public final class SourceSelectionController {
             documentID: documentID
         )
 
-        // La sessione può essere cambiata durante l'await: non applicare
-        // l'esito della vecchia richiesta alla sessione nuova.
-        guard self.session?.documentID == documentID else { return outcome }
+        // La sessione può essere cambiata durante l'await, oppure il range può
+        // essere stato invalidato perché nel frattempo è arrivato un chunk
+        // senza mappa: in entrambi i casi non scrivere il range vecchio.
+        guard self.session?.documentID == documentID,
+              self.session?.lastRange == range else { return nil }
         if outcome == .suspended {
             self.session?.isSuspended = true
         }
@@ -206,6 +208,17 @@ public final class SourceSelectionController {
     public func suspend() {
         guard session != nil else { return }
         session?.isSuspended = true
+    }
+
+    /// Dimentica l'ultimo range senza scrivere né chiudere la sessione.
+    ///
+    /// Serve quando il chunk corrente non è mappabile: un ritorno in primo
+    /// piano non deve riapplicare la selezione di un chunk precedente.
+    public func clearLastRange() {
+        guard var current = session else { return }
+        current.lastRange = nil
+        current.isSuspended = true
+        session = current
     }
 
     /// Riprende gli aggiornamenti se la sorgente è di nuovo frontmost.
