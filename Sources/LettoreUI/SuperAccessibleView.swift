@@ -188,7 +188,7 @@ public struct SuperAccessibleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 let currentIndex = appState.currentChunk.flatMap { current in
-                    appState.readingQueue.firstIndex(where: { $0.id == current.id })
+                    appState.index(of: current)
                 } ?? 0
                 
                 // Paragrafo precedente attenuato dalla coda reale

@@ -179,7 +179,7 @@ public final class PlaybackCoordinator {
     
     private func managePreloadRingBuffer() {
         guard let current = appState.currentChunk,
-              let currentIndex = appState.readingQueue.firstIndex(where: { $0.id == current.id }) else {
+              let currentIndex = appState.index(of: current) else {
             return
         }
         
@@ -489,7 +489,7 @@ public final class PlaybackCoordinator {
     /// in corso prima di dichiarare finita la sessione.
     private func requestMoreTextIfNeeded() {
         guard let current = appState.currentChunk,
-              let currentIndex = appState.readingQueue.firstIndex(where: { $0.id == current.id }),
+              let currentIndex = appState.index(of: current),
               appState.readingQueue.count - currentIndex <= 3,
               !isFetchingMoreText,
               let onQueueLow else {

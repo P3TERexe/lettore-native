@@ -73,7 +73,10 @@ public struct ReadingTextPreparer: Sendable {
         maxImmediateLength: Int? = nil
     ) -> PreparedReading {
         let filtered = filter.filterWithMapping(text, mode: mode)
-        let mappingBase = sourceRange?.location
+        // Un range senza identità di documento non è una mappa utilizzabile:
+        // produrrebbe chunk con `sourceRange` ma senza documento, che nessuna
+        // sessione di evidenziazione può consumare.
+        let mappingBase = sourceDocumentID == nil ? nil : sourceRange?.location
         let limit = maxImmediateLength.flatMap { $0 > 0 ? $0 : nil }
 
         guard let limit, filtered.text.count > limit else {

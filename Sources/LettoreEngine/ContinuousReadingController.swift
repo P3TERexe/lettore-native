@@ -300,10 +300,10 @@ public final class ContinuousReadingController {
                 guard let batch = await preparedBatch(from: completeRaw, generation: generation) else {
                     return false
                 }
-                if !batch.prepared.isEmpty, !batch.chunks.isEmpty {
+                if !batch.displayText.isEmpty, !batch.chunks.isEmpty {
                     appendedText = appendedText.isEmpty
-                        ? batch.prepared
-                        : appendedText + "\n\n" + batch.prepared
+                        ? batch.displayText
+                        : appendedText + "\n\n" + batch.displayText
                     pendingChunks.append(contentsOf: batch.chunks)
                     appendedChunk = true
                 }
@@ -319,10 +319,10 @@ public final class ContinuousReadingController {
                 guard let batch = await preparedBatch(from: tail, generation: generation) else {
                     return false
                 }
-                if !batch.prepared.isEmpty, !batch.chunks.isEmpty {
+                if !batch.displayText.isEmpty, !batch.chunks.isEmpty {
                     appendedText = appendedText.isEmpty
-                        ? batch.prepared
-                        : appendedText + "\n\n" + batch.prepared
+                        ? batch.displayText
+                        : appendedText + "\n\n" + batch.displayText
                     pendingChunks.append(contentsOf: batch.chunks)
                 }
             }
@@ -420,21 +420,15 @@ public final class ContinuousReadingController {
 
     // MARK: - Preparazione testo
 
-    private struct PreparedBatch: Sendable {
-        let prepared: String
-        let chunks: [ReadingChunk]
-    }
-
-    private func preparedBatch(from raw: String, generation: Int) async -> PreparedBatch? {
+    private func preparedBatch(from raw: String, generation: Int) async -> PreparedReading? {
         let preparer = textPreparer
         let mode = appState.noiseFilterMode
 
-        let batch = await Task.detached(priority: .userInitiated) {
-            let reading = preparer.preparePage(text: raw, mode: mode)
-            return PreparedBatch(prepared: reading.displayText, chunks: reading.chunks)
+        let reading = await Task.detached(priority: .userInitiated) {
+            preparer.preparePage(text: raw, mode: mode)
         }.value
 
         guard isCurrent(generation) else { return nil }
-        return batch
+        return reading
     }
 }

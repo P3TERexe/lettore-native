@@ -71,6 +71,22 @@ final class ReadingTextPreparerTests: XCTestCase {
         XCTAssertEqual(manual.chunks.count, selection.chunks.count)
     }
 
+    func testRangeWithoutDocumentLeavesChunksUnmapped() {
+        let text = "Prima frase. Seconda frase."
+        let reading = preparer.prepareInitial(
+            text: text,
+            sourceRange: SourceTextRange(location: 100, length: text.utf16.count),
+            sourceDocumentID: nil,
+            mode: .off
+        )
+
+        XCTAssertFalse(reading.chunks.isEmpty)
+        XCTAssertTrue(
+            reading.chunks.allSatisfy { $0.sourceRange == nil && $0.sourceDocumentID == nil },
+            "Un range senza documento non è una mappa consumabile da una sessione di highlight"
+        )
+    }
+
     // MARK: - Split iniziale e remainder
 
     func testInitialSplitProducesRemainderWithAbsoluteRanges() {
@@ -111,6 +127,16 @@ final class ReadingTextPreparerTests: XCTestCase {
 
         XCTAssertFalse(reading.hasRemainder)
         XCTAssertTrue(preparer.prepareRemainder(of: reading).isEmpty)
+    }
+
+    func testImmediateSplitKeepsTheSameChunkBoundariesAsUnsplitText() {
+        let text = "Prima frase. Seconda frase. Terza frase."
+        let unsplit = preparer.prepareInitial(text: text, mode: .off)
+        let split = preparer.prepareInitial(text: text, mode: .off, maxImmediateLength: 14)
+        let combined = split.chunks + preparer.prepareRemainder(of: split)
+
+        XCTAssertTrue(split.hasRemainder)
+        XCTAssertEqual(combined.map(\.text), unsplit.chunks.map(\.text))
     }
 
     func testNonPositiveLimitDisablesSplit() {
@@ -185,5 +211,13 @@ final class ReadingTextPreparerTests: XCTestCase {
 
         XCTAssertEqual(reading.displayText, "Costa 50 €. Fine.")
         XCTAssertEqual(reading.chunks.map(\.text), ["Costa 50 euro.", "Fine."])
+    }
+
+    func testPageAndManualShareChunkBoundariesOnCleanText() {
+        let text = "Costa 50 €. Seconda frase. Fine."
+        let page = preparer.preparePage(text: text, mode: .off)
+        let manual = preparer.prepareInitial(text: text, mode: .off)
+
+        XCTAssertEqual(page.chunks.map(\.text), manual.chunks.map(\.text))
     }
 }

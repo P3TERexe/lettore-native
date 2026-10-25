@@ -137,13 +137,12 @@ public final class AppState: @unchecked Sendable {
         guard !chunks.isEmpty else { return [] }
 
         let wasFinished = queue.current == nil
-        let wasEmpty = queue.isEmpty
         let reindexed = queue.append(chunks)
 
         // Se la coda era terminata, la prima pagina nuova diventa il punto di
         // ripresa senza richiedere un altro tap su Play.
         if wasFinished {
-            self.playbackProgress = wasEmpty ? 0.0 : queue.progress
+            self.playbackProgress = queue.progress
         }
 
         return reindexed
@@ -152,14 +151,14 @@ public final class AppState: @unchecked Sendable {
     public func advanceChunk() -> ReadingChunk? {
         guard queue.current != nil else { return nil }
 
-        if let next = queue.advance() {
-            self.playbackProgress = queue.progress
-            return next
-        }
+        let next = queue.advance()
+        self.playbackProgress = queue.progress
 
-        self.playbackState = .idle
-        self.playbackProgress = 1.0
-        return nil
+        guard let next else {
+            self.playbackState = .idle
+            return nil
+        }
+        return next
     }
     
     public func rewindChunk() -> ReadingChunk? {
@@ -179,12 +178,10 @@ public final class AppState: @unchecked Sendable {
         return selected
     }
 
-    /// Seleziona il chunk corrente per posizione, con bounds check.
-    @discardableResult
-    public func selectChunk(at index: Int) -> ReadingChunk? {
-        guard let selected = queue.select(index: index) else { return nil }
-        self.playbackProgress = queue.progress
-        return selected
+    /// Posizione del chunk nella coda, per chi deve ragionare sul prefetch
+    /// senza duplicare la ricerca per identità.
+    public func index(of chunk: ReadingChunk) -> Int? {
+        queue.index(of: chunk.id)
     }
     
     public func setSpeed(_ newSpeed: Float) {
