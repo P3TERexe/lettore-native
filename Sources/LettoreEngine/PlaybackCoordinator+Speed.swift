@@ -8,8 +8,9 @@ import LettoreCore
 /// le view. Il clamp è qui una sola volta, non duplicato nella UI.
 extension PlaybackCoordinator {
     public func setSpeed(_ speed: Float) {
-        let clamped = max(0.5, min(2.0, speed))
-        appState.playbackSpeed = clamped
-        audioEngine.setSpeed(clamped)
+        // Il clamp vive in `AppState`; qui si applica al player il valore già
+        // normalizzato, così UI e stato non possono divergere.
+        appState.setSpeed(speed)
+        audioEngine.setSpeed(appState.playbackSpeed)
     }
 }
