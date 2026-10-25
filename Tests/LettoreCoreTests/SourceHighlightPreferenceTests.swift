@@ -1,6 +1,5 @@
 import XCTest
 @testable import LettoreCore
-@testable import LettoreSystem
 
 final class SourceHighlightPreferenceTests: XCTestCase {
 
@@ -42,7 +41,7 @@ final class SourceHighlightPreferenceTests: XCTestCase {
     }
 
     func testTrimmedCaptureResultAdvancesTheAbsoluteRange() {
-        let result = AXCaptureResult(
+        let result = CapturedSelection(
             text: "  😀 ciao  ",
             sourceRange: SourceTextRange(location: 100, length: 20)
         )
@@ -58,7 +57,7 @@ final class SourceHighlightPreferenceTests: XCTestCase {
     }
 
     func testCaptureWithoutRangeKeepsTrimmedRangeNil() {
-        let result = AXCaptureResult(text: "  Testo senza mappa  ")
+        let result = CapturedSelection(text: "  Testo senza mappa  ")
         XCTAssertEqual(result.trimmedText, "Testo senza mappa")
         XCTAssertNil(result.trimmedSourceRange)
     }
