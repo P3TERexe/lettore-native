@@ -75,8 +75,8 @@ Il percorso è:
    (prefisso immediato e remainder), e produce `SourceTextRange` relativi al
    testo catturato.
 3. La base assoluta AX (`ContinuousCaptureStart.sourceRange.location` o
-   `AXCaptureResult.trimmedSourceRange.location`) viene sommata **una sola
-   volta**, dopo il chunking.
+   `CapturedSelection.trimmedSourceRange.location`, allora `AXCaptureResult`)
+   viene sommata **una sola volta**, dopo il chunking.
 4. Il trimming iniziale della selezione avanza la base di quante unità UTF-16
    sono state rimosse, non di quanti `Character`.
 5. `TextNormalizer` lavora **dopo** il chunking: cambia il testo pronunciato,
