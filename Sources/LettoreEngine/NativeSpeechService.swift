@@ -11,6 +11,9 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
     private var waveformTimer: Timer?
     private var speechPhase: Float = 0.0
+    /// Identità dell'utterance corrente: i callback di un'utterance fermata e
+    /// sostituita non devono chiudere o spegnere quella nuova.
+    private var activeUtteranceID: ObjectIdentifier?
     
     public var onFinish: (() -> Void)?
     public var onWordHighlight: ((NSRange) -> Void)?
@@ -54,6 +57,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
         
+        activeUtteranceID = ObjectIdentifier(utterance)
         isSpeaking = true
         isPaused = false
         startWaveformAnimation()
@@ -83,6 +87,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     /// Ferma completamente la sintesi vocale corrente.
     public func stop() {
         stopWaveformAnimation()
+        activeUtteranceID = nil
         if synthesizer.isSpeaking || synthesizer.isPaused {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -93,7 +98,10 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     // MARK: - AVSpeechSynthesizerDelegate
     
     public nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
         Task { @MainActor in
+            guard self.activeUtteranceID == utteranceID else { return }
+            self.activeUtteranceID = nil
             self.isSpeaking = false
             self.isPaused = false
             self.stopWaveformAnimation()
@@ -103,7 +111,10 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     }
     
     public nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        let utteranceID = ObjectIdentifier(utterance)
         Task { @MainActor in
+            guard self.activeUtteranceID == utteranceID else { return }
+            self.activeUtteranceID = nil
             self.isSpeaking = false
             self.isPaused = false
             self.stopWaveformAnimation()

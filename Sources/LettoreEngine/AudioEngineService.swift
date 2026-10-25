@@ -98,6 +98,10 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     // MARK: - AVAudioPlayerDelegate
     
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        // Un player fermato e sostituito può ancora consegnare il proprio
+        // didFinish: appartiene a un'utterance vecchia e non deve chiudere
+        // quella nuova.
+        guard player === self.player else { return }
         print("[AudioPlayer] Riproduzione terminata (successo: \(flag))")
         stopMetering()
         let completion = onPlaybackComplete
@@ -108,6 +112,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     }
     
     public func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        guard player === self.player else { return }
         print("[AudioPlayer] ERRORE decodifica: \(error?.localizedDescription ?? "sconosciuto")")
         stopMetering()
         let completion = onPlaybackComplete
