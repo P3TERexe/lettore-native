@@ -25,7 +25,6 @@ struct ContinuousAXSession {
     let selectedText: String
     var capturedText: String
     var lastViewportText: String
-    var lastScrollValue: Double?
     var canPage: Bool
     var reachedEnd: Bool
 }
@@ -221,7 +220,6 @@ extension AXCaptureService: ContinuousTextSource {
                 selectedText: selectedText,
                 capturedText: text,
                 lastViewportText: resolved.viewportText,
-                lastScrollValue: scrollContainer.flatMap { scrollBarValue(of: $0) },
                 canPage: canPage,
                 reachedEnd: !canPage
             )
@@ -372,7 +370,6 @@ extension AXCaptureService: ContinuousTextSource {
         var updated = local
         updated.capturedText += pageText
         updated.lastViewportText = after
-        updated.lastScrollValue = scrollBarValue(of: container)
         updated.reachedEnd = hitSafetyCap || scrollEndState(of: container) == .atEnd
 
         guard commitContinuousSession(updated) else { return .end }
@@ -1115,13 +1112,6 @@ extension AXCaptureService: ContinuousTextSource {
             minValue: state.min,
             maxValue: state.max
         )
-    }
-
-    private func scrollBarValue(of container: AXUIElement) -> Double? {
-        guard let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString) else {
-            return nil
-        }
-        return doubleAttribute(bar, kAXValueAttribute as CFString)
     }
 
     private func scrollBarState(of bar: AXUIElement) -> (value: Double, min: Double, max: Double)? {
