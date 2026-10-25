@@ -80,8 +80,8 @@ delle chiamate AX e le firme pubbliche: traduce solo `AXUIElement` in
 - Il contratto dei chunk è esplicito: il client produce chunk entro 240
   caratteri e il backend non richunka un testo che rispetta il contratto.
 - Le superfici senza consumatori (`/v1/queue`, `/v1/blocks`, `QueueManager`,
-  `backend/blocks`) sono state rimosse invece di essere mantenute come
-  architettura simulata.
+  `backend/blocks`, `/v1/tts/export` con `chunking.py` e `concat_wav_bytes`)
+  sono state rimosse invece di essere mantenute come architettura simulata.
 
 ## Alternative scartate
 
@@ -91,8 +91,8 @@ delle chiamate AX e le firme pubbliche: traduce solo `AXUIElement` in
   sull'indice, già causa di jump incoerenti dopo un append.
 - **Un protocollo per ogni helper AX**: un solo adapter; l'astrazione avrebbe
   aggiunto cerimonia senza possibilità di sostituzione.
-- **Mantenere `/v1/queue` e `/v1/blocks` "per il futuro"**: nessun consumatore,
-  costo di test e superficie di contratto da mantenere.
+- **Mantenere `/v1/queue`, `/v1/blocks` e `/v1/tts/export` "per il futuro"**:
+  nessun consumatore, costo di test e superficie di contratto da mantenere.
 - **Introdurre un protocollo per `ReadingTextPreparer`**: è un value type
   deterministico senza dipendenze di sistema; i test lo usano direttamente.
 
@@ -106,7 +106,8 @@ delle chiamate AX e le firme pubbliche: traduce solo `AXUIElement` in
   Swift 6 `@Observable`, offline-first, backend sidecar fino a M4.
 - `SpeechOutput` possiede sintesi, cache L1/L2, prefetch, fallback alla voce
   di sistema e metering; `PlaybackCoordinator` resta coda, sessione e paging e
-  consuma eventi con `requestID`. La lettura disco della cache avviene fuori dal
+  consuma eventi con `requestID`. `VoiceSource` distingue audio neurale e voce
+  di sistema senza usare il termine generico *engine*. La lettura disco della cache avviene fuori dal
   MainActor e i completamenti di player/utterance sostituiti vengono ignorati.
 - `ReadingCaptureController` è l'unica policy di cattura e `PillGeometry`
   possiede la geometria della pillola; le view comandano il playback tramite

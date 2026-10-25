@@ -6,7 +6,8 @@
 > [!NOTE]
 > Nel client Swift la normalizzazione avviene una sola volta in `LettoreCore`,
 > prima del chunking, e il backend non la ripete quando riceve
-> `normalize_text: false`. L'endpoint `/v1/queue` non esiste più.
+> `normalize_text: false`. Gli endpoint `/v1/queue` e `/v1/tts/export` non
+> esistono più.
 
 ## Contesto & Problema
 
