@@ -4,8 +4,23 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# Limite dei chunk prodotti dal client nativo (`SentenceChunker` in LettoreCore).
+# Un testo entro questo limite è già segmentato: il backend non deve richunkarlo.
+CLIENT_CHUNK_MAX_CHARS = 240
+
 
 class TTSRequest(BaseModel):
+    """Richiesta di sintesi per un singolo chunk.
+
+    Contratto con il client nativo: il testo arriva già filtrato, segmentato e
+    normalizzato una sola volta in ``LettoreCore``, con lunghezza massima
+    ``CLIENT_CHUNK_MAX_CHARS``. Il backend sintetizza il testo ricevuto così
+    com'è e non applica alcun richunking.
+
+    ``normalize_text`` resta ``True`` di default per i client esterni (il sito),
+    che non hanno una pipeline di preparazione propria.
+    """
+
     text: str = Field(min_length=1, max_length=20000)
     lang: str = "auto"
     voice: str = "M1"
@@ -21,39 +36,6 @@ class ExportRequest(BaseModel):
     voice: str = "M1"
     steps: int = Field(default=8, ge=5, le=12)
     speed: float = Field(default=1.05, ge=0.1, le=4.0)
-
-
-class Job(BaseModel):
-    id: str
-    text: str
-    lang: str = "auto"
-    voice: str = "M1"
-    steps: int = 8
-    speed: float = 1.05
-    status: Literal["pending", "playing", "done", "cancelled"] = "pending"
-    duration_ms: int | None = None
-
-
-class QueueAddRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=50000)
-    lang: str = "auto"
-    voice: str = "M1"
-    steps: int = Field(default=8, ge=5, le=12)
-    speed: float = Field(default=1.05, ge=0.7, le=2.0)
-    split_paragraphs: bool = False
-    normalize_text: bool = True
-    text_exclusions: list[str] = Field(default_factory=list)
-
-
-class QueueAddResponse(BaseModel):
-    job_ids: list[str]
-    split_into: int
-
-
-class QueueState(BaseModel):
-    state: Literal["idle", "playing", "paused", "stopped"]
-    current: Job | None = None
-    jobs: list[Job]
 
 
 class VoiceEntry(BaseModel):
@@ -83,7 +65,6 @@ class StatusResponse(BaseModel):
     model_loading: bool
     model: str
     sample_rate: int | None = None
-    queue: QueueState
 
 
 class AppConfig(BaseModel):
