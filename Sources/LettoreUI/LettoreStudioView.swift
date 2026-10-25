@@ -934,12 +934,9 @@ public struct LettoreStudioView: View {
         appState.continuationNotice = nil
         appState.capturedDocumentText = ""
 
-        let normalizer = TextNormalizer()
-        let normalized = normalizer.normalize(text: text)
-        let chunker = SentenceChunker()
-        let chunks = chunker.chunk(text: normalized)
-        
-        appState.setQueue(chunks)
+        let reading = ReadingTextPreparer().prepareInitial(text: text, mode: .off)
+
+        appState.setQueue(reading.chunks)
         inputText = ""
         coordinator.playCurrentChunk()
     }
@@ -956,16 +953,15 @@ public struct LettoreStudioView: View {
         appState.capturedDocumentText = ""
 
         let sourceRange = result.trimmedSourceRange
-        let chunks = TextNormalizer().normalize(
-            SentenceChunker().chunk(
-                text: text,
-                sourceRange: sourceRange,
-                sourceDocumentID: result.sourceDocumentID
-            )
+        let reading = ReadingTextPreparer().prepareInitial(
+            text: text,
+            sourceRange: sourceRange,
+            sourceDocumentID: result.sourceDocumentID,
+            mode: .off
         )
-        guard !chunks.isEmpty else { return }
+        guard !reading.chunks.isEmpty else { return }
 
-        appState.setQueue(chunks)
+        appState.setQueue(reading.chunks)
         inputText = result.text
 
         if let documentID = result.sourceDocumentID,

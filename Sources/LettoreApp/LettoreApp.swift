@@ -42,9 +42,8 @@ struct LettoreApp: App {
     @State private var isCaptureLogicSetup = false
 
     init() {
-        let chunker = SentenceChunker()
         let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
-        let chunks = chunker.chunk(text: sample)
+        let chunks = ReadingTextPreparer().prepareInitial(text: sample, mode: .off).chunks
         let state = AppState()
         state.setQueue(chunks)
         if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
@@ -169,16 +168,14 @@ struct LettoreApp: App {
                 // Il testo è contiguo nella sorgente: il range della selezione
                 // (già avanzato dal trimming) è la base assoluta dei chunk.
                 let sourceRange = result.trimmedSourceRange
-                let normalizer = TextNormalizer()
-                let chunks = normalizer.normalize(
-                    SentenceChunker().chunk(
-                        text: text,
-                        sourceRange: sourceRange,
-                        sourceDocumentID: result.sourceDocumentID
-                    )
+                let reading = ReadingTextPreparer().prepareInitial(
+                    text: text,
+                    sourceRange: sourceRange,
+                    sourceDocumentID: result.sourceDocumentID,
+                    mode: .off
                 )
 
-                state.setQueue(chunks)
+                state.setQueue(reading.chunks)
                 if let documentID = result.sourceDocumentID,
                    let sourcePID = result.sourcePID,
                    sourceRange != nil {

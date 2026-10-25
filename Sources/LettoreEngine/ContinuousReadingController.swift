@@ -51,9 +51,7 @@ public final class ContinuousReadingController {
     /// errore di cattura). Non deseleziona nulla nell'app di origine.
     public var onSourceSessionEnded: (() -> Void)?
 
-    private let normalizer = TextNormalizer()
-    private let chunker = SentenceChunker()
-    private let noiseFilter = DocumentNoiseFilter()
+    private let textPreparer = ReadingTextPreparer()
 
     private var rawCarry = SentenceCarryBuffer()
     private var isSessionActive = false
@@ -177,50 +175,19 @@ public final class ContinuousReadingController {
 
         appState.isContinuousDocumentPaged = start.canPage && appState.isAutoPageEnabled
 
-        let filter = noiseFilter
-        let normalizer = self.normalizer
-        let chunker = self.chunker
+        let preparer = textPreparer
         let mode = appState.noiseFilterMode
-        let targetLength = Self.immediatePlaybackLength
-        let sourceBase = start.sourceRange
+        let sourceRange = start.sourceRange
         let sourceDocumentID = start.sourceDocumentID
-        let hasMapping = sourceBase != nil && sourceDocumentID != nil
+        let targetLength = Self.immediatePlaybackLength
 
         let preparation = await Task.detached(priority: .userInitiated) {
-            let filtered = filter.filterWithMapping(start.text, mode: mode)
-            let split = SentenceCarryBuffer.splitPoint(
-                in: filtered.text,
-                targetLength: targetLength
-            )
-            let splitOffset = filtered.text[..<split].utf16.count
-            let prefixRange = SourceTextRange(location: 0, length: splitOffset)
-            let remainderRange = SourceTextRange(
-                location: splitOffset,
-                length: max(0, filtered.utf16Length - splitOffset)
-            )
-
-            // I range prodotti dal chunker sono relativi a `start.text`: la
-            // base assoluta AX va sommata una sola volta, qui.
-            let chunks: [ReadingChunk]
-            if hasMapping, let sourceBase, let sourceDocumentID {
-                chunks = chunker.chunk(
-                    filteredText: filtered,
-                    range: prefixRange,
-                    sourceDocumentID: sourceDocumentID
-                ).map { $0.offsettingSourceRange(by: sourceBase.location) }
-            } else {
-                let prefixText = (filtered.text as NSString)
-                    .substring(with: prefixRange.nsRange)
-                chunks = chunker.chunk(text: prefixText)
-            }
-
-            return InitialPreparation(
-                displayText: filtered.text,
-                chunks: normalizer.normalize(chunks),
-                filteredText: filtered,
-                remainderRange: remainderRange,
-                sourceDocumentID: hasMapping ? sourceDocumentID : nil,
-                mappingBase: hasMapping ? sourceBase?.location : nil
+            preparer.prepareInitial(
+                text: start.text,
+                sourceRange: sourceRange,
+                sourceDocumentID: sourceDocumentID,
+                mode: mode,
+                maxImmediateLength: targetLength
             )
         }.value
 
@@ -235,24 +202,10 @@ public final class ContinuousReadingController {
         appState.capturedDocumentText = preparation.displayText
         appState.setQueue(preparation.chunks)
 
-        if !preparation.remainderRange.isEmpty {
-            let filtered = preparation.filteredText
-            let range = preparation.remainderRange
-            let documentID = preparation.sourceDocumentID
-            let mappingBase = preparation.mappingBase
+        if preparation.hasRemainder {
+            let preparer = textPreparer
             remainderTask = Task.detached(priority: .utility) {
-                let chunks: [ReadingChunk]
-                if let documentID, let mappingBase {
-                    chunks = chunker.chunk(
-                        filteredText: filtered,
-                        range: range,
-                        sourceDocumentID: documentID
-                    ).map { $0.offsettingSourceRange(by: mappingBase) }
-                } else {
-                    let slice = (filtered.text as NSString).substring(with: range.nsRange)
-                    chunks = chunker.chunk(text: slice)
-                }
-                return normalizer.normalize(chunks)
+                preparer.prepareRemainder(of: preparation)
             }
         }
 
@@ -473,45 +426,15 @@ public final class ContinuousReadingController {
     }
 
     private func preparedBatch(from raw: String, generation: Int) async -> PreparedBatch? {
-        let filter = noiseFilter
-        let normalizer = self.normalizer
-        let chunker = self.chunker
+        let preparer = textPreparer
         let mode = appState.noiseFilterMode
 
         let batch = await Task.detached(priority: .userInitiated) {
-            let prepared = Self.prepare(raw, normalizer: normalizer, filter: filter, mode: mode)
-            return PreparedBatch(prepared: prepared, chunks: chunker.chunk(text: prepared))
+            let reading = preparer.preparePage(text: raw, mode: mode)
+            return PreparedBatch(prepared: reading.displayText, chunks: reading.chunks)
         }.value
 
         guard isCurrent(generation) else { return nil }
         return batch
     }
-
-    nonisolated private static func prepare(
-        _ text: String,
-        normalizer: TextNormalizer,
-        filter: DocumentNoiseFilter,
-        mode: NoiseFilterMode
-    ) -> String {
-        let normalizedNewlines = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
-
-        let filtered = filter.filter(normalizedNewlines, mode: mode)
-        let paragraphs = filtered.components(separatedBy: "\n\n")
-        return paragraphs
-            .map { normalizer.normalize(text: $0) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n\n")
-    }
-}
-
-private struct InitialPreparation: Sendable {
-    let displayText: String
-    let chunks: [ReadingChunk]
-    let filteredText: FilteredText
-    let remainderRange: SourceTextRange
-    let sourceDocumentID: UUID?
-    let mappingBase: Int?
 }
