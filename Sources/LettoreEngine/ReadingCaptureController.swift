@@ -71,17 +71,21 @@ public final class ReadingCaptureController {
     // MARK: - Policy
 
     private func missingSourceApplicationOutcome() -> CaptureOutcome {
-        guard appState.playbackState != .playing else {
-            return .unavailable(reason: Self.missingSourceApplicationNotice)
+        fallbackToQueue(reason: Self.missingSourceApplicationNotice)
+    }
+
+    /// Unica regola di ripiego: durante il playback la coda sta già suonando,
+    /// quindi non si riavvia; altrimenti, se esiste un chunk, si riprende.
+    /// In tutti i casi l'avviso arriva all'utente perché i chiamanti leggono
+    /// `continuationNotice`, non il motivo dell'esito.
+    private func fallbackToQueue(reason: String) -> CaptureOutcome {
+        guard appState.playbackState != .playing, appState.currentChunk != nil else {
+            appState.continuationNotice = reason
+            return .unavailable(reason: reason)
         }
 
-        if appState.currentChunk != nil {
-            appState.continuationNotice = nil
-            return .fellBackToQueue
-        }
-
-        appState.continuationNotice = Self.missingSourceApplicationNotice
-        return .unavailable(reason: Self.missingSourceApplicationNotice)
+        appState.continuationNotice = nil
+        return .fellBackToQueue
     }
 
     private func capture(from applicationPID: pid_t?, isContinuousEnabled: Bool) async -> CaptureOutcome {
@@ -98,23 +102,15 @@ public final class ReadingCaptureController {
         }
 
         // `ContinuousReadingController` scrive già l'avviso quando la cattura
-        // non produce testo. Qui si aggiunge solo il ritorno alla coda.
+        // non produce testo: si conserva invece di sostituirlo con un generico.
         let reason = appState.continuationNotice ?? "Nessun testo leggibile nell'app in primo piano."
-        guard appState.playbackState != .playing, appState.currentChunk != nil else {
-            return .unavailable(reason: reason)
-        }
-
-        appState.continuationNotice = nil
-        return .fellBackToQueue
+        return fallbackToQueue(reason: reason)
     }
 
     private func captureSelection(from applicationPID: pid_t?) async -> CaptureOutcome {
         guard let selection = await selectedText.captureSelectedText(from: applicationPID),
               !selection.trimmedText.isEmpty else {
-            guard appState.playbackState != .playing, appState.currentChunk != nil else {
-                return .unavailable(reason: "Nessuna selezione leggibile.")
-            }
-            return .fellBackToQueue
+            return fallbackToQueue(reason: "Nessuna selezione leggibile.")
         }
 
         appState.continuationNotice = nil

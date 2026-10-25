@@ -1,12 +1,8 @@
-import CoreGraphics
 import Foundation
 
 /// Risultato di un'operazione di cattura del testo da un'applicazione esterna.
 public struct CapturedSelection: Sendable {
     public let text: String
-    public let sourceAppName: String?
-    public let selectionBounds: CGRect?
-    public let usedClipboardFallback: Bool
     /// Sessione sorgente registrata per l'highlight, se la selezione è stata
     /// letta via AX. Resta `nil` quando si usa il fallback clipboard.
     public let sourceDocumentID: UUID?
@@ -15,17 +11,11 @@ public struct CapturedSelection: Sendable {
 
     public init(
         text: String,
-        sourceAppName: String? = nil,
-        selectionBounds: CGRect? = nil,
-        usedClipboardFallback: Bool = false,
         sourceDocumentID: UUID? = nil,
         sourceRange: SourceTextRange? = nil,
         sourcePID: pid_t? = nil
     ) {
         self.text = text
-        self.sourceAppName = sourceAppName
-        self.selectionBounds = selectionBounds
-        self.usedClipboardFallback = usedClipboardFallback
         self.sourceDocumentID = sourceDocumentID
         self.sourceRange = sourceRange
         self.sourcePID = sourcePID

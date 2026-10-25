@@ -31,7 +31,7 @@ public struct SpeechRequest: Identifiable, Sendable, Equatable {
 }
 
 /// Motore che ha prodotto l'audio in riproduzione.
-public enum SpeechEngine: Sendable, Equatable {
+public enum VoiceSource: Sendable, Equatable {
     case neural
     case system
 }
@@ -39,7 +39,7 @@ public enum SpeechEngine: Sendable, Equatable {
 public struct SpeechStarted: Sendable, Equatable {
     public let requestID: UUID
     public let chunkID: UUID
-    public let engine: SpeechEngine
+    public let source: VoiceSource
     /// Tempo di sintesi misurato solo quando l'audio è stato appena generato.
     /// È `nil` per cache hit, preload consumato e voce di sistema.
     public let synthesisDurationMs: Double?
@@ -49,13 +49,13 @@ public struct SpeechStarted: Sendable, Equatable {
     public init(
         requestID: UUID,
         chunkID: UUID,
-        engine: SpeechEngine,
+        source: VoiceSource,
         synthesisDurationMs: Double? = nil,
         notice: String? = nil
     ) {
         self.requestID = requestID
         self.chunkID = chunkID
-        self.engine = engine
+        self.source = source
         self.synthesisDurationMs = synthesisDurationMs
         self.notice = notice
     }
@@ -67,7 +67,7 @@ public enum SpeechEvent: Sendable, Equatable {
     case progress(requestID: UUID, fraction: Double)
     case levels(requestID: UUID, levels: [Float])
     case finished(requestID: UUID)
-    case failed(requestID: UUID, message: String)
+    case synthesisFailed(requestID: UUID, message: String)
 }
 
 /// Output vocale profondo: possiede sintesi, cache L1/L2, prefetch, fallback
@@ -78,7 +78,7 @@ public enum SpeechEvent: Sendable, Equatable {
 @MainActor
 public final class SpeechOutput {
     public let supertonicPipeline: any TTSPipelineProtocol
-    public let speechFallback: NativeSpeechService
+    private let speechFallback: NativeSpeechService
 
     private let audio: any SpeechAudioBackend
     private let cacheManager: AudioCacheManager
@@ -88,11 +88,6 @@ public final class SpeechOutput {
 
     private let eventsStream: AsyncStream<SpeechEvent>
     private let eventsContinuation: AsyncStream<SpeechEvent>.Continuation
-
-    private struct PreloadedSpeech {
-        let cacheKey: String
-        let data: Data
-    }
 
     private enum Resolution {
         case audio(Data, synthesisDurationMs: Double?)
@@ -104,13 +99,11 @@ public final class SpeechOutput {
     /// e i callback della precedente vengono ignorati.
     private var generation: UInt64 = 0
     private var activeRequest: SpeechRequest?
-    private var activeEngine: SpeechEngine?
+    private var activeVoiceSource: VoiceSource?
     private var playbackTask: Task<Void, Never>?
 
-    private var preloaded: [UUID: PreloadedSpeech] = [:]
     private var preloadTasks: [String: Task<Data?, Never>] = [:]
     private var preloadTokens: [String: UUID] = [:]
-    private var preloadKeyByChunk: [UUID: String] = [:]
 
     public var events: AsyncStream<SpeechEvent> { eventsStream }
 
@@ -170,7 +163,7 @@ public final class SpeechOutput {
         playbackTask?.cancel()
         playbackTask = nil
         activeRequest = nil
-        activeEngine = nil
+        activeVoiceSource = nil
         audio.stop()
 
         activeRequest = request
@@ -196,7 +189,7 @@ public final class SpeechOutput {
                     synthesisDurationMs: synthesisDurationMs
                 )
             case .failed(let error):
-                self.startSystemFallback(
+                self.startSystemVoiceFallback(
                     for: request,
                     generation: generation,
                     error: error
@@ -208,47 +201,21 @@ public final class SpeechOutput {
     }
 
     /// Scalda cache e prefetch senza riprodurre. Le richieste fuori dalla
-    /// finestra passata dal coordinator vengono cancellate.
+    /// finestra passata dal coordinator vengono cancellate; il dato pronto
+    /// resta nella cache L1, quindi non serve una seconda mappa di risultati.
     public func preload(_ requests: [SpeechRequest]) {
-        var wantedByChunk: [UUID: String] = [:]
-        for request in requests {
-            wantedByChunk[request.chunk.id] = cacheKey(for: request)
-        }
+        let wantedKeys = Set(requests.map { cacheKey(for: $0) })
 
-        let staleChunks = preloadKeyByChunk
-            .filter { wantedByChunk[$0.key] != $0.value }
-            .map(\.key)
-        for chunkID in staleChunks {
-            preloadKeyByChunk.removeValue(forKey: chunkID)
-            preloaded.removeValue(forKey: chunkID)
-        }
-
-        let unwatchedChunks = preloaded.keys.filter { wantedByChunk[$0] == nil }
-        for chunkID in unwatchedChunks {
-            preloaded.removeValue(forKey: chunkID)
-        }
-
-        let wantedKeys = Set(wantedByChunk.values)
-        let unusedTasks = preloadTasks.keys.filter { !wantedKeys.contains($0) }
-        for key in unusedTasks {
+        for key in preloadTasks.keys where !wantedKeys.contains(key) {
             preloadTasks[key]?.cancel()
             preloadTasks.removeValue(forKey: key)
             preloadTokens.removeValue(forKey: key)
         }
 
+        var scheduled = Set<String>()
         for request in requests {
-            let chunkID = request.chunk.id
             let key = cacheKey(for: request)
-
-            if preloaded[chunkID]?.cacheKey == key {
-                continue
-            }
-            if preloadKeyByChunk[chunkID] == key, preloadTasks[key] != nil {
-                continue
-            }
-
-            preloadKeyByChunk[chunkID] = key
-            guard preloadTasks[key] == nil else { continue }
+            guard scheduled.insert(key).inserted, preloadTasks[key] == nil else { continue }
             startPreload(for: request, key: key)
         }
     }
@@ -260,25 +227,23 @@ public final class SpeechOutput {
         playbackTask?.cancel()
         playbackTask = nil
         activeRequest = nil
-        activeEngine = nil
+        activeVoiceSource = nil
 
         for task in preloadTasks.values {
             task.cancel()
         }
         preloadTasks.removeAll()
         preloadTokens.removeAll()
-        preloadKeyByChunk.removeAll()
-        preloaded.removeAll()
 
         audio.stop()
     }
 
     public func pause() {
-        audio.pause(engine: activeEngine ?? .neural)
+        audio.pause(source: activeVoiceSource ?? .neural)
     }
 
     public func resume() {
-        audio.resume(engine: activeEngine ?? .neural)
+        audio.resume(source: activeVoiceSource ?? .neural)
     }
 
     public func setSpeed(_ speed: Float) {
@@ -292,10 +257,6 @@ public final class SpeechOutput {
         key: String,
         generation: UInt64
     ) async -> Resolution {
-        if let data = takePreloaded(for: request, key: key) {
-            return .audio(data, synthesisDurationMs: nil)
-        }
-
         if let cached = await cacheManager.getAudioAsync(for: key) {
             return .audio(cached.data, synthesisDurationMs: nil)
         }
@@ -304,20 +265,18 @@ public final class SpeechOutput {
             return .cancelled
         }
 
-        // Un preload può essersi completato mentre leggeva la cache.
-        if let data = takePreloaded(for: request, key: key) {
-            return .audio(data, synthesisDurationMs: nil)
-        }
-
-        if let activePreload = preloadTasks[key] {
-            let data = await activePreload.value
+        if let activePreload = preloadTasks[key],
+           let data = await activePreload.value {
             guard isCurrent(request, generation: generation), !Task.isCancelled else {
                 return .cancelled
             }
-            if let data {
-                _ = takePreloaded(for: request, key: key)
-                return .audio(data, synthesisDurationMs: nil)
-            }
+            return .audio(data, synthesisDurationMs: nil)
+        }
+
+        // Un preload può essersi completato tra la prima lettura e questa:
+        // il suo dato è in L1, non in una mappa separata.
+        if let cached = await cacheManager.getAudioAsync(for: key) {
+            return .audio(cached.data, synthesisDurationMs: nil)
         }
 
         guard isCurrent(request, generation: generation), !Task.isCancelled else {
@@ -345,14 +304,6 @@ public final class SpeechOutput {
             }
             return .failed(error)
         }
-    }
-
-    private func takePreloaded(for request: SpeechRequest, key: String) -> Data? {
-        guard let preloaded = preloaded.removeValue(forKey: request.chunk.id) else {
-            return nil
-        }
-        preloadKeyByChunk.removeValue(forKey: request.chunk.id)
-        return preloaded.cacheKey == key ? preloaded.data : nil
     }
 
     // MARK: - Prefetch
@@ -396,11 +347,6 @@ public final class SpeechOutput {
 
             self.preloadTasks.removeValue(forKey: key)
             self.preloadTokens.removeValue(forKey: key)
-            if let data {
-                for (chunkID, mappedKey) in self.preloadKeyByChunk where mappedKey == key {
-                    self.preloaded[chunkID] = PreloadedSpeech(cacheKey: key, data: data)
-                }
-            }
             return data
         }
 
@@ -417,11 +363,11 @@ public final class SpeechOutput {
     ) {
         guard isCurrent(request, generation: generation) else { return }
 
-        activeEngine = .neural
+        activeVoiceSource = .neural
         emit(.started(SpeechStarted(
             requestID: request.id,
             chunkID: request.chunk.id,
-            engine: .neural,
+            source: .neural,
             synthesisDurationMs: synthesisDurationMs
         )))
 
@@ -432,7 +378,7 @@ public final class SpeechOutput {
         }
     }
 
-    private func startSystemFallback(
+    private func startSystemVoiceFallback(
         for request: SpeechRequest,
         generation: UInt64,
         error: Error
@@ -440,14 +386,14 @@ public final class SpeechOutput {
         guard isCurrent(request, generation: generation) else { return }
 
         let message = error.localizedDescription
-        emit(.failed(requestID: request.id, message: message))
+        emit(.synthesisFailed(requestID: request.id, message: message))
 
         let notice = "Motore Supertonic non raggiungibile su 127.0.0.1:7788 (\(message)). In riproduzione con la voce di sistema macOS di fallback."
-        activeEngine = .system
+        activeVoiceSource = .system
         emit(.started(SpeechStarted(
             requestID: request.id,
             chunkID: request.chunk.id,
-            engine: .system,
+            source: .system,
             notice: notice
         )))
 
@@ -465,7 +411,7 @@ public final class SpeechOutput {
     private func finish(_ request: SpeechRequest, generation: UInt64) {
         guard isCurrent(request, generation: generation) else { return }
         activeRequest = nil
-        activeEngine = nil
+        activeVoiceSource = nil
         emit(.finished(requestID: request.id))
     }
 
@@ -513,8 +459,8 @@ protocol SpeechAudioBackend: AnyObject {
         speed: Float,
         onComplete: @escaping () -> Void
     )
-    func pause(engine: SpeechEngine)
-    func resume(engine: SpeechEngine)
+    func pause(source: VoiceSource)
+    func resume(source: VoiceSource)
     func stop()
     func setSpeed(_ speed: Float)
 }
@@ -559,8 +505,8 @@ final class SystemSpeechAudioBackend: SpeechAudioBackend {
         speechFallback.speak(text: text, voice: voice, speed: speed)
     }
 
-    func pause(engine: SpeechEngine) {
-        switch engine {
+    func pause(source: VoiceSource) {
+        switch source {
         case .neural:
             audioEngine.pause()
         case .system:
@@ -568,8 +514,8 @@ final class SystemSpeechAudioBackend: SpeechAudioBackend {
         }
     }
 
-    func resume(engine: SpeechEngine) {
-        switch engine {
+    func resume(source: VoiceSource) {
+        switch source {
         case .neural:
             audioEngine.play()
         case .system:

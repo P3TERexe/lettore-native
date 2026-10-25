@@ -101,9 +101,6 @@ public actor AXCaptureService {
                 )
                 return CapturedSelection(
                     text: selectedStr,
-                    sourceAppName: appName,
-                    selectionBounds: nil,
-                    usedClipboardFallback: false,
                     sourceDocumentID: registration.documentID,
                     sourceRange: registration.sourceRange,
                     sourcePID: registration.sourcePID
@@ -150,9 +147,6 @@ public actor AXCaptureService {
         )
         return CapturedSelection(
             text: selectedStr,
-            sourceAppName: appName,
-            selectionBounds: nil,
-            usedClipboardFallback: false,
             sourceDocumentID: registration.documentID,
             sourceRange: registration.sourceRange,
             sourcePID: registration.sourcePID
@@ -219,9 +213,6 @@ public actor AXCaptureService {
                     print("[AXCapture] Fallback clipboard riuscito (\(copied.count) caratteri).")
                     return CapturedSelection(
                         text: copied,
-                        sourceAppName: appName,
-                        selectionBounds: nil,
-                        usedClipboardFallback: true
                     )
                 }
             }

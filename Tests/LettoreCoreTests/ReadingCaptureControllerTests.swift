@@ -58,7 +58,6 @@ final class ReadingCaptureControllerTests: XCTestCase {
         let documentID = UUID()
         let selection = CapturedSelection(
             text: "  Ciao mondo.  ",
-            sourceAppName: "Safari",
             sourceDocumentID: documentID,
             sourceRange: SourceTextRange(location: 100, length: 20),
             sourcePID: 42
@@ -137,9 +136,10 @@ final class ReadingCaptureControllerTests: XCTestCase {
 
         let outcome = await controller.playFromUI(isContinuousEnabled: false)
 
-        guard case .unavailable = outcome else {
+        guard case .unavailable(let reason) = outcome else {
             return XCTFail("Durante il playback non si riprende la coda, ricevuto \(outcome)")
         }
+        XCTAssertEqual(state.continuationNotice, reason)
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
     }
 
@@ -168,6 +168,28 @@ final class ReadingCaptureControllerTests: XCTestCase {
         let requestedPIDs = await capture.requestedPIDs
         XCTAssertTrue(requestedPIDs.isEmpty, "Un PID invalido non deve arrivare alla cattura")
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
+    }
+
+    func testEmptySelectionWithoutQueueShowsMessage() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let capture = FakeSelectedTextCapture(result: nil)
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: capture,
+            sourceApplications: applications
+        )
+
+        let outcome = await controller.playFromUI(isContinuousEnabled: false)
+
+        guard case .unavailable(let reason) = outcome else {
+            return XCTFail("Atteso .unavailable, ricevuto \(outcome)")
+        }
+        XCTAssertEqual(state.continuationNotice, reason)
+        XCTAssertTrue(state.readingQueue.isEmpty)
     }
 
     func testMissingSourceApplicationWithoutQueueShowsMessage() async {

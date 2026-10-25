@@ -15,10 +15,6 @@ public final class PlaybackCoordinator {
         speechOutput.supertonicPipeline
     }
 
-    public var speechFallback: NativeSpeechService {
-        speechOutput.speechFallback
-    }
-
     private let speechOutput: SpeechOutput
     private var speechEventsTask: Task<Void, Never>?
     /// Identifica il play corrente: gli eventi di una richiesta cancellata non
@@ -251,7 +247,7 @@ public final class PlaybackCoordinator {
             guard started.requestID == activeSpeechRequestID else { return }
 
             appState.playbackState = .playing
-            if started.engine == .neural {
+            if started.source == .neural {
                 appState.isUsingSpeechFallback = false
                 appState.speechFallbackNotice = nil
                 if let synthesisDurationMs = started.synthesisDurationMs {
@@ -278,7 +274,7 @@ public final class PlaybackCoordinator {
             activeSpeechRequestID = nil
             handleChunkFinished()
 
-        case .failed(let requestID, let message):
+        case .synthesisFailed(let requestID, let message):
             guard requestID == activeSpeechRequestID else { return }
             print("[PlaybackCoordinator] Sintesi neurale fallita: \(message). Fallback in corso.")
         }

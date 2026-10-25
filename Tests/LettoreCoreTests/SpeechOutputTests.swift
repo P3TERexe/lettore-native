@@ -74,8 +74,8 @@ final class SpeechOutputTests: XCTestCase {
 
         private(set) var playedData: [Data] = []
         private(set) var fallbackTexts: [String] = []
-        private(set) var pauses: [SpeechEngine] = []
-        private(set) var resumes: [SpeechEngine] = []
+        private(set) var pauses: [VoiceSource] = []
+        private(set) var resumes: [VoiceSource] = []
         private(set) var speeds: [Float] = []
         private(set) var stopCount = 0
 
@@ -97,12 +97,12 @@ final class SpeechOutputTests: XCTestCase {
             fallbackCompletions.append(onComplete)
         }
 
-        func pause(engine: SpeechEngine) {
-            pauses.append(engine)
+        func pause(source: VoiceSource) {
+            pauses.append(source)
         }
 
-        func resume(engine: SpeechEngine) {
-            resumes.append(engine)
+        func resume(source: VoiceSource) {
+            resumes.append(source)
         }
 
         func stop() {
@@ -155,7 +155,7 @@ final class SpeechOutputTests: XCTestCase {
 
         func containsFailed(_ requestID: UUID) -> Bool {
             events.contains {
-                if case .failed(let id, _) = $0 { return id == requestID }
+                if case .synthesisFailed(let id, _) = $0 { return id == requestID }
                 return false
             }
         }
@@ -167,7 +167,7 @@ final class SpeechOutputTests: XCTestCase {
                 case .progress: return "progress"
                 case .levels: return "levels"
                 case .finished: return "finished"
-                case .failed: return "failed"
+                case .synthesisFailed: return "failed"
                 }
             }
         }
@@ -351,7 +351,7 @@ final class SpeechOutputTests: XCTestCase {
                 XCTAssertEqual(requestID, request.id)
             case .finished(let requestID):
                 XCTAssertEqual(requestID, request.id)
-            case .failed(let requestID, _):
+            case .synthesisFailed(let requestID, _):
                 XCTFail("Nessun fallimento atteso, ricevuto \(requestID)")
             }
         }
@@ -380,7 +380,7 @@ final class SpeechOutputTests: XCTestCase {
 
         output.play(request)
         await assertEventually { audio.fallbackTexts.count == 1 }
-        await assertEventually { collector.started.last?.engine == .system }
+        await assertEventually { collector.started.last?.source == .system }
 
         XCTAssertTrue(audio.playedData.isEmpty)
         XCTAssertEqual(audio.fallbackTexts.first, request.chunk.text)
