@@ -1102,30 +1102,19 @@ extension AXCaptureService: ContinuousTextSource {
         return frontmost == sourcePID
     }
 
-    /// Esito della lettura della scroll bar verticale.
-    ///
-    /// `unknown` copre sia l'assenza della scroll bar sia un range non
-    /// leggibile (in Safari `value/min/max` restano a zero su documenti
-    /// lunghi): non è una prova di fine documento e obbliga a tentare lo
-    /// scroll.
-    private enum ScrollEndState {
-        case atEnd
-        case notAtEnd
-        case unknown
-    }
-
+    /// Adapter AX del classificatore: legge la scroll bar verticale e delega
+    /// la decisione a `ScrollEndClassifier`.
     private func scrollEndState(of container: AXUIElement) -> ScrollEndState {
         guard let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString),
               let state = scrollBarState(of: bar) else {
-            return .unknown
+            return ScrollEndClassifier.classify(value: nil, minValue: nil, maxValue: nil)
         }
 
-        // Range nullo o non disponibile: la barra non dice se c'è altro testo
-        // sotto la viewport, quindi si tenta comunque lo scroll.
-        guard state.max > state.min else { return .unknown }
-
-        let epsilon = max(0.000_1, (state.max - state.min) * 0.001)
-        return state.value >= state.max - epsilon ? .atEnd : .notAtEnd
+        return ScrollEndClassifier.classify(
+            value: state.value,
+            minValue: state.min,
+            maxValue: state.max
+        )
     }
 
     private func scrollBarValue(of container: AXUIElement) -> Double? {
@@ -1147,42 +1136,28 @@ extension AXCaptureService: ContinuousTextSource {
     // MARK: - Raccolta del testo visibile
 
     private func collectViewportText(from root: AXUIElement) -> String? {
-        var blocks: [String] = []
-        var seenKeys = Set<String>()
+        var collector = ViewportTextCollector()
         var visited = Set<CFHashCode>()
-        var totalCharacters = 0
-
-        func normalizedKey(_ text: String) -> String {
-            text
-                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-        }
 
         func walk(_ element: AXUIElement, depth: Int) {
-            guard depth < 40, totalCharacters < 200_000 else { return }
+            guard depth < 40, !collector.isFull else { return }
 
             let hash = CFHash(element)
             guard visited.insert(hash).inserted else { return }
 
             let elementRole = role(of: element) ?? ""
-            if Self.skippedRoles.contains(elementRole) { return }
-
-            if Self.textRoles.contains(elementRole),
-               let value = stringAttribute(element, kAXValueAttribute as CFString) {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty,
-                   !Self.isURL(trimmed),
-                   !Self.isOnlyListMarker(trimmed) {
-                    let key = normalizedKey(trimmed)
-                    if !key.isEmpty, seenKeys.insert(key).inserted {
-                        blocks.append(trimmed)
-                        totalCharacters += trimmed.count
-                    }
-                    // Il valore di un contenitore di testo include già i
-                    // discendenti: non ricorrere per evitare duplicati.
-                    return
-                }
+            switch ViewportTextCollector.kind(of: elementRole) {
+            case .skipped:
+                return
+            case .text:
+                let value = stringAttribute(element, kAXValueAttribute as CFString)
+                collector.add(role: elementRole, value: value)
+                // Il valore di un contenitore di testo include già i
+                // discendenti: non ricorrere per evitare duplicati. Senza
+                // valore, invece, il testo può stare nei figli.
+                if value != nil { return }
+            case .container:
+                break
             }
 
             for child in children(of: element) {
@@ -1191,58 +1166,7 @@ extension AXCaptureService: ContinuousTextSource {
         }
 
         walk(root, depth: 0)
-
-        let joined = blocks.joined(separator: "\n\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return joined.isEmpty ? nil : joined
-    }
-
-    private static let textRoles: Set<String> = [
-        "AXStaticText",
-        "AXHeading",
-        "AXTextArea",
-        "AXTextField",
-        "AXWebArea",
-        "AXCell",
-        "AXRow",
-        "AXListItem",
-        "AXParagraph"
-    ]
-
-    private static let skippedRoles: Set<String> = [
-        "AXButton",
-        "AXCheckBox",
-        "AXRadioButton",
-        "AXPopUpButton",
-        "AXMenuItem",
-        "AXMenuBar",
-        "AXMenu",
-        "AXToolbar",
-        "AXScrollBar",
-        "AXSlider",
-        "AXImage",
-        "AXTabGroup",
-        "AXTab",
-        "AXComboBox",
-        "AXDisclosureTriangle",
-        "AXProgressIndicator",
-        "AXColorWell",
-        "AXSplitter",
-        "AXGrowArea",
-        "AXRuler",
-        "AXRulerMarker"
-    ]
-
-    private static func isURL(_ text: String) -> Bool {
-        let lower = text.lowercased()
-        return lower.hasPrefix("http://")
-            || lower.hasPrefix("https://")
-            || lower.hasPrefix("file://")
-    }
-
-    private static func isOnlyListMarker(_ text: String) -> Bool {
-        guard text.count <= 2 else { return false }
-        return text.allSatisfy { "•◦▪‣-–—·".contains($0) }
+        return collector.text
     }
 
     // MARK: - Attributi AX
