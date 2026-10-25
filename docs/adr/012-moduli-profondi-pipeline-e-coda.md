@@ -104,7 +104,13 @@ delle chiamate AX e le firme pubbliche: traduce solo `AXUIElement` in
 - I nuovi tipi di `LettoreCore` non importano AppKit, Accessibility o SwiftUI.
 - Le decisioni consolidate restano intatte: `AVAudioPlayer` (bug `-10868`),
   Swift 6 `@Observable`, offline-first, backend sidecar fino a M4.
-- Restano aperti, perché richiedono GUI o un harness audio, il paging dietro
-  seam, la sessione di evidenziazione unica e `SpeechOutput`; il controller di
-  cattura e i modelli di presentazione completano la rimozione della policy
-  dalle view.
+- `SpeechOutput` possiede sintesi, cache L1/L2, prefetch, fallback alla voce
+  di sistema e metering; `PlaybackCoordinator` resta coda, sessione e paging e
+  consuma eventi con `requestID`. La lettura disco della cache avviene fuori dal
+  MainActor e i completamenti di player/utterance sostituiti vengono ignorati.
+- `ReadingCaptureController` è l'unica policy di cattura e `PillGeometry`
+  possiede la geometria della pillola; le view comandano il playback tramite
+  `PlaybackCoordinator` e non conoscono `AudioEngineService`.
+- Restano aperti, perché richiedono GUI o ascolto umano, il paging dietro seam
+  e la sessione di evidenziazione unica; lo smoke audio reale (riproduzione,
+  pausa, skip, fallback di sistema) è manuale.
