@@ -178,13 +178,13 @@ final class LettoreCoreTests: XCTestCase {
 
     func testPillDockingCalculation() {
         let screenRect = CGRect(x: 0, y: 0, width: 1470, height: 923)
-        let horizontalWidth = FloatingPillPanelManager.PillMetrics.horizontalExpanded.width
-        let verticalWidth = FloatingPillPanelManager.PillMetrics.verticalCompact.width
-        let inset = FloatingPillPanelManager.PillMetrics.screenInset
+        let horizontalWidth = PillGeometry.horizontalExpanded.width
+        let verticalWidth = PillGeometry.verticalCompact.width
+        let inset = PillGeometry.screenInset
 
         // Scenario 1: pillola orizzontale rilasciata vicino al bordo destro.
         let distFromRightEdge: CGFloat = 60.0
-        XCTAssertLessThanOrEqual(distFromRightEdge, FloatingPillPanelManager.PillMetrics.dockThreshold,
+        XCTAssertLessThanOrEqual(distFromRightEdge, PillGeometry.dockThreshold,
                                  "Deve agganciarsi a destra")
 
         let dockedX = screenRect.maxX - verticalWidth - inset
@@ -194,11 +194,11 @@ final class LettoreCoreTests: XCTestCase {
         // Scenario 2: isteresi. Finché non si supera la soglia di uscita la
         // pillola resta agganciata; oltre si sgancia e torna orizzontale.
         let smallPullDist: CGFloat = 30.0
-        XCTAssertLessThanOrEqual(smallPullDist, FloatingPillPanelManager.PillMetrics.dockExitThreshold,
+        XCTAssertLessThanOrEqual(smallPullDist, PillGeometry.dockExitThreshold,
                                  "Resta agganciata in verticale")
 
         let deliberatePullDist: CGFloat = 150.0
-        XCTAssertGreaterThan(deliberatePullDist, FloatingPillPanelManager.PillMetrics.dockExitThreshold,
+        XCTAssertGreaterThan(deliberatePullDist, PillGeometry.dockExitThreshold,
                              "Si sgancia e torna orizzontale")
 
         // Scenario 3: ancoraggio dell'espansione verso l'interno schermo.

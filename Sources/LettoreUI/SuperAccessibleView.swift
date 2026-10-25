@@ -6,12 +6,10 @@ import LettoreEngine
 /// per utenti con bassa visione, ipovisione o fotofobia acuta.
 public struct SuperAccessibleView: View {
     @Bindable public var appState: AppState
-    public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator?
     
-    public init(appState: AppState, audioEngine: AudioEngineService, coordinator: PlaybackCoordinator? = nil) {
+    public init(appState: AppState, coordinator: PlaybackCoordinator? = nil) {
         self.appState = appState
-        self.audioEngine = audioEngine
         self.coordinator = coordinator
     }
     
@@ -88,17 +86,7 @@ public struct SuperAccessibleView: View {
             
             // Pulsante Riproduci / Sospendi Tattile
             Button(action: {
-                if let coordinator = coordinator {
-                    coordinator.togglePlayPause()
-                } else {
-                    if appState.playbackState == .playing {
-                        audioEngine.pause()
-                        appState.playbackState = .paused
-                    } else {
-                        audioEngine.play()
-                        appState.playbackState = .playing
-                    }
-                }
+                coordinator?.togglePlayPause()
             }) {
                 HStack(spacing: 10) {
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
@@ -122,12 +110,7 @@ public struct SuperAccessibleView: View {
             
             // Pulsante Ferma
             Button(action: {
-                if let coordinator = coordinator {
-                    coordinator.stop()
-                } else {
-                    audioEngine.stop()
-                    appState.playbackState = .idle
-                }
+                coordinator?.stop()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "stop.fill")
@@ -152,9 +135,7 @@ public struct SuperAccessibleView: View {
             // Stepper Velocità
             HStack(spacing: 8) {
                 Button("−") {
-                    let newSpeed = max(0.5, appState.playbackSpeed - 0.1)
-                    appState.setSpeed(newSpeed)
-                    audioEngine.setSpeed(newSpeed)
+                    coordinator?.setSpeed(appState.playbackSpeed - 0.1)
                 }
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(.white)
@@ -166,9 +147,7 @@ public struct SuperAccessibleView: View {
                     .frame(minWidth: 55)
                 
                 Button("+") {
-                    let newSpeed = min(2.0, appState.playbackSpeed + 0.1)
-                    appState.setSpeed(newSpeed)
-                    audioEngine.setSpeed(newSpeed)
+                    coordinator?.setSpeed(appState.playbackSpeed + 0.1)
                 }
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(.white)

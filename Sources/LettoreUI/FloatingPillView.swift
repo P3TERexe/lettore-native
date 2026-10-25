@@ -8,7 +8,6 @@ import LettoreEngine
 /// - Nessuna barra inferiore ingannevole stile scrollbar.
 public struct FloatingPillView: View {
     @Bindable public var appState: AppState
-    public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator?
     public var isStandalone: Bool
 
@@ -20,12 +19,10 @@ public struct FloatingPillView: View {
 
     public init(
         appState: AppState,
-        audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator? = nil,
         isStandalone: Bool = false
     ) {
         self.appState = appState
-        self.audioEngine = audioEngine
         self.coordinator = coordinator
         self.isStandalone = isStandalone
     }
@@ -53,7 +50,7 @@ public struct FloatingPillView: View {
     /// metriche del pannello meno il margine di sicurezza, così il contenuto
     /// non può mai essere più grande della finestra che lo ospita.
     private var contentSize: CGSize {
-        FloatingPillPanelManager.PillMetrics.contentSize(
+        PillGeometry.contentSize(
             orientation: effectiveOrientation,
             isExpanded: isExpanded,
             isFallback: appState.isUsingSpeechFallback
@@ -109,7 +106,7 @@ public struct FloatingPillView: View {
     /// morphasse con una spring più lenta, durante la transizione verrebbe
     /// disegnato fuori dalla capsula.
     private var morphAnimation: Animation? {
-        reduceMotion ? nil : .easeInOut(duration: FloatingPillPanelManager.PillMetrics.morphDuration)
+        reduceMotion ? nil : .easeInOut(duration: PillGeometry.morphDuration)
     }
 
     // MARK: - Hover
@@ -468,8 +465,7 @@ public struct FloatingPillView: View {
         Menu {
             ForEach([0.7, 0.85, 1.0, 1.05, 1.25, 1.5, 1.75, 2.0], id: \.self) { spd in
                 Button("\(String(format: "%.2f", spd))×") {
-                    appState.setSpeed(Float(spd))
-                    audioEngine.setSpeed(Float(spd))
+                    coordinator?.setSpeed(Float(spd))
                 }
             }
         } label: {
@@ -544,17 +540,8 @@ public struct FloatingPillView: View {
 
         if appState.playbackState == .playing || appState.playbackState == .paused {
             // Riproduzione in corso o in pausa: il pulsante resta play/pausa.
-            if let coordinator = coordinator {
-                coordinator.togglePlayPause()
-            } else {
-                if appState.playbackState == .playing {
-                    audioEngine.pause()
-                    appState.playbackState = .paused
-                } else {
-                    audioEngine.play()
-                    appState.playbackState = .playing
-                }
-            }
+            // Senza coordinator (preview/test) non esiste un motore da pilotare.
+            coordinator?.togglePlayPause()
         } else {
             // Idle: prova a leggere la selezione corrente. Se non c'è testo
             // selezionato, la cattura riprende la coda rimasta in sospeso.

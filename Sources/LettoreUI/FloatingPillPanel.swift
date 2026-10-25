@@ -53,7 +53,7 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
 
         // In compatto l'intera capsula trascina.
         manager.beginPanelDrag(atMouseLocation: NSEvent.mouseLocation) { distance in
-            if distance < FloatingPillPanelManager.PillMetrics.tapThreshold {
+            if distance < PillGeometry.tapThreshold {
                 // Tap sul posto: nessun drag. In compatto equivale a play/pausa.
                 manager.dragPanelCancelled()
                 if !isExpanded {
@@ -76,58 +76,6 @@ public final class DraggablePillHostingView<Content: View>: NSHostingView<Conten
 @Observable
 public final class FloatingPillPanelManager {
     public static let shared = FloatingPillPanelManager()
-
-    /// Dimensioni canoniche della finestra. Unica fonte di verità: il contenuto
-    /// SwiftUI resta sempre più piccolo di questi valori, mai più grande.
-    public enum PillMetrics {
-        public static let horizontalCompact = NSSize(width: 104, height: 42)
-        public static let horizontalExpanded = NSSize(width: 282, height: 42)
-        public static let horizontalExpandedFallback = NSSize(width: 298, height: 42)
-        public static let verticalCompact = NSSize(width: 48, height: 104)
-        public static let verticalExpanded = NSSize(width: 48, height: 170)
-        public static let verticalExpandedFallback = NSSize(width: 48, height: 192)
-
-        /// Margine di sicurezza dai bordi dello schermo visibile.
-        public static let screenInset: CGFloat = 8
-
-        /// Distanza entro cui la pillola si aggancia al bordo laterale mentre
-        /// viene trascinata. L'aggancio è "morbido": una volta docked, la
-        /// pillola resta al bordo finché il cursore non si allontana oltre
-        /// `dockExitThreshold`, così il magnete non sfarfalla sul confine.
-        public static let dockThreshold: CGFloat = 60
-
-        /// Soglia di uscita dal dock (isteresi). Più alta della soglia di
-        /// ingresso per evitare oscillazioni orizzontale ↔ verticale.
-        public static let dockExitThreshold: CGFloat = 130
-
-        /// Spostamento massimo del cursore (in punti) entro cui un click resta
-        /// un tap: oltre è un trascinamento. Il tremolio della mano su un click
-        /// reale arriva a 4-5px, quindi la soglia deve essere più larga.
-        public static let tapThreshold: CGFloat = 8
-
-        /// Durata del morphing, condivisa da finestra e contenuto SwiftUI.
-        /// Una sola curva per entrambi: se divergono, il contenuto viene
-        /// disegnato fuori dalla capsula durante la transizione.
-        public static let morphDuration: TimeInterval = 0.28
-
-        public static func panelSize(orientation: PillOrientation, isExpanded: Bool, isFallback: Bool) -> NSSize {
-            switch orientation {
-            case .horizontal:
-                if !isExpanded { return horizontalCompact }
-                return isFallback ? horizontalExpandedFallback : horizontalExpanded
-            case .vertical:
-                if !isExpanded { return verticalCompact }
-                return isFallback ? verticalExpandedFallback : verticalExpanded
-            }
-        }
-
-        /// Il contenuto SwiftUI è sempre più piccolo della finestra che lo ospita.
-        public static func contentSize(orientation: PillOrientation, isExpanded: Bool, isFallback: Bool) -> NSSize {
-            let panel = panelSize(orientation: orientation, isExpanded: isExpanded, isFallback: isFallback)
-            let horizontalInset: CGFloat = orientation == .horizontal ? 8 : 6
-            return NSSize(width: panel.width - horizontalInset, height: panel.height - 6)
-        }
-    }
 
     public private(set) var panel: NSPanel?
     public private(set) var isDragging: Bool = false
@@ -152,15 +100,15 @@ public final class FloatingPillPanelManager {
 
     private init() {}
 
-    public func toggle(appState: AppState, audioEngine: AudioEngineService, coordinator: PlaybackCoordinator? = nil) {
+    public func toggle(appState: AppState, coordinator: PlaybackCoordinator? = nil) {
         if let existing = panel, existing.isVisible {
             hide(appState: appState)
             return
         }
-        show(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+        show(appState: appState, coordinator: coordinator)
     }
 
-    public func show(appState: AppState, audioEngine: AudioEngineService, coordinator: PlaybackCoordinator? = nil) {
+    public func show(appState: AppState, coordinator: PlaybackCoordinator? = nil) {
         self.appState = appState
         appState.isFloatingPillVisible = true
         isHoverExpanded = false
@@ -174,7 +122,6 @@ public final class FloatingPillPanelManager {
 
         let pillView = FloatingPillView(
             appState: appState,
-            audioEngine: audioEngine,
             coordinator: coordinator,
             isStandalone: true
         )
@@ -188,7 +135,7 @@ public final class FloatingPillPanelManager {
         // il frame "scappa" sotto al manager e il morphing ai bordi deriva.
         hostingView.sizingOptions = []
 
-        let initialSize = PillMetrics.horizontalCompact
+        let initialSize = PillGeometry.horizontalCompact
         let newPanel = FloatingPillPanelWindow(
             contentRect: NSRect(origin: .zero, size: initialSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -324,7 +271,7 @@ public final class FloatingPillPanelManager {
         // ancorare subito la verticale al bordo farebbe "teletrasportare" la
         // pillola lontano dal mouse. Col cursore il morphing avviene quando
         // l'utente porta davvero il puntatore all'estremo.
-        let dock = Self.resolvedLiveDock(
+        let dock = PillGeometry.resolvedLiveDock(
             previous: liveDockSide,
             cursorX: mouseLocation.x,
             screenRect: screenRect
@@ -335,7 +282,7 @@ public final class FloatingPillPanelManager {
         appState?.pillOrientation = orientation
         appState?.pillDockSide = dock
 
-        let target = Self.resolvedFrame(
+        let target = PillGeometry.resolvedFrame(
             current: proposed,
             screenRect: screenRect,
             orientation: orientation,
@@ -391,7 +338,7 @@ public final class FloatingPillPanelManager {
         // clamped al bordo) darebbe distanze diverse e riaggancerebbe la
         // pillola appena trascinata via. Si applica lo stato live, animando
         // solo l'eventuale cambio di espansione dovuto all'hover.
-        let target = Self.resolvedFrame(
+        let target = PillGeometry.resolvedFrame(
             current: panel.frame,
             screenRect: screen.visibleFrame,
             orientation: appState.pillOrientation,
@@ -418,7 +365,7 @@ public final class FloatingPillPanelManager {
     // MARK: - Geometria
 
     public func size(for orientation: PillOrientation, isExpanded: Bool) -> NSSize {
-        PillMetrics.panelSize(
+        PillGeometry.panelSize(
             orientation: orientation,
             isExpanded: isExpanded,
             isFallback: appState?.isUsingSpeechFallback ?? false
@@ -447,99 +394,15 @@ public final class FloatingPillPanelManager {
         applyFrame(target, to: panel, animated: animated)
     }
 
-    /// Calcola il frame obiettivo a partire da un frame corrente.
-    /// Funzione pura sulla geometria: nessun accesso al singleton, così può
-    /// essere verificata anche su un pannello di test.
-    ///
-    /// `dockSide` è esplicito: l'isteresi vive in `resolvedDock`, non qui.
-    public nonisolated static func resolvedFrame(
-        current: CGRect,
-        screenRect: CGRect,
-        orientation: PillOrientation,
-        isExpanded: Bool,
-        isFallback: Bool,
-        dockSide: PillDockSide = .center
-    ) -> CGRect {
-        let targetSize = PillMetrics.panelSize(
-            orientation: orientation,
-            isExpanded: isExpanded,
-            isFallback: isFallback
-        )
-        var newOrigin = current.origin
-
-        switch orientation {
-        case .horizontal:
-            // Grip a sinistra: resta fermo il bordo sinistro. Il clamp sposta
-            // solo quanto basta quando la capsula espansa supera il bordo destro.
-            newOrigin.x = current.minX
-            newOrigin.y = current.maxY - targetSize.height
-
-        case .vertical:
-            // Grip in alto: resta fermo il bordo superiore, in dock come in undock.
-            newOrigin.y = current.maxY - targetSize.height
-
-            switch dockSide {
-            case .right:
-                newOrigin.x = screenRect.maxX - targetSize.width - PillMetrics.screenInset
-            case .left:
-                newOrigin.x = screenRect.minX + PillMetrics.screenInset
-            case .center:
-                newOrigin.x = current.midX - targetSize.width / 2
-            }
-        }
-
-        newOrigin = clampedOrigin(newOrigin, size: targetSize, in: screenRect)
-        return CGRect(origin: newOrigin, size: targetSize)
-    }
-
-    /// Isteresi del docking: si entra con la soglia bassa, si esce solo
-    /// superando quella alta. Deterministica e simmetrica in dock e undock.
-    public nonisolated static func resolvedDock(
-        previous: PillDockSide,
-        leftDist: CGFloat,
-        rightDist: CGFloat
-    ) -> PillDockSide {
-        let enter = PillMetrics.dockThreshold
-        let exit = PillMetrics.dockExitThreshold
-
-        switch previous {
-        case .left:
-            if leftDist <= exit { return .left }
-            return rightDist <= enter ? .right : .center
-        case .right:
-            if rightDist <= exit { return .right }
-            return leftDist <= enter ? .left : .center
-        case .center:
-            if leftDist <= enter { return .left }
-            if rightDist <= enter { return .right }
-            return .center
-        }
-    }
-
-    /// Docking durante il drag: le distanze sono quelle del cursore, l'unico
-    /// punto che riflette l'intenzione dell'utente. Il frame della finestra è
-    /// ingannevole perché la capsula espansa viene clampata al bordo molto
-    /// prima che il puntatore ci arrivi.
-    public nonisolated static func resolvedLiveDock(
-        previous: PillDockSide,
-        cursorX: CGFloat,
-        screenRect: CGRect
-    ) -> PillDockSide {
-        resolvedDock(
-            previous: previous,
-            leftDist: cursorX - screenRect.minX,
-            rightDist: screenRect.maxX - cursorX
-        )
-    }
-
-    /// Variante d'istanza: legge stato di fallback e dock corrente dall'app.
+    /// Variante d'istanza: legge stato di fallback e dock corrente dall'app,
+    /// poi delega la geometria pura a `PillGeometry`.
     func resolvedFrame(
         current: CGRect,
         screenRect: CGRect,
         orientation: PillOrientation,
         isExpanded: Bool
     ) -> CGRect {
-        Self.resolvedFrame(
+        PillGeometry.resolvedFrame(
             current: current,
             screenRect: screenRect,
             orientation: orientation,
@@ -559,7 +422,7 @@ public final class FloatingPillPanelManager {
         let leftDist = frame.minX - screenRect.minX
         let rightDist = screenRect.maxX - frame.maxX
         // Stessa isteresi del drag live: nessun salto di orientamento al rilascio.
-        let dock = Self.resolvedDock(
+        let dock = PillGeometry.resolvedDock(
             previous: appState.pillDockSide,
             leftDist: leftDist,
             rightDist: rightDist
@@ -570,7 +433,7 @@ public final class FloatingPillPanelManager {
 
         // Riallinea sempre: copre anche lo snap al bordo quando l'orientamento
         // non cambia ma la pillola va riportata dentro lo schermo.
-        let target = Self.resolvedFrame(
+        let target = PillGeometry.resolvedFrame(
             current: frame,
             screenRect: screenRect,
             orientation: appState.pillOrientation,
@@ -583,29 +446,12 @@ public final class FloatingPillPanelManager {
 
     // MARK: - Applicazione del frame
 
-    private func clampedOrigin(_ origin: NSPoint, size: NSSize, in screenRect: NSRect) -> NSPoint {
-        Self.clampedOrigin(origin, size: size, in: screenRect)
-    }
-
-    nonisolated static func clampedOrigin(_ origin: NSPoint, size: NSSize, in screenRect: NSRect) -> NSPoint {
-        let inset = PillMetrics.screenInset
-        let minX = screenRect.minX + inset
-        let maxX = screenRect.maxX - size.width - inset
-        let minY = screenRect.minY + inset
-        let maxY = screenRect.maxY - size.height - inset
-
-        return NSPoint(
-            x: max(minX, min(maxX, origin.x)),
-            y: max(minY, min(maxY, origin.y))
-        )
-    }
-
     private func applyFrame(_ newFrame: NSRect, to panel: NSPanel, animated: Bool) {
         guard panel.frame != newFrame else { return }
 
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = PillMetrics.morphDuration
+                context.duration = PillGeometry.morphDuration
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 panel.animator().setFrame(newFrame, display: true)
             }

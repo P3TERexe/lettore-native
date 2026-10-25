@@ -5,16 +5,13 @@ import LettoreEngine
 /// Vista ancorata alla tacca (Notch) del MacBook con espansione organica delle ali sinistra/destra.
 public struct DynamicNotchView: View {
     @Bindable public var appState: AppState
-    public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator?
     
     public init(
         appState: AppState,
-        audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator? = nil
     ) {
         self.appState = appState
-        self.audioEngine = audioEngine
         self.coordinator = coordinator
     }
     
@@ -107,16 +104,6 @@ public struct DynamicNotchView: View {
     }
     
     private func handleTogglePlayPause() {
-        if let coordinator = coordinator {
-            coordinator.togglePlayPause()
-        } else {
-            if appState.playbackState == .playing {
-                audioEngine.pause()
-                appState.playbackState = .paused
-            } else {
-                audioEngine.play()
-                appState.playbackState = .playing
-            }
-        }
+        coordinator?.togglePlayPause()
     }
 }

@@ -9,7 +9,6 @@ import LettoreSystem
 /// anteprima interattiva della Pillola Dynamic Island e controlli avanzati del motore vocale.
 public struct LettoreStudioView: View {
     @Bindable public var appState: AppState
-    public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator
     public var readingCapture: ReadingCaptureController
     /// Apre la sessione di highlight dopo una cattura non continua. `nil` nei
@@ -22,14 +21,12 @@ public struct LettoreStudioView: View {
     
     public init(
         appState: AppState,
-        audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator,
         readingCapture: ReadingCaptureController,
         onSourceHighlightBegin: ((UUID, pid_t) -> Void)? = nil,
         onSourceHighlightEnd: (() -> Void)? = nil
     ) {
         self.appState = appState
-        self.audioEngine = audioEngine
         self.coordinator = coordinator
         self.readingCapture = readingCapture
         self.onSourceHighlightBegin = onSourceHighlightBegin
@@ -189,7 +186,7 @@ public struct LettoreStudioView: View {
                     title: "Pillola",
                     isActive: appState.isFloatingPillVisible
                 ) {
-                    FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                    FloatingPillPanelManager.shared.toggle(appState: appState, coordinator: coordinator)
                 }
                 
                 actionButton(
@@ -382,7 +379,6 @@ public struct LettoreStudioView: View {
                     Spacer()
                     FloatingPillView(
                         appState: appState,
-                        audioEngine: audioEngine,
                         coordinator: coordinator,
                         isStandalone: false
                     )
@@ -579,9 +575,7 @@ public struct LettoreStudioView: View {
                     Slider(value: Binding(
                         get: { Double(appState.playbackSpeed) },
                         set: { newVal in
-                            let floatVal = Float(newVal)
-                            appState.playbackSpeed = floatVal
-                            audioEngine.setSpeed(floatVal)
+                            coordinator.setSpeed(Float(newVal))
                         }
                     ), in: 0.5...2.0, step: 0.05)
                     .tint(brandCyan)
@@ -856,8 +850,7 @@ public struct LettoreStudioView: View {
     
     private func speedPresetButton(_ val: Float) -> some View {
         Button(action: {
-            appState.playbackSpeed = val
-            audioEngine.setSpeed(val)
+            coordinator.setSpeed(val)
         }) {
             Text("\(String(format: "%.2f", val))×")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -898,7 +891,7 @@ public struct LettoreStudioView: View {
                 }
             }
             
-            DynamicNotchView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+            DynamicNotchView(appState: appState, coordinator: coordinator)
                 .padding(20)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 16))

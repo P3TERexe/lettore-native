@@ -1,7 +1,6 @@
 import XCTest
 import CoreGraphics
 @testable import LettoreCore
-@testable import LettoreUI
 
 /// Verifica la geometria pura della pillola: dimensioni, ancoraggio e docking.
 /// Sono i punti in cui il frame della finestra e il contenuto SwiftUI devono
@@ -17,7 +16,7 @@ final class PillGeometryTests: XCTestCase {
         fallback: Bool = false,
         dock: PillDockSide = .center
     ) -> CGRect {
-        FloatingPillPanelManager.resolvedFrame(
+        PillGeometry.resolvedFrame(
             current: current,
             screenRect: screen,
             orientation: orientation,
@@ -33,12 +32,12 @@ final class PillGeometryTests: XCTestCase {
         for orientation in [PillOrientation.horizontal, .vertical] {
             for expanded in [false, true] {
                 for fallback in [false, true] {
-                    let panel = FloatingPillPanelManager.PillMetrics.panelSize(
+                    let panel = PillGeometry.panelSize(
                         orientation: orientation,
                         isExpanded: expanded,
                         isFallback: fallback
                     )
-                    let content = FloatingPillPanelManager.PillMetrics.contentSize(
+                    let content = PillGeometry.contentSize(
                         orientation: orientation,
                         isExpanded: expanded,
                         isFallback: fallback
@@ -52,10 +51,10 @@ final class PillGeometryTests: XCTestCase {
     }
 
     func testFallbackPanelIsWiderThanNormalPanel() {
-        let normal = FloatingPillPanelManager.PillMetrics.panelSize(
+        let normal = PillGeometry.panelSize(
             orientation: .horizontal, isExpanded: true, isFallback: false
         )
-        let fallback = FloatingPillPanelManager.PillMetrics.panelSize(
+        let fallback = PillGeometry.panelSize(
             orientation: .horizontal, isExpanded: true, isFallback: true
         )
         XCTAssertGreaterThan(fallback.width, normal.width)
@@ -68,8 +67,8 @@ final class PillGeometryTests: XCTestCase {
         let result = resolved(vertical, .horizontal, expanded: true)
 
         XCTAssertEqual(result.maxY, vertical.maxY, accuracy: 0.5, "Il bordo superiore non deve saltare")
-        XCTAssertEqual(result.width, FloatingPillPanelManager.PillMetrics.horizontalExpanded.width)
-        XCTAssertEqual(result.height, FloatingPillPanelManager.PillMetrics.horizontalExpanded.height)
+        XCTAssertEqual(result.width, PillGeometry.horizontalExpanded.width)
+        XCTAssertEqual(result.height, PillGeometry.horizontalExpanded.height)
     }
 
     func testHorizontalToVerticalKeepsTopEdge() {
@@ -92,7 +91,7 @@ final class PillGeometryTests: XCTestCase {
 
         XCTAssertLessThanOrEqual(
             result.maxX,
-            screen.maxX - FloatingPillPanelManager.PillMetrics.screenInset,
+            screen.maxX - PillGeometry.screenInset,
             "La capsula espansa non deve uscire dallo schermo"
         )
     }
@@ -101,7 +100,7 @@ final class PillGeometryTests: XCTestCase {
         let frame = CGRect(x: screen.maxX - 48 - 20, y: 400, width: 48, height: 104)
         let result = resolved(frame, .vertical, expanded: false, dock: .right)
 
-        let expectedX = screen.maxX - 48 - FloatingPillPanelManager.PillMetrics.screenInset
+        let expectedX = screen.maxX - 48 - PillGeometry.screenInset
         XCTAssertEqual(result.minX, expectedX, accuracy: 0.5)
     }
 
@@ -109,7 +108,7 @@ final class PillGeometryTests: XCTestCase {
         let frame = CGRect(x: screen.minX + 20, y: 400, width: 48, height: 104)
         let result = resolved(frame, .vertical, expanded: false, dock: .left)
 
-        let expectedX = screen.minX + FloatingPillPanelManager.PillMetrics.screenInset
+        let expectedX = screen.minX + PillGeometry.screenInset
         XCTAssertEqual(result.minX, expectedX, accuracy: 0.5)
     }
 
@@ -123,7 +122,7 @@ final class PillGeometryTests: XCTestCase {
         for frame in cases {
             for orientation in [PillOrientation.horizontal, .vertical] {
                 let result = resolved(frame, orientation, expanded: true)
-                let inset = FloatingPillPanelManager.PillMetrics.screenInset
+                let inset = PillGeometry.screenInset
 
                 XCTAssertGreaterThanOrEqual(result.minX, screen.minX + inset - 0.5)
                 XCTAssertLessThanOrEqual(result.maxX, screen.maxX - inset + 0.5)
@@ -138,39 +137,39 @@ final class PillGeometryTests: XCTestCase {
     func testDockThresholdIsSmallEnoughToAvoidTeleport() {
         // Lo snap massimo coincide con la soglia: deve restare un magnete, non
         // un teletrasporto verso il bordo.
-        XCTAssertLessThanOrEqual(FloatingPillPanelManager.PillMetrics.dockThreshold, 60)
+        XCTAssertLessThanOrEqual(PillGeometry.dockThreshold, 60)
     }
 
     // MARK: - Isteresi del docking (morphing live)
 
     func testResolvedDockEntersAtThreshold() {
-        let near = FloatingPillPanelManager.PillMetrics.dockThreshold - 1
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .center, leftDist: 500, rightDist: near), .right)
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .center, leftDist: near, rightDist: 500), .left)
+        let near = PillGeometry.dockThreshold - 1
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .center, leftDist: 500, rightDist: near), .right)
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .center, leftDist: near, rightDist: 500), .left)
     }
 
     func testResolvedDockStaysDockedInsideExitThreshold() {
-        let insideExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold - 1
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 400, rightDist: insideExit), .right)
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .left, leftDist: insideExit, rightDist: 400), .left)
+        let insideExit = PillGeometry.dockExitThreshold - 1
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .right, leftDist: 400, rightDist: insideExit), .right)
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .left, leftDist: insideExit, rightDist: 400), .left)
     }
 
     func testResolvedDockReleasesBeyondExitThreshold() {
-        let beyondExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold + 1
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 400, rightDist: beyondExit), .center)
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .left, leftDist: beyondExit, rightDist: 400), .center)
+        let beyondExit = PillGeometry.dockExitThreshold + 1
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .right, leftDist: 400, rightDist: beyondExit), .center)
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .left, leftDist: beyondExit, rightDist: 400), .center)
     }
 
     func testResolvedDockCrossesDirectlyBetweenSides() {
         // Da un bordo all'altro passando per il centro: dentro la soglia di
         // ingresso dell'altro lato, il dock cambia lato senza fermarsi.
-        XCTAssertEqual(FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 10, rightDist: 400), .left)
+        XCTAssertEqual(PillGeometry.resolvedDock(previous: .right, leftDist: 10, rightDist: 400), .left)
     }
 
     func testLiveDockKeepsOrientationUntilReleased() {
         // Il morphing durante il drag usa la stessa isteresi del rilascio:
         // dentro la soglia di uscita l'orientamento verticale non sfarfalla.
-        let dock = FloatingPillPanelManager.resolvedDock(previous: .right, leftDist: 500, rightDist: 100)
+        let dock = PillGeometry.resolvedDock(previous: .right, leftDist: 500, rightDist: 100)
         let orientation: PillOrientation = dock == .center ? .horizontal : .vertical
         XCTAssertEqual(orientation, .vertical)
         XCTAssertEqual(dock, .right)
@@ -181,7 +180,7 @@ final class PillGeometryTests: XCTestCase {
     func testLiveDockIgnoresExpandedPanelEdge() {
         // La capsula espansa clampata al bordo ha rightDist ≈ 8, ma il cursore
         // è ancora lontano: non deve agganciarsi né far saltare la pillola.
-        let dock = FloatingPillPanelManager.resolvedLiveDock(
+        let dock = PillGeometry.resolvedLiveDock(
             previous: .center,
             cursorX: screen.maxX - 200,
             screenRect: screen
@@ -190,9 +189,9 @@ final class PillGeometryTests: XCTestCase {
     }
 
     func testLiveDockSnapsWhenCursorReachesEdge() {
-        let near = FloatingPillPanelManager.PillMetrics.dockThreshold - 1
+        let near = PillGeometry.dockThreshold - 1
         XCTAssertEqual(
-            FloatingPillPanelManager.resolvedLiveDock(
+            PillGeometry.resolvedLiveDock(
                 previous: .center,
                 cursorX: screen.maxX - near,
                 screenRect: screen
@@ -200,7 +199,7 @@ final class PillGeometryTests: XCTestCase {
             .right
         )
         XCTAssertEqual(
-            FloatingPillPanelManager.resolvedLiveDock(
+            PillGeometry.resolvedLiveDock(
                 previous: .center,
                 cursorX: screen.minX + near,
                 screenRect: screen
@@ -210,11 +209,11 @@ final class PillGeometryTests: XCTestCase {
     }
 
     func testLiveDockHysteresisFollowsCursor() {
-        let insideExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold - 1
-        let beyondExit = FloatingPillPanelManager.PillMetrics.dockExitThreshold + 1
+        let insideExit = PillGeometry.dockExitThreshold - 1
+        let beyondExit = PillGeometry.dockExitThreshold + 1
 
         XCTAssertEqual(
-            FloatingPillPanelManager.resolvedLiveDock(
+            PillGeometry.resolvedLiveDock(
                 previous: .right,
                 cursorX: screen.maxX - insideExit,
                 screenRect: screen
@@ -222,7 +221,7 @@ final class PillGeometryTests: XCTestCase {
             .right
         )
         XCTAssertEqual(
-            FloatingPillPanelManager.resolvedLiveDock(
+            PillGeometry.resolvedLiveDock(
                 previous: .right,
                 cursorX: screen.maxX - beyondExit,
                 screenRect: screen

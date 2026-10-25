@@ -9,7 +9,6 @@ import LettoreUI
 struct LettoreApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState: AppState
-    private let audioEngine: AudioEngineService
     private let shortcutManager: GlobalShortcutManager
     private let coordinator: PlaybackCoordinator
     private let readingCapture: ReadingCaptureController
@@ -73,7 +72,6 @@ struct LettoreApp: App {
             sourceHighlightCoordinator?.end()
         }
 
-        self.audioEngine = audioEngine
         self.shortcutManager = shortcutManager
         self.coordinator = coordinator
         self.readingCapture = readingCapture
@@ -177,14 +175,14 @@ struct LettoreApp: App {
         // Ascolta richieste di apertura o toggle della pillola fluttuante
         NotificationCenter.default.addObserver(forName: NSNotification.Name("ToggleFloatingPill"), object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
-                FloatingPillPanelManager.shared.toggle(appState: state, audioEngine: audioEngine, coordinator: coordinator)
+                FloatingPillPanelManager.shared.toggle(appState: state, coordinator: coordinator)
             }
         }
         
         // Mostra la pillola all'avvio dell'applicazione
         NotificationCenter.default.addObserver(forName: NSNotification.Name("ShowFloatingPill"), object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
-                FloatingPillPanelManager.shared.show(appState: state, audioEngine: audioEngine, coordinator: coordinator)
+                FloatingPillPanelManager.shared.show(appState: state, coordinator: coordinator)
             }
         }
     }
@@ -193,13 +191,12 @@ struct LettoreApp: App {
         // Finestra Principale Studio / Super Accessibile
         WindowGroup("Lettore Studio", id: "studio-window") {
             if appState.accessibilityProfile == .lowVision {
-                SuperAccessibleView(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                SuperAccessibleView(appState: appState, coordinator: coordinator)
                     .frame(minWidth: 960, minHeight: 640)
                     .task { setupCaptureLogic(state: appState) }
             } else {
                 LettoreStudioView(
                     appState: appState,
-                    audioEngine: audioEngine,
                     coordinator: coordinator,
                     readingCapture: readingCapture,
                     onSourceHighlightBegin: { documentID, pid in
@@ -213,7 +210,7 @@ struct LettoreApp: App {
                 .task { setupCaptureLogic(state: appState) }
                 .onAppear {
                     // Mostra la pillola fluttuante all'apertura dello Studio
-                    FloatingPillPanelManager.shared.show(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                    FloatingPillPanelManager.shared.show(appState: appState, coordinator: coordinator)
                 }
             }
         }
@@ -221,7 +218,7 @@ struct LettoreApp: App {
         .commands {
             CommandMenu("Strumenti") {
                 Button("Mostra / Nascondi Pillola Fluttuante") {
-                    FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                    FloatingPillPanelManager.shared.toggle(appState: appState, coordinator: coordinator)
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
 
@@ -267,7 +264,7 @@ struct LettoreApp: App {
         // Menu Bar Item di Sistema
         MenuBarExtra("Lettore", systemImage: "waveform.badge.magnifyingglass") {
             Button("Mostra / Nascondi Pillola Fluttuante") {
-                FloatingPillPanelManager.shared.toggle(appState: appState, audioEngine: audioEngine, coordinator: coordinator)
+                FloatingPillPanelManager.shared.toggle(appState: appState, coordinator: coordinator)
             }
 
             Divider()

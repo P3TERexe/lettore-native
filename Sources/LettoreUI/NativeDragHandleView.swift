@@ -54,7 +54,7 @@ public final class NativeDragHandleNSView: NSView {
         let manager = FloatingPillPanelManager.shared
 
         manager.beginPanelDrag(atMouseLocation: NSEvent.mouseLocation) { distance in
-            if distance < FloatingPillPanelManager.PillMetrics.tapThreshold {
+            if distance < PillGeometry.tapThreshold {
                 manager.dragPanelCancelled()
             } else {
                 manager.dragPanelEnded()
