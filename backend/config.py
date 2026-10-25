@@ -6,6 +6,8 @@ Provider ONNX e thread del motore TTS sono configurati direttamente in
 ``LETTORE_TTS_INTER_THREADS``.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,7 +27,7 @@ class BackendConfig:
     )
 
     @classmethod
-    def from_env(cls) -> "BackendConfig":
+    def from_env(cls) -> BackendConfig:
         port = int(os.getenv("LETTORE_PORT", "7788"))
         host = os.getenv("LETTORE_HOST", "127.0.0.1")
         engine = os.getenv("LETTORE_ENGINE", "supertonic")

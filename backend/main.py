@@ -4,6 +4,8 @@ Avvio:  uvicorn main:app --host 127.0.0.1 --port 7788
         (oppure python -m main)
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from contextlib import asynccontextmanager

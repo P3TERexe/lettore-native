@@ -1,5 +1,7 @@
 """Endpoint di configurazione runtime (default usati dall'UI)."""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, Request
 
 from ..models import AppConfig

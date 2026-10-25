@@ -1,5 +1,7 @@
 """Endpoint informativi: voci, lingue, stato."""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException, Request
 
 from ..models import StatusResponse, VoiceList, VoiceUpdate

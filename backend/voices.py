@@ -4,6 +4,8 @@ Persistenza: <config_dir>/voices.json.
 `langs == []` significa "compatibile con tutte le lingue".
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path

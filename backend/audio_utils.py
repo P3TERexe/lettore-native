@@ -1,5 +1,7 @@
 """Utility audio: numpy -> bytes WAV."""
 
+from __future__ import annotations
+
 import io
 
 import numpy as np
