@@ -4,54 +4,6 @@ import CoreGraphics
 import AppKit
 import LettoreCore
 
-/// Risultato di un'operazione di cattura del testo da un'applicazione esterna.
-public struct AXCaptureResult: Sendable {
-    public let text: String
-    public let sourceAppName: String?
-    public let selectionBounds: CGRect?
-    public let usedClipboardFallback: Bool
-    /// Sessione sorgente registrata per l'highlight, se la selezione è stata
-    /// letta via AX. Resta `nil` quando si usa il fallback clipboard.
-    public let sourceDocumentID: UUID?
-    public let sourceRange: SourceTextRange?
-    public let sourcePID: pid_t?
-
-    public init(
-        text: String,
-        sourceAppName: String? = nil,
-        selectionBounds: CGRect? = nil,
-        usedClipboardFallback: Bool = false,
-        sourceDocumentID: UUID? = nil,
-        sourceRange: SourceTextRange? = nil,
-        sourcePID: pid_t? = nil
-    ) {
-        self.text = text
-        self.sourceAppName = sourceAppName
-        self.selectionBounds = selectionBounds
-        self.usedClipboardFallback = usedClipboardFallback
-        self.sourceDocumentID = sourceDocumentID
-        self.sourceRange = sourceRange
-        self.sourcePID = sourcePID
-    }
-}
-
-public extension AXCaptureResult {
-    /// Testo della selezione senza spazi di bordo, l'unico che il chiamante
-    /// usa per la coda.
-    var trimmedText: String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Range assoluto del `trimmedText` nell'app di origine. Avanza la base di
-    /// quante unità UTF-16 sono state rimosse all'inizio; resta `nil` quando la
-    /// cattura non ha una sessione AX mappabile (es. clipboard).
-    var trimmedSourceRange: SourceTextRange? {
-        sourceRange.map {
-            SourceTextTrimming.trimmedRange(selection: $0, selectedText: text)
-        }
-    }
-}
-
 /// Servizio di cattura del testo nativo macOS basato su Accessibility APIs (AXUIElement).
 public actor AXCaptureService {
 
@@ -87,7 +39,7 @@ public actor AXCaptureService {
     }
     
     /// Cattura il testo attualmente selezionato nell'applicazione attiva in primo piano.
-    public func captureSelectedText() async -> AXCaptureResult? {
+    public func captureSelectedText() async -> CapturedSelection? {
         await captureSelectedText(from: nil)
     }
 
@@ -96,7 +48,7 @@ public actor AXCaptureService {
     ///
     /// Con un PID esplicito non si usa il fallback clipboard: Cmd+C verrebbe
     /// inviato all'app in primo piano (lo Studio), non all'app di origine.
-    public func captureSelectedText(from applicationPID: pid_t?) async -> AXCaptureResult? {
+    public func captureSelectedText(from applicationPID: pid_t?) async -> CapturedSelection? {
         if !AXIsProcessTrusted() {
             print("[AXCapture] ⚠️ Accessibilità NON concessa dal sistema operativo (AXIsProcessTrusted == false).")
             requestAccessibilityPrompt()
@@ -147,7 +99,7 @@ public actor AXCaptureService {
                     focused: focusedElement,
                     sourcePID: processIdentifier(of: focusedElement)
                 )
-                return AXCaptureResult(
+                return CapturedSelection(
                     text: selectedStr,
                     sourceAppName: appName,
                     selectionBounds: nil,
@@ -169,7 +121,7 @@ public actor AXCaptureService {
 
     /// Cattura la selezione dall'app target leggendo solo l'AX, senza inviare
     /// eventi di tastiera. Restituisce `nil` se l'app non espone la selezione.
-    private func captureSelectedText(fromApplication pid: pid_t) -> AXCaptureResult? {
+    private func captureSelectedText(fromApplication pid: pid_t) -> CapturedSelection? {
         let appElement = AXUIElementCreateApplication(pid)
         let appName = applicationName(for: appElement, pid: pid)
 
@@ -196,7 +148,7 @@ public actor AXCaptureService {
             focused: focusedElement,
             sourcePID: pid
         )
-        return AXCaptureResult(
+        return CapturedSelection(
             text: selectedStr,
             sourceAppName: appName,
             selectionBounds: nil,
@@ -243,7 +195,7 @@ public actor AXCaptureService {
         return NSRunningApplication(processIdentifier: pid)?.localizedName
     }
     
-    func captureViaClipboardFallback(appName: String?) async -> AXCaptureResult? {
+    func captureViaClipboardFallback(appName: String?) async -> CapturedSelection? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
         
@@ -265,7 +217,7 @@ public actor AXCaptureService {
             if pasteboard.changeCount != previousChangeCount {
                 if let copied = pasteboard.string(forType: .string), !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     print("[AXCapture] Fallback clipboard riuscito (\(copied.count) caratteri).")
-                    return AXCaptureResult(
+                    return CapturedSelection(
                         text: copied,
                         sourceAppName: appName,
                         selectionBounds: nil,
@@ -279,3 +231,5 @@ public actor AXCaptureService {
         return nil
     }
 }
+
+extension AXCaptureService: SelectedTextCapturing {}

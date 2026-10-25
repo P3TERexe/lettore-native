@@ -5,49 +5,25 @@ import LettoreEngine
 import LettoreSystem
 import LettoreUI
 
-/// Delegate per garantire che l'app CLI/SPM venga promossa a vera app GUI macOS con focus in primo piano.
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Trasforma il processo da CLI/Accessory a regolare applicazione grafica
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        
-        // Richiede esplicitamente a macOS di mostrare il popup per i permessi di Accessibilità se non concessi
-        let promptOption = "AXTrustedCheckOptionPrompt" as CFString
-        let options = [promptOption: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            for window in NSApp.windows {
-                if window.title == "Lettore Studio" {
-                    window.makeKeyAndOrderFront(nil)
-                    window.orderFrontRegardless()
-                    window.isMovableByWindowBackground = true
-                }
-            }
-        }
-    }
-}
-
 @main
 struct LettoreApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState: AppState
     private let audioEngine: AudioEngineService
-    private let axCapture: AXCaptureService
     private let shortcutManager: GlobalShortcutManager
     private let coordinator: PlaybackCoordinator
-    private let captureController: ContinuousReadingController
+    private let readingCapture: ReadingCaptureController
     @State private var sourceHighlightCoordinator: SourceHighlightCoordinator
     @State private var isCaptureLogicSetup = false
 
     init() {
         let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
         let chunks = ReadingTextPreparer().prepareInitial(text: sample, mode: .off).chunks
+        let sourceApplications = SystemSourceApplicationProvider()
         let state = AppState()
         state.setQueue(chunks)
-        if let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-           frontmostPID != ProcessInfo.processInfo.processIdentifier {
+        if let frontmostPID = sourceApplications.frontmostApplicationPID,
+           frontmostPID != sourceApplications.currentProcessIdentifier {
             state.lastExternalApplicationPID = frontmostPID
         }
         _appState = State(initialValue: state)
@@ -60,6 +36,14 @@ struct LettoreApp: App {
             appState: state,
             coordinator: coordinator,
             source: axCapture
+        )
+        let readingCapture = ReadingCaptureController(
+            appState: state,
+            selectedText: axCapture,
+            sourceApplications: sourceApplications,
+            continuousCapture: { [captureController] applicationPID in
+                await captureController.captureAndPlay(from: applicationPID)
+            }
         )
         let sourceHighlightCoordinator = SourceHighlightCoordinator(
             appState: state,
@@ -90,10 +74,9 @@ struct LettoreApp: App {
         }
 
         self.audioEngine = audioEngine
-        self.axCapture = axCapture
         self.shortcutManager = shortcutManager
         self.coordinator = coordinator
-        self.captureController = captureController
+        self.readingCapture = readingCapture
         _sourceHighlightCoordinator = State(initialValue: sourceHighlightCoordinator)
     }
     
@@ -101,94 +84,27 @@ struct LettoreApp: App {
         guard !isCaptureLogicSetup else { return }
         isCaptureLogicSetup = true
         
-        let captureAction: @Sendable () -> Void = { [axCapture, captureController] in
+        let captureAction: @Sendable () -> Void = { [readingCapture, coordinator, sourceHighlightCoordinator, state] in
             Task { @MainActor in
-                // Quando il Play parte dalla UI di Lettore (pillola incorporata
-                // o fluttuante mentre lo Studio è attivo) l'app in primo piano
-                // è Lettore stesso: leggere il suo focused element non trova
-                // testo. Si usa l'ultima app esterna attivata, come fa il
-                // pulsante "Leggi da qui". La scorciatoia globale continua a
-                // leggere l'app davvero in primo piano.
-                let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                let isRequestFromLettoreUI = frontmostPID == ProcessInfo.processInfo.processIdentifier
-                let sourcePID = isRequestFromLettoreUI
-                    ? self.validExternalApplicationPID(for: state)
-                    : nil
-
-                if isRequestFromLettoreUI, sourcePID == nil {
-                    guard state.playbackState != .playing else { return }
-                    // Nessuna app di origine valida: non leggere la UI di
-                    // Lettore. Il Play riprende la coda già pronta, se c'è.
-                    if state.currentChunk != nil {
-                        state.continuationNotice = nil
-                        self.coordinator.playCurrentChunk()
-                    } else {
-                        state.continuationNotice = "Nessuna app di origine disponibile: porta in primo piano l'app con il testo, poi torna qui e riprova."
-                    }
-                    return
-                }
-
-                if state.isContinuousReadingEnabled {
-                    let captured = await captureController.captureAndPlay(from: sourcePID)
-                    if captured == nil,
-                       state.playbackState != .playing,
-                       state.currentChunk != nil {
-                        // La cattura non ha prodotto testo: il Play non deve
-                        // restare muto se c'è una coda già pronta.
-                        state.continuationNotice = nil
-                        self.coordinator.playCurrentChunk()
-                    }
-                    return
-                }
-
-                guard let result = await axCapture.captureSelectedText(from: sourcePID) else {
-                    // Nessuna selezione leggibile: se esiste una coda non
-                    // ancora finita, riprendila invece di non fare nulla.
-                    if state.playbackState != .playing, state.currentChunk != nil {
-                        self.coordinator.playCurrentChunk()
-                    }
-                    return
-                }
-
-                let text = result.trimmedText
-                guard !text.isEmpty else {
-                    // Nessuna selezione leggibile: se esiste una coda non
-                    // ancora finita, riprendila invece di non fare nulla.
-                    if state.playbackState != .playing, state.currentChunk != nil {
-                        self.coordinator.playCurrentChunk()
-                    }
-                    return
-                }
-
-                // Una nuova cattura (anche non continua) chiude l'avviso
-                // persistente della sessione precedente.
-                state.continuationNotice = nil
-                state.capturedDocumentText = ""
-
-                // Il testo è contiguo nella sorgente: il range della selezione
-                // (già avanzato dal trimming) è la base assoluta dei chunk.
-                let sourceRange = result.trimmedSourceRange
-                let reading = ReadingTextPreparer().prepareInitial(
-                    text: text,
-                    sourceRange: sourceRange,
-                    sourceDocumentID: result.sourceDocumentID,
-                    mode: .off
+                let outcome = await readingCapture.captureFromFrontmost(
+                    isContinuousEnabled: state.isContinuousReadingEnabled
                 )
-
-                state.setQueue(reading.chunks)
-                if let documentID = result.sourceDocumentID,
-                   let sourcePID = result.sourcePID,
-                   sourceRange != nil {
-                    self.sourceHighlightCoordinator.begin(
-                        documentID: documentID,
-                        sourcePID: sourcePID
-                    )
-                } else {
-                    self.sourceHighlightCoordinator.end()
-                }
-
-                if state.playbackState != .playing {
-                    self.coordinator.playCurrentChunk()
+                switch outcome {
+                case .captured(let selection):
+                    if let documentID = selection.sourceDocumentID,
+                       let sourcePID = selection.sourcePID,
+                       selection.trimmedSourceRange != nil {
+                        sourceHighlightCoordinator.begin(documentID: documentID, sourcePID: sourcePID)
+                    } else {
+                        sourceHighlightCoordinator.end()
+                    }
+                    if state.playbackState != .playing {
+                        coordinator.playCurrentChunk()
+                    }
+                case .fellBackToQueue:
+                    coordinator.playCurrentChunk()
+                case .continuous, .unavailable:
+                    break
                 }
             }
         }
@@ -272,19 +188,6 @@ struct LettoreApp: App {
             }
         }
     }
-    
-    /// PID dell'ultima app esterna ancora in esecuzione, mai il PID di
-    /// Lettore. Usato quando la cattura parte dalla UI dell'app, che è
-    /// inevitabilmente in primo piano.
-    private func validExternalApplicationPID(for state: AppState) -> pid_t? {
-        guard let pid = state.lastExternalApplicationPID,
-              pid != ProcessInfo.processInfo.processIdentifier,
-              let application = NSRunningApplication(processIdentifier: pid),
-              !application.isTerminated else {
-            return nil
-        }
-        return pid
-    }
 
     var body: some Scene {
         // Finestra Principale Studio / Super Accessibile
@@ -298,8 +201,7 @@ struct LettoreApp: App {
                     appState: appState,
                     audioEngine: audioEngine,
                     coordinator: coordinator,
-                    captureController: captureController,
-                    axCapture: axCapture,
+                    readingCapture: readingCapture,
                     onSourceHighlightBegin: { documentID, pid in
                         sourceHighlightCoordinator.begin(documentID: documentID, sourcePID: pid)
                     },

@@ -11,8 +11,7 @@ public struct LettoreStudioView: View {
     @Bindable public var appState: AppState
     public var audioEngine: AudioEngineService
     public var coordinator: PlaybackCoordinator
-    public var captureController: ContinuousReadingController
-    public var axCapture: AXCaptureService
+    public var readingCapture: ReadingCaptureController
     /// Apre la sessione di highlight dopo una cattura non continua. `nil` nei
     /// test o nelle anteprime senza composizione App.
     public var onSourceHighlightBegin: ((UUID, pid_t) -> Void)?
@@ -25,16 +24,14 @@ public struct LettoreStudioView: View {
         appState: AppState,
         audioEngine: AudioEngineService,
         coordinator: PlaybackCoordinator,
-        captureController: ContinuousReadingController,
-        axCapture: AXCaptureService = AXCaptureService(),
+        readingCapture: ReadingCaptureController,
         onSourceHighlightBegin: ((UUID, pid_t) -> Void)? = nil,
         onSourceHighlightEnd: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.audioEngine = audioEngine
         self.coordinator = coordinator
-        self.captureController = captureController
-        self.axCapture = axCapture
+        self.readingCapture = readingCapture
         self.onSourceHighlightBegin = onSourceHighlightBegin
         self.onSourceHighlightEnd = onSourceHighlightEnd
     }
@@ -941,32 +938,16 @@ public struct LettoreStudioView: View {
         coordinator.playCurrentChunk()
     }
 
-    /// Riproduce una cattura non continua usando lo stesso mapping del
-    /// percorso documentale. Senza range i chunk restano `nil` e vale il
-    /// fallback Studio.
-    private func playCapturedResult(_ result: AXCaptureResult) {
-        let text = result.trimmedText
-        guard !text.isEmpty else { return }
-
+    /// Riproduce la selezione già preparata dal controller di cattura.
+    private func playCapturedSelection(_ selection: CapturedSelection) {
         coordinator.stop()
-        appState.continuationNotice = nil
-        appState.capturedDocumentText = ""
+        guard !appState.readingQueue.isEmpty else { return }
 
-        let sourceRange = result.trimmedSourceRange
-        let reading = ReadingTextPreparer().prepareInitial(
-            text: text,
-            sourceRange: sourceRange,
-            sourceDocumentID: result.sourceDocumentID,
-            mode: .off
-        )
-        guard !reading.chunks.isEmpty else { return }
+        inputText = selection.text
 
-        appState.setQueue(reading.chunks)
-        inputText = result.text
-
-        if let documentID = result.sourceDocumentID,
-           let sourcePID = result.sourcePID,
-           sourceRange != nil {
+        if let documentID = selection.sourceDocumentID,
+           let sourcePID = selection.sourcePID,
+           selection.trimmedSourceRange != nil {
             onSourceHighlightBegin?(documentID, sourcePID)
         } else {
             onSourceHighlightEnd?()
@@ -977,60 +958,30 @@ public struct LettoreStudioView: View {
     
     private func captureFromFrontmostApp() {
         Task {
-            let sourcePID = activeExternalApplicationPID()
+            let outcome = await readingCapture.playFromUI(
+                isContinuousEnabled: appState.isContinuousReadingEnabled
+            )
 
-            guard let sourcePID else {
-                await MainActor.run {
-                    appState.continuationNotice = "Nessuna app di origine disponibile: porta in primo piano l'app con il testo, poi torna qui e riprova."
-                    if !appState.isAccessibilityGranted {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("CheckAccessibilityPermissions"),
-                            object: nil
-                        )
-                    }
-                }
-                return
-            }
-
-            if appState.isContinuousReadingEnabled {
-                let captured = await captureController.captureAndPlay(from: sourcePID)
-                await MainActor.run {
-                    if let captured {
-                        self.inputText = captured
-                    } else if !appState.isAccessibilityGranted {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("CheckAccessibilityPermissions"),
-                            object: nil
-                        )
-                    }
-                }
-                return
-            }
-
-            if let result = await axCapture.captureSelectedText(from: sourcePID) {
-                await MainActor.run {
-                    playCapturedResult(result)
-                }
-            } else {
-                await MainActor.run {
-                    if !appState.isAccessibilityGranted {
-                        NotificationCenter.default.post(name: NSNotification.Name("CheckAccessibilityPermissions"), object: nil)
-                    }
-                }
+            switch outcome {
+            case .captured(let selection):
+                playCapturedSelection(selection)
+            case .continuous(let text):
+                inputText = text
+            case .fellBackToQueue:
+                requestAccessibilityPermissionIfNeeded()
+                coordinator.playCurrentChunk()
+            case .unavailable:
+                requestAccessibilityPermissionIfNeeded()
             }
         }
     }
 
-    /// PID dell'ultima app esterna ancora in esecuzione, oppure `nil` se non
-    /// c'è un'app di origine valida (mai il PID di Lettore stesso).
-    private func activeExternalApplicationPID() -> pid_t? {
-        guard let pid = appState.lastExternalApplicationPID,
-              pid != ProcessInfo.processInfo.processIdentifier,
-              let application = NSRunningApplication(processIdentifier: pid),
-              !application.isTerminated else {
-            return nil
-        }
-        return pid
+    private func requestAccessibilityPermissionIfNeeded() {
+        guard !appState.isAccessibilityGranted else { return }
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CheckAccessibilityPermissions"),
+            object: nil
+        )
     }
     
     private func pasteFromClipboard() {
