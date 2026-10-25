@@ -35,5 +35,4 @@ def status(request: Request):
         model_loading=tts.loading,
         model=tts.model,
         sample_rate=tts.sample_rate,
-        queue=request.app.state.queue.snapshot(),
     )

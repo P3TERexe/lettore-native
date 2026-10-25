@@ -11,10 +11,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import router_blocks, router_config, router_meta, router_queue, router_tts
+from .api import router_config, router_meta, router_tts
 from .config import BackendConfig
 from .models import AppConfig
-from .queue_manager import QueueManager
 from .tts_manager import TTSManager
 from .voices import VoiceRegistry
 
@@ -47,15 +46,12 @@ def create_app(config: BackendConfig | None = None) -> FastAPI:
         auto_download=config.auto_download,
         engine=config.engine,
     )
-    app.state.queue = QueueManager()
     app.state.voices = VoiceRegistry(config.config_dir)
     app.state.runtime_config = AppConfig()
 
     app.include_router(router_tts)
-    app.include_router(router_queue)
     app.include_router(router_meta)
     app.include_router(router_config)
-    app.include_router(router_blocks)
     return app
 
 
