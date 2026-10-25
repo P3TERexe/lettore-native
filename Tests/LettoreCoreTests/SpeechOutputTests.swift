@@ -13,8 +13,10 @@ final class SpeechOutputTests: XCTestCase {
         var data = Data("WAV_FAKE".utf8)
         var error: Error?
         var hangs = false
+        var waitsForRelease = false
 
         private let lock = NSLock()
+        private var releaseContinuation: CheckedContinuation<Void, Never>?
         private var _callCount = 0
         private var _completedCount = 0
         private var _cancelledCount = 0
@@ -24,6 +26,15 @@ final class SpeechOutputTests: XCTestCase {
         var completedCount: Int { lock.withLock { _completedCount } }
         var cancelledCount: Int { lock.withLock { _cancelledCount } }
         var texts: [String] { lock.withLock { _texts } }
+
+        func release() {
+            let continuation = lock.withLock {
+                let pending = releaseContinuation
+                releaseContinuation = nil
+                return pending
+            }
+            continuation?.resume()
+        }
 
         func loadModel() async throws {}
 
@@ -44,6 +55,12 @@ final class SpeechOutputTests: XCTestCase {
             lock.withLock {
                 _callCount += 1
                 _texts.append(text)
+            }
+
+            if waitsForRelease {
+                await withCheckedContinuation { continuation in
+                    lock.withLock { releaseContinuation = continuation }
+                }
             }
 
             if hangs {
@@ -244,6 +261,36 @@ final class SpeechOutputTests: XCTestCase {
         output.play(request)
         await assertEventually { audio.playedData.count == 1 }
         XCTAssertEqual(pipeline.callCount, 1, "Il play deve consumare il preload, non risintetizzare")
+
+        audio.completePlayback(at: 0)
+        await assertEventually { collector.containsFinished(request.id) }
+    }
+
+    func testPlayWhilePreloadIsInFlightWaitsWithoutSynthesizingAgain() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload in volo."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.waitsForRelease = true
+
+        output.preload([request])
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.play(request)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(audio.playedData.isEmpty, "Il play aspetta il preload già in corso")
+
+        pipeline.release()
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(pipeline.callCount, 1, "Il preload in volo viene riusato, non risintetizzato")
 
         audio.completePlayback(at: 0)
         await assertEventually { collector.containsFinished(request.id) }

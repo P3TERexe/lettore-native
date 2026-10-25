@@ -113,14 +113,13 @@ public actor AXCaptureService {
         
         // Fallback su simulazione Cmd+C via clipboard se AX non espone il testo selezionato
         clearHighlightSession()
-        return await captureViaClipboardFallback(appName: appName)
+        return await captureViaClipboardFallback()
     }
 
     /// Cattura la selezione dall'app target leggendo solo l'AX, senza inviare
     /// eventi di tastiera. Restituisce `nil` se l'app non espone la selezione.
     private func captureSelectedText(fromApplication pid: pid_t) -> CapturedSelection? {
         let appElement = AXUIElementCreateApplication(pid)
-        let appName = applicationName(for: appElement, pid: pid)
 
         guard let focusedElement = focusedElement(in: appElement) else {
             print("[AXCapture] App target (PID \(pid)) senza elemento focalizzato: nessuna cattura.")
@@ -189,7 +188,7 @@ public actor AXCaptureService {
         return NSRunningApplication(processIdentifier: pid)?.localizedName
     }
     
-    func captureViaClipboardFallback(appName: String?) async -> CapturedSelection? {
+    func captureViaClipboardFallback() async -> CapturedSelection? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
         

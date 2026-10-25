@@ -97,7 +97,7 @@ extension AXCaptureService: ContinuousTextSource {
             // leggendo l'app in primo piano, l'unica strada è Cmd+C: non
             // ruba il focus e permette almeno di leggere la selezione.
             let frontmostName = NSWorkspace.shared.frontmostApplication?.localizedName
-            if let clipboard = await captureViaClipboardFallback(appName: frontmostName) {
+            if let clipboard = await captureViaClipboardFallback() {
                 return ContinuousCaptureStart(
                     text: clipboard.text,
                     selectedText: clipboard.text,
@@ -129,7 +129,7 @@ extension AXCaptureService: ContinuousTextSource {
             // possiamo usare Cmd+C senza rubare il focus; con un PID esplicito
             // il fallback è vietato perché Cmd+C finirebbe nell'app sbagliata.
             if applicationPID == nil,
-               let clipboard = await captureViaClipboardFallback(appName: appName) {
+               let clipboard = await captureViaClipboardFallback() {
                 return ContinuousCaptureStart(
                     text: clipboard.text,
                     selectedText: clipboard.text,
@@ -242,7 +242,7 @@ extension AXCaptureService: ContinuousTextSource {
         // vietato: Cmd+C finirebbe nell'app in primo piano (lo Studio), non
         // nell'app di origine.
         if applicationPID == nil,
-           let clipboard = await captureViaClipboardFallback(appName: appName) {
+           let clipboard = await captureViaClipboardFallback() {
             return ContinuousCaptureStart(
                 text: clipboard.text,
                 selectedText: clipboard.text,
