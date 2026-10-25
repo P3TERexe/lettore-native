@@ -1,7 +1,12 @@
 # Universal Reading Layer con Fallback a 3 Livelli (AX -> Clipboard -> Vision OCR) e Layout Analysis Deterministica
 
-**Stato**: Accettata  
+**Stato**: Accettata; il livello 3 e la layout analysis backend sono superati in parte da [ADR-012](012-moduli-profondi-pipeline-e-coda.md)  
 **Data**: 2026-09-05
+
+> [!NOTE]
+> Dopo il rewrite nativo, il livello 3 vive in `VisionOCRService` (Apple Vision,
+> offline) e non è ancora cablato nell'app. Gli endpoint `/v1/blocks` e il
+> pacchetto `backend/blocks` sono stati rimossi perché senza consumatori.
 
 ## Contesto & Problema
 

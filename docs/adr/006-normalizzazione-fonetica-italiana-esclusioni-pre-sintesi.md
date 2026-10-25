@@ -1,7 +1,12 @@
 # Pipeline di Normalizzazione Fonetica Italiana ed Esclusioni Pre-Sintesi
 
-**Stato**: Accettata  
+**Stato**: Accettata; superata in parte da [ADR-012](012-moduli-profondi-pipeline-e-coda.md)  
 **Data**: 2026-09-04
+
+> [!NOTE]
+> Nel client Swift la normalizzazione avviene una sola volta in `LettoreCore`,
+> prima del chunking, e il backend non la ripete quando riceve
+> `normalize_text: false`. L'endpoint `/v1/queue` non esiste più.
 
 ## Contesto & Problema
 
