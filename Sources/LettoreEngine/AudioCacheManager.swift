@@ -60,6 +60,9 @@ public final class AudioCacheManager: @unchecked Sendable {
     // MARK: - Recupero Cache L1 / L2
     
     /// Cerca l'audio per la chiave data. Ritorna il Data e la sorgente (RAM o Disco), o nil se cache miss.
+    ///
+    /// La lettura del disco avviene sul thread chiamante: per il percorso di
+    /// riproduzione usare `getAudioAsync`, che sposta l'I/O fuori dal MainActor.
     public func getAudio(for key: String) -> (data: Data, source: AudioCacheSource)? {
         let nsKey = key as NSString
         
@@ -70,16 +73,44 @@ public final class AudioCacheManager: @unchecked Sendable {
         
         // 2. Check L2 Disk
         let fileURL = cacheDirectoryURL.appendingPathComponent("\(key).wav")
-        if fileManager.fileExists(atPath: fileURL.path),
-           let data = try? Data(contentsOf: fileURL) {
-            // Promuovi in L1 RAM per le letture successive
-            memoryCache.setObject(data as NSData, forKey: nsKey, cost: data.count)
-            // Aggiorna la data di modifica per la politica LRU
-            touchFile(at: fileURL)
+        if let data = Self.readFromDisk(at: fileURL) {
+            promote(data, for: nsKey, at: fileURL)
             return (data, .disk)
         }
         
         return nil
+    }
+
+    /// Variante asincrona usata dal playback: L1 resta immediata, l'I/O su
+    /// disco viene eseguito sulla coda dedicata e non blocca il MainActor.
+    func getAudioAsync(for key: String) async -> (data: Data, source: AudioCacheSource)? {
+        let nsKey = key as NSString
+
+        if let cachedData = memoryCache.object(forKey: nsKey) {
+            return (cachedData as Data, .memory)
+        }
+
+        let fileURL = cacheDirectoryURL.appendingPathComponent("\(key).wav")
+        let data: Data? = await withCheckedContinuation { continuation in
+            diskQueue.async {
+                continuation.resume(returning: Self.readFromDisk(at: fileURL))
+            }
+        }
+
+        guard let data else { return nil }
+        promote(data, for: nsKey, at: fileURL)
+        return (data, .disk)
+    }
+
+    private static func readFromDisk(at fileURL: URL) -> Data? {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+        return try? Data(contentsOf: fileURL)
+    }
+
+    private func promote(_ data: Data, for key: NSString, at fileURL: URL) {
+        memoryCache.setObject(data as NSData, forKey: key, cost: data.count)
+        touchFile(at: fileURL)
     }
     
     // MARK: - Salvataggio Cache
