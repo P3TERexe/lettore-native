@@ -84,6 +84,7 @@ class TestTTSChunkContract(unittest.TestCase):
     def test_removed_routes_are_not_exposed(self):
         self.assertEqual(self.client.get("/v1/queue").status_code, 404)
         self.assertEqual(self.client.get("/v1/blocks/status").status_code, 404)
+        self.assertEqual(self.client.post("/v1/tts/export", json={"text": "ciao"}).status_code, 404)
 
 
 if __name__ == "__main__":

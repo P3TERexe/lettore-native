@@ -30,14 +30,6 @@ class TTSRequest(BaseModel):
     text_exclusions: list[str] = Field(default_factory=list)
 
 
-class ExportRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=50000)
-    lang: str = "auto"
-    voice: str = "M1"
-    steps: int = Field(default=8, ge=5, le=12)
-    speed: float = Field(default=1.05, ge=0.1, le=4.0)
-
-
 class VoiceEntry(BaseModel):
     id: str
     name: str
