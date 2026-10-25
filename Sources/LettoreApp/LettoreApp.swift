@@ -172,19 +172,6 @@ struct LettoreApp: App {
                 }
             }
         }
-        // Ascolta richieste di apertura o toggle della pillola fluttuante
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("ToggleFloatingPill"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated {
-                FloatingPillPanelManager.shared.toggle(appState: state, coordinator: coordinator)
-            }
-        }
-        
-        // Mostra la pillola all'avvio dell'applicazione
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("ShowFloatingPill"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated {
-                FloatingPillPanelManager.shared.show(appState: state, coordinator: coordinator)
-            }
-        }
     }
 
     var body: some Scene {
