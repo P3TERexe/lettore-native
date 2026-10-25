@@ -559,12 +559,8 @@ public final class PlaybackCoordinator {
     
     public func jumpToChunk(_ chunk: ReadingChunk) {
         stop(endingSession: false)
+        guard appState.selectChunk(id: chunk.id) != nil else { return }
         playRequestedTime = CFAbsoluteTimeGetCurrent()
-        appState.currentChunk = chunk
-        let total = Double(appState.readingQueue.count)
-        if total > 0 {
-            appState.playbackProgress = Double(chunk.index) / total
-        }
         playCurrentChunk()
     }
 

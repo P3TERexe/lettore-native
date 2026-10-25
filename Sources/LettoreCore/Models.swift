@@ -107,6 +107,21 @@ public struct ReadingChunk: Identifiable, Hashable, Codable, Sendable {
         )
     }
 
+    /// Copia con indice ricalcolato, preservando identità, testo e mappa.
+    public func reindexed(_ newIndex: Int) -> ReadingChunk {
+        ReadingChunk(
+            id: id,
+            index: newIndex,
+            text: text,
+            rawText: rawText,
+            isSpoken: isSpoken,
+            durationSeconds: durationSeconds,
+            synthesisLatencyMs: synthesisLatencyMs,
+            sourceDocumentID: sourceDocumentID,
+            sourceRange: sourceRange
+        )
+    }
+
     /// Copia con testo sostituito, preservando identità, indici, telemetria e
     /// mappa sorgente. Serve alla normalizzazione dopo il chunking.
     public func replacingText(_ newText: String, rawText newRawText: String? = nil) -> ReadingChunk {

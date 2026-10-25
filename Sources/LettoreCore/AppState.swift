@@ -7,8 +7,11 @@ public final class AppState: @unchecked Sendable {
     
     // MARK: - Proprietà di Riproduzione
     public var playbackState: PlaybackState = .idle
-    public var currentChunk: ReadingChunk? = nil
-    public var readingQueue: [ReadingChunk] = []
+    private var queue = ReadingQueue()
+    /// Vista in sola lettura della coda. Le mutazioni passano dai metodi di
+    /// `AppState`, che mantengono gli invarianti di `ReadingQueue`.
+    public var readingQueue: [ReadingChunk] { queue.chunks }
+    public var currentChunk: ReadingChunk? { queue.current }
     public var currentWordIndex: Int? = nil
     /// Progresso complessivo della riproduzione nella coda (0.0 ... 1.0)
     public var playbackProgress: Double = 0.0
@@ -123,8 +126,7 @@ public final class AppState: @unchecked Sendable {
     // MARK: - Metodi di Mutazione Stato
     
     public func setQueue(_ chunks: [ReadingChunk]) {
-        self.readingQueue = chunks
-        self.currentChunk = chunks.first
+        queue.replace(chunks)
         self.playbackProgress = 0.0
     }
 
@@ -134,66 +136,55 @@ public final class AppState: @unchecked Sendable {
     public func appendChunks(_ chunks: [ReadingChunk]) -> [ReadingChunk] {
         guard !chunks.isEmpty else { return [] }
 
-        let baseIndex = readingQueue.count
-        let reindexed = chunks.enumerated().map { offset, chunk in
-            ReadingChunk(
-                id: chunk.id,
-                index: baseIndex + offset,
-                text: chunk.text,
-                rawText: chunk.rawText,
-                isSpoken: chunk.isSpoken,
-                durationSeconds: chunk.durationSeconds,
-                synthesisLatencyMs: chunk.synthesisLatencyMs,
-                sourceDocumentID: chunk.sourceDocumentID,
-                sourceRange: chunk.sourceRange
-            )
-        }
+        let wasFinished = queue.current == nil
+        let wasEmpty = queue.isEmpty
+        let reindexed = queue.append(chunks)
 
-        readingQueue.append(contentsOf: reindexed)
-
-        // Se la coda era terminata (currentChunk == nil), la prima pagina nuova
-        // diventa il punto di ripresa senza richiedere un altro tap su Play.
-        if currentChunk == nil {
-            currentChunk = reindexed.first
-            if baseIndex == 0 {
-                playbackProgress = 0.0
-            }
+        // Se la coda era terminata, la prima pagina nuova diventa il punto di
+        // ripresa senza richiedere un altro tap su Play.
+        if wasFinished {
+            self.playbackProgress = wasEmpty ? 0.0 : queue.progress
         }
 
         return reindexed
     }
     
     public func advanceChunk() -> ReadingChunk? {
-        guard let current = currentChunk,
-              let currentIndex = readingQueue.firstIndex(where: { $0.id == current.id }) else {
-            return nil
-        }
-        
-        let nextIndex = currentIndex + 1
-        if nextIndex < readingQueue.count {
-            let next = readingQueue[nextIndex]
-            self.currentChunk = next
-            self.playbackProgress = Double(nextIndex) / Double(readingQueue.count)
+        guard queue.current != nil else { return nil }
+
+        if let next = queue.advance() {
+            self.playbackProgress = queue.progress
             return next
-        } else {
-            self.playbackState = .idle
-            self.currentChunk = nil
-            self.playbackProgress = 1.0
-            return nil
         }
+
+        self.playbackState = .idle
+        self.playbackProgress = 1.0
+        return nil
     }
     
     public func rewindChunk() -> ReadingChunk? {
-        guard let current = currentChunk,
-              let currentIndex = readingQueue.firstIndex(where: { $0.id == current.id }) else {
-            return nil
-        }
-        
-        let prevIndex = max(0, currentIndex - 1)
-        let prev = readingQueue[prevIndex]
-        self.currentChunk = prev
-        self.playbackProgress = Double(prevIndex) / Double(readingQueue.count)
-        return prev
+        guard queue.current != nil else { return nil }
+
+        let previous = queue.rewind()
+        self.playbackProgress = queue.progress
+        return previous
+    }
+
+    /// Seleziona il chunk corrente per identità. Un id sconosciuto è un no-op:
+    /// il playback non può saltare a un chunk che non è nella coda.
+    @discardableResult
+    public func selectChunk(id: UUID) -> ReadingChunk? {
+        guard let selected = queue.select(id: id) else { return nil }
+        self.playbackProgress = queue.progress
+        return selected
+    }
+
+    /// Seleziona il chunk corrente per posizione, con bounds check.
+    @discardableResult
+    public func selectChunk(at index: Int) -> ReadingChunk? {
+        guard let selected = queue.select(index: index) else { return nil }
+        self.playbackProgress = queue.progress
+        return selected
     }
     
     public func setSpeed(_ newSpeed: Float) {
