@@ -1,7 +1,25 @@
 import XCTest
+import Foundation
 @testable import LettoreSystem
 
 final class AXSelectionHandlerRegistryTests: XCTestCase {
+
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func increment() {
+            lock.lock()
+            defer { lock.unlock() }
+            value += 1
+        }
+
+        var count: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+    }
 
     func testTokenIsStableAndRemovedOnUnregister() {
         let registry = AXSelectionHandlerRegistry.shared
@@ -24,6 +42,24 @@ final class AXSelectionHandlerRegistryTests: XCTestCase {
         XCTAssertNil(
             registry.handler(forToken: token),
             "Dopo la rimozione il callback deve trovare il registro vuoto, non memoria liberata"
+        )
+    }
+
+    func testLateCallbackAfterUnregisterIsANoop() {
+        let registry = AXSelectionHandlerRegistry.shared
+        let counter = Counter()
+        let box = AXSelectionNotificationBox(handler: { counter.increment() })
+        let token = registry.register(box)
+
+        registry.dispatch(token: token)
+        XCTAssertEqual(counter.count, 1)
+
+        registry.unregister(token)
+        registry.dispatch(token: token)
+        XCTAssertEqual(
+            counter.count,
+            1,
+            "Una notifica già accodata dopo l'invalidazione non deve eseguire l'handler"
         )
     }
 

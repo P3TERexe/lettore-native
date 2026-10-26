@@ -519,6 +519,12 @@ final class AXSelectionHandlerRegistry: @unchecked Sendable {
         return handlers[token]
     }
 
+    /// Consegna una notifica già accodata. Se l'handle è stato invalidato il
+    /// token non è più nel registro e la chiamata è un no-op.
+    func dispatch(token: Int) {
+        handler(forToken: token)?.fire()
+    }
+
     static func pointer(forToken token: Int) -> UnsafeMutableRawPointer? {
         UnsafeMutableRawPointer(bitPattern: token)
     }
@@ -577,6 +583,13 @@ final class AXSelectionObserverHandle: @unchecked Sendable {
             AXSelectionHandlerRegistry.shared.unregister(token)
         }
     }
+
+    /// Difesa in profondità: se un handle viene rilasciato senza passare dai
+    /// percorsi espliciti, la rimozione viene comunque accodata sul main run
+    /// loop. `invalidate` cattura solo valori, non `self`.
+    deinit {
+        invalidate()
+    }
 }
 
 private func axSelectionChangedCallback(
@@ -587,8 +600,5 @@ private func axSelectionChangedCallback(
 ) {
     guard let refcon else { return }
     let token = AXSelectionHandlerRegistry.token(from: refcon)
-    guard let box = AXSelectionHandlerRegistry.shared.handler(forToken: token) else {
-        return
-    }
-    box.fire()
+    AXSelectionHandlerRegistry.shared.dispatch(token: token)
 }
