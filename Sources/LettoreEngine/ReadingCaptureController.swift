@@ -10,7 +10,7 @@ import LettoreCore
 @MainActor
 public final class ReadingCaptureController {
 
-    public enum CaptureOutcome {
+    public enum CaptureOutcome: Sendable {
         /// Selezione valida: la coda è già stata sostituita con i nuovi chunk.
         case captured(CapturedSelection)
         /// La lettura continua ha catturato testo e gestisce lei coda e play.
@@ -31,6 +31,8 @@ public final class ReadingCaptureController {
     private let sourceApplications: any SourceApplicationProviding
     private let continuousCapture: ContinuousCapture
     private let textPreparer = ReadingTextPreparer()
+    /// Scarta una selezione preparata mentre ne parte un'altra.
+    private var captureGeneration = 0
 
     public init(
         appState: AppState,
@@ -108,6 +110,12 @@ public final class ReadingCaptureController {
     }
 
     private func captureSelection(from applicationPID: pid_t?) async -> CaptureOutcome {
+        // Il token si assegna all'ingresso, non al ritorno dalla cattura:
+        // altrimenti una richiesta vecchia ma più lenta diventerebbe la più
+        // recente e sovrascriverebbe quella nuova.
+        captureGeneration &+= 1
+        let generation = captureGeneration
+
         guard let selection = await selectedText.captureSelectedText(from: applicationPID),
               !selection.trimmedText.isEmpty else {
             return fallbackToQueue(reason: "Nessuna selezione leggibile.")
@@ -116,15 +124,26 @@ public final class ReadingCaptureController {
         appState.continuationNotice = nil
         appState.capturedDocumentText = ""
 
+        let preparer = textPreparer
+        let text = selection.trimmedText
         let sourceRange = selection.trimmedSourceRange
-        let reading = textPreparer.prepareInitial(
-            text: selection.trimmedText,
-            sourceRange: sourceRange,
-            sourceDocumentID: selection.sourceDocumentID,
-            mode: .off
-        )
-        appState.setQueue(reading.chunks)
+        let sourceDocumentID = selection.sourceDocumentID
+        let reading = await Task.detached(priority: .userInitiated) {
+            preparer.prepareInitial(
+                text: text,
+                sourceRange: sourceRange,
+                sourceDocumentID: sourceDocumentID,
+                mode: .off
+            )
+        }.value
 
+        // Una seconda cattura può essere partita durante la preparazione:
+        // la più vecchia non deve sostituire la coda di quella più recente.
+        guard generation == captureGeneration else {
+            return .unavailable(reason: "Cattura superata da una richiesta più recente.")
+        }
+
+        appState.setQueue(reading.chunks)
         return .captured(selection)
     }
 }

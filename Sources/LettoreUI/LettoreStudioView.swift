@@ -19,6 +19,8 @@ public struct LettoreStudioView: View {
     @State private var inputText: String = ""
     @State private var showingNotchPreview: Bool = false
     @State private var isCapturing: Bool = false
+    /// Scarta il risultato di una preparazione superata da un nuovo Invio.
+    @State private var inputPreparationGeneration = 0
     
     public init(
         appState: AppState,
@@ -89,10 +91,6 @@ public struct LettoreStudioView: View {
         }
         .sheet(isPresented: $showingNotchPreview) {
             notchPreviewSheet
-        }
-        .onChange(of: appState.capturedDocumentText) { _, newValue in
-            guard appState.isContinuousSessionActive else { return }
-            inputText = newValue
         }
     }
     
@@ -919,17 +917,27 @@ public struct LettoreStudioView: View {
     private func processNewInput() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        
+
+        inputPreparationGeneration &+= 1
+        let generation = inputPreparationGeneration
+
         coordinator.stop()
         onSourceHighlightEnd?()
         appState.continuationNotice = nil
         appState.capturedDocumentText = ""
-
-        let reading = ReadingTextPreparer().prepareInitial(text: text, mode: .off)
-
-        appState.setQueue(reading.chunks)
+        // Svuota subito lo snapshot: un testo digitato durante la
+        // preparazione non deve essere cancellato al completamento.
         inputText = ""
-        coordinator.playCurrentChunk()
+
+        Task { @MainActor in
+            let reading = await Task.detached(priority: .userInitiated) {
+                ReadingTextPreparer().prepareInitial(text: text, mode: .off)
+            }.value
+
+            guard generation == inputPreparationGeneration else { return }
+            appState.setQueue(reading.chunks)
+            coordinator.playCurrentChunk()
+        }
     }
 
     /// Riproduce la selezione già preparata dal controller di cattura.
@@ -963,8 +971,10 @@ public struct LettoreStudioView: View {
             switch outcome {
             case .captured(let selection):
                 playCapturedSelection(selection)
-            case .continuous(let text):
-                inputText = text
+            case .continuous:
+                // Il documento catturato vive in `appState` e nella coda:
+                // non deve sovrascrivere la bozza dell'utente.
+                break
             case .fellBackToQueue:
                 requestAccessibilityPermissionIfNeeded()
                 coordinator.play()

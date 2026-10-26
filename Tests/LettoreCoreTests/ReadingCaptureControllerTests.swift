@@ -21,6 +21,33 @@ final class ReadingCaptureControllerTests: XCTestCase {
         }
     }
 
+    /// Cattura che sospende ogni richiesta finché il test non la rilascia:
+    /// permette di invertire l'ordine di completamento di due richieste.
+    actor GatedSelectedTextCapture: SelectedTextCapturing {
+        private let results: [CapturedSelection?]
+        private var nextIndex = 0
+        private var continuations: [Int: CheckedContinuation<CapturedSelection?, Never>] = [:]
+
+        init(results: [CapturedSelection?]) {
+            self.results = results
+        }
+
+        var startedCount: Int { nextIndex }
+
+        func captureSelectedText(from applicationPID: pid_t?) async -> CapturedSelection? {
+            let index = nextIndex
+            nextIndex += 1
+            return await withCheckedContinuation { continuation in
+                continuations[index] = continuation
+            }
+        }
+
+        func release(_ index: Int) {
+            guard let continuation = continuations.removeValue(forKey: index) else { return }
+            continuation.resume(returning: results[index])
+        }
+    }
+
     @MainActor
     final class FakeSourceApplications: SourceApplicationProviding {
         var currentProcessIdentifier: pid_t = 900
@@ -141,6 +168,47 @@ final class ReadingCaptureControllerTests: XCTestCase {
         }
         XCTAssertEqual(state.continuationNotice, reason)
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
+    }
+
+    func testOlderSelectionCannotReplaceNewerQueue() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let capture = GatedSelectedTextCapture(results: [
+            CapturedSelection(text: "Selezione vecchia."),
+            CapturedSelection(text: "Selezione nuova.")
+        ])
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: capture,
+            sourceApplications: applications
+        )
+
+        let first = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let firstStarted = await waitUntil { await capture.startedCount == 1 }
+        XCTAssertTrue(firstStarted)
+
+        let second = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let secondStarted = await waitUntil { await capture.startedCount == 2 }
+        XCTAssertTrue(secondStarted)
+
+        // La richiesta nuova completa per prima...
+        await capture.release(1)
+        let secondOutcome = await second.value
+        guard case .captured = secondOutcome else {
+            return XCTFail("Atteso .captured dalla richiesta nuova, ricevuto \(secondOutcome)")
+        }
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Selezione nuova."])
+
+        // ...poi completa la vecchia, che non deve sovrascrivere la coda.
+        await capture.release(0)
+        let firstOutcome = await first.value
+        guard case .unavailable = firstOutcome else {
+            return XCTFail("La cattura superata deve essere scartata, ricevuto \(firstOutcome)")
+        }
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Selezione nuova."])
     }
 
     // MARK: - App di origine
@@ -356,7 +424,7 @@ final class ReadingCaptureControllerTests: XCTestCase {
 
     private func makeController(
         state: AppState,
-        selectedText: FakeSelectedTextCapture,
+        selectedText: any SelectedTextCapturing,
         sourceApplications: FakeSourceApplications,
         continuous: ContinuousCaptureSpy = ContinuousCaptureSpy()
     ) -> ReadingCaptureController {
@@ -368,5 +436,17 @@ final class ReadingCaptureControllerTests: XCTestCase {
                 await continuous.capture(from: applicationPID)
             }
         )
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval = 2.0,
+        _ condition: () async -> Bool
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return true }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        return await condition()
     }
 }
