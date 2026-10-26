@@ -5,15 +5,24 @@ import LettoreCore
 /// Servizio di sintesi vocale nativo basato su AVSpeechSynthesizer di Apple.
 /// Esegue la lettura vocale fluida e cristallina del testo in lingua italiana senza alcuna dipendenza esterna,
 /// con supporto per pause, riprese, modulazione di velocità e sincronizzazione dell'onda visiva a 60fps.
+/// Trasporta l'utterance consegnata dal delegate al MainActor.
+/// `AVSpeechUtterance` non è `Sendable`: la scatola è sicura perché l'oggetto
+/// viene letto solo dopo il salto, per confrontarne l'identità.
+private struct UtteranceBox: @unchecked Sendable {
+    let utterance: AVSpeechUtterance
+}
+
 @MainActor
 public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     
     private let synthesizer = AVSpeechSynthesizer()
     private var waveformTimer: Timer?
     private var speechPhase: Float = 0.0
-    /// Identità dell'utterance corrente: i callback di un'utterance fermata e
-    /// sostituita non devono chiudere o spegnere quella nuova.
-    private var activeUtteranceID: ObjectIdentifier?
+    /// Riferimento forte all'utterance corrente: i callback di un'utterance
+    /// fermata e sostituita non devono chiudere o spegnere quella nuova.
+    /// Il confronto è per identità (`===`) e il riferimento impedisce che
+    /// l'indirizzo di memoria venga riusato da una nuova utterance (ABA).
+    private var activeUtterance: AVSpeechUtterance?
     
     public var onFinish: (() -> Void)?
     public var onWordHighlight: ((NSRange) -> Void)?
@@ -75,7 +84,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
         
-        activeUtteranceID = ObjectIdentifier(utterance)
+        activeUtterance = utterance
         isSpeaking = true
         isPaused = false
         startWaveformAnimation()
@@ -105,7 +114,7 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     /// Ferma completamente la sintesi vocale corrente.
     public func stop() {
         stopWaveformAnimation()
-        activeUtteranceID = nil
+        activeUtterance = nil
         if synthesizer.isSpeaking || synthesizer.isPaused {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -116,10 +125,10 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     // MARK: - AVSpeechSynthesizerDelegate
     
     public nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        let utteranceID = ObjectIdentifier(utterance)
+        let box = UtteranceBox(utterance: utterance)
         Task { @MainActor in
-            guard self.activeUtteranceID == utteranceID else { return }
-            self.activeUtteranceID = nil
+            guard self.activeUtterance === box.utterance else { return }
+            self.activeUtterance = nil
             self.isSpeaking = false
             self.isPaused = false
             self.stopWaveformAnimation()
@@ -129,10 +138,10 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     }
     
     public nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        let utteranceID = ObjectIdentifier(utterance)
+        let box = UtteranceBox(utterance: utterance)
         Task { @MainActor in
-            guard self.activeUtteranceID == utteranceID else { return }
-            self.activeUtteranceID = nil
+            guard self.activeUtterance === box.utterance else { return }
+            self.activeUtterance = nil
             self.isSpeaking = false
             self.isPaused = false
             self.stopWaveformAnimation()
@@ -144,13 +153,13 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
-        let utteranceID = ObjectIdentifier(utterance)
         // `characterRange` è UTF-16; `String.count` conta grapheme cluster.
         // Con emoji o caratteri composti il denominatore sbagliato faceva
         // arrivare il progresso a 1.0 in anticipo.
         let totalChars = (utterance.speechString as NSString).length
+        let box = UtteranceBox(utterance: utterance)
         Task { @MainActor in
-            guard self.activeUtteranceID == utteranceID else { return }
+            guard self.activeUtterance === box.utterance else { return }
             self.onWordHighlight?(characterRange)
             if totalChars > 0 {
                 let progress = min(1.0, max(0.0, Double(characterRange.location + characterRange.length) / Double(totalChars)))
