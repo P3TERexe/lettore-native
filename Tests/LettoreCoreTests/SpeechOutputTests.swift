@@ -338,6 +338,46 @@ final class SpeechOutputTests: XCTestCase {
         await assertEventually { collector.containsFinished(request.id) }
     }
 
+    func testFailedInFlightPreloadFallsBackWithoutSecondSynthesis() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload destinato a fallire."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.waitsForRelease = true
+        pipeline.error = NSError(
+            domain: "SpeechOutputTests",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "timeout del backend"]
+        )
+
+        output.preload([request])
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.play(request)
+        // Lascia al play il tempo di agganciarsi al preload già in corso.
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(pipeline.callCount, 1, "Il play deve attendere il preload, non sintetizzare in parallelo")
+
+        pipeline.release()
+        await assertEventually { audio.fallbackTexts.count == 1 }
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Un preload fallito non deve essere ritentato subito: sommerebbe un secondo timeout"
+        )
+        XCTAssertTrue(audio.playedData.isEmpty)
+        await assertEventually { collector.containsFailed(request.id) }
+        XCTAssertEqual(collector.started.last?.source, .system)
+    }
+
     // MARK: - Cancellazione
 
     func testCancelAllStopsPendingSynthesisAndDoesNotEmitFinished() async {

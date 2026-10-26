@@ -95,6 +95,15 @@ public final class SpeechOutput {
         case cancelled
     }
 
+    /// Esito di un prefetch. Un fallimento va distinto dalla cancellazione:
+    /// il play che stava aspettando il prefetch deve fallire subito, senza
+    /// ripetere la sintesi e sommare un secondo timeout.
+    private enum PreloadOutcome {
+        case success(Data)
+        case failure(Error)
+        case cancelled
+    }
+
     /// Identifica la richiesta corrente: ogni play apre una generazione nuova
     /// e i callback della precedente vengono ignorati.
     private var generation: UInt64 = 0
@@ -106,7 +115,7 @@ public final class SpeechOutput {
     /// il chunk che sta per partire.
     private var currentSpeed: Float = 1.0
 
-    private var preloadTasks: [String: Task<Data?, Never>] = [:]
+    private var preloadTasks: [String: Task<PreloadOutcome, Never>] = [:]
     private var preloadTokens: [String: UUID] = [:]
 
     public var events: AsyncStream<SpeechEvent> { eventsStream }
@@ -271,12 +280,21 @@ public final class SpeechOutput {
             return .cancelled
         }
 
-        if let activePreload = preloadTasks[key],
-           let data = await activePreload.value {
-            guard isCurrent(request, generation: generation), !Task.isCancelled else {
-                return .cancelled
+        if let activePreload = preloadTasks[key] {
+            switch await activePreload.value {
+            case .success(let data):
+                guard isCurrent(request, generation: generation), !Task.isCancelled else {
+                    return .cancelled
+                }
+                return .audio(data, synthesisDurationMs: nil)
+            case .failure(let error):
+                guard isCurrent(request, generation: generation), !Task.isCancelled else {
+                    return .cancelled
+                }
+                return .failed(error)
+            case .cancelled:
+                break
             }
-            return .audio(data, synthesisDurationMs: nil)
         }
 
         // Un preload può essersi completato tra la prima lettura e questa:
@@ -322,14 +340,14 @@ public final class SpeechOutput {
         let voice = request.voice
         let steps = request.steps
 
-        let task = Task<Data?, Never> { [weak self] in
-            guard let self else { return nil }
+        let task = Task<PreloadOutcome, Never> { [weak self] in
+            guard let self else { return .cancelled }
 
-            let data: Data?
+            let outcome: PreloadOutcome
             if let cached = await self.cacheManager.getAudioAsync(for: key) {
-                data = cached.data
+                outcome = .success(cached.data)
             } else if Task.isCancelled {
-                data = nil
+                outcome = .cancelled
             } else {
                 do {
                     let synthesized = try await self.supertonicPipeline.synthesize(
@@ -339,21 +357,23 @@ public final class SpeechOutput {
                         steps: steps
                     )
                     if Task.isCancelled {
-                        data = nil
+                        outcome = .cancelled
                     } else {
                         self.cacheManager.storeAudio(synthesized, for: key)
-                        data = synthesized
+                        outcome = .success(synthesized)
                     }
                 } catch {
-                    data = nil
+                    outcome = Task.isCancelled || error is CancellationError
+                        ? .cancelled
+                        : .failure(error)
                 }
             }
 
-            guard self.preloadTokens[key] == token else { return data }
+            guard self.preloadTokens[key] == token else { return outcome }
 
             self.preloadTasks.removeValue(forKey: key)
             self.preloadTokens.removeValue(forKey: key)
-            return data
+            return outcome
         }
 
         preloadTasks[key] = task
