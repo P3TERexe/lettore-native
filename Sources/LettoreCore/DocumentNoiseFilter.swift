@@ -142,9 +142,14 @@ public struct DocumentNoiseFilter: Sendable {
 
         for block in blocks {
             let lines = lineRanges(in: text.text, within: block)
-            let keptLines = lines.filter { line in
+            let keptLines = lines.enumerated().compactMap { index, line -> Range<Int>? in
                 let lineText = (text.text as NSString).substring(with: line.nsRange)
-                return shouldKeepLine(lineText, repeatedEdges: repeatedEdges)
+                let isEdge = index == 0 || index == lines.count - 1
+                return shouldKeepLine(
+                    lineText,
+                    repeatedEdges: repeatedEdges,
+                    isEdge: isEdge
+                ) ? line : nil
             }
             guard !keptLines.isEmpty else { continue }
 
@@ -186,11 +191,18 @@ public struct DocumentNoiseFilter: Sendable {
 
     // MARK: - Euristiche
 
-    private func shouldKeepLine(_ line: String, repeatedEdges: Set<String>) -> Bool {
+    private func shouldKeepLine(
+        _ line: String,
+        repeatedEdges: Set<String>,
+        isEdge: Bool
+    ) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return true }
         if isPageNumber(trimmed) { return false }
-        if repeatedEdges.contains(normalizedKey(trimmed)) { return false }
+        // Una riga ripetuta è rumore solo quando sta al bordo di un blocco:
+        // la stessa frase citata dentro un paragrafo è contenuto, non
+        // intestazione.
+        if isEdge, repeatedEdges.contains(normalizedKey(trimmed)) { return false }
         return true
     }
 
@@ -267,13 +279,23 @@ public struct DocumentNoiseFilter: Sendable {
     }
 
     private func repeatedEdgeLines(in blocks: [String]) -> Set<String> {
-        var counts: [String: Int] = [:]
-
-        for block in blocks {
-            let lines = block
+        let blockLines = blocks.map { block in
+            block
                 .components(separatedBy: "\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
+        }
+
+        // Senza numeri di pagina espliciti non c'è prova che i blocchi siano
+        // pagine: una riga ripetuta può essere un ritornello, un titolo
+        // legittimo o una frase di dialogo. In quel caso il filtro tace.
+        let hasPageNumbers = blockLines.contains { lines in
+            lines.contains(where: isPageNumber)
+        }
+        guard hasPageNumbers else { return [] }
+
+        var counts: [String: Int] = [:]
+        for lines in blockLines {
             guard let first = lines.first, let last = lines.last else { continue }
 
             for line in Set([first, last]) where isRunningHeaderCandidate(line) {
@@ -298,6 +320,16 @@ public struct DocumentNoiseFilter: Sendable {
     }
 
     private func isPageNumber(_ line: String) -> Bool {
+        // Un numero isolato di quattro cifre è più probabilmente un anno o un
+        // titolo ("1984") che un numero di pagina. Le pagine esplicite
+        // ("Pagina 2024") restano gestite dai pattern successivi.
+        if line.range(
+            of: #"^\s*(?:[—–-]\s*)?\d{4}(?:\s*[—–-])?\s*$"#,
+            options: .regularExpression
+        ) != nil {
+            return false
+        }
+
         let patterns = [
             #"^\s*(?:[—–-]\s*)?\d{1,4}(?:\s*[—–-])?\s*$"#,
             #"^\s*(?:pag(?:ina)?\.?\s*)\d{1,4}(?:\s*(?:di|/)\s*\d{1,4})?\s*$"#,

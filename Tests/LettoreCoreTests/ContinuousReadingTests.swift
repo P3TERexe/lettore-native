@@ -66,6 +66,60 @@ final class ContinuousReadingTests: XCTestCase {
         XCTAssertTrue(cleaned.contains("Capitolo secondo"))
     }
 
+    func testNoiseFilterKeepsYearsAndRefrainsWithoutPageNumbers() {
+        let filter = DocumentNoiseFilter()
+        let text = """
+        2024
+
+        E il vento
+
+        prima strofa.
+
+        2025
+
+        E il vento
+
+        seconda strofa.
+
+        2026
+
+        E il vento
+
+        terza strofa.
+        """
+
+        let cleaned = filter.filter(text, mode: .light)
+
+        XCTAssertTrue(cleaned.contains("2024"), "Un anno isolato non è un numero di pagina")
+        XCTAssertTrue(cleaned.contains("2025"))
+        XCTAssertTrue(cleaned.contains("2026"))
+        XCTAssertEqual(
+            cleaned.components(separatedBy: "E il vento").count - 1,
+            3,
+            "Senza numeri di pagina il ritornello non è un'intestazione"
+        )
+    }
+
+    func testNoiseFilterStillRemovesExplicitPageNumbers() {
+        let filter = DocumentNoiseFilter()
+        let text = """
+        12
+
+        Testo della prima pagina.
+
+        Pagina 13
+
+        Testo della seconda pagina.
+        """
+
+        let cleaned = filter.filter(text, mode: .light)
+
+        XCTAssertFalse(cleaned.contains("12"))
+        XCTAssertFalse(cleaned.contains("Pagina 13"))
+        XCTAssertTrue(cleaned.contains("Testo della prima pagina."))
+        XCTAssertTrue(cleaned.contains("Testo della seconda pagina."))
+    }
+
     // MARK: - SentenceCarryBuffer
 
     func testCarryBufferDoesNotSplitSentencesAcrossPages() {
