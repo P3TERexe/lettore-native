@@ -1,7 +1,11 @@
 """Entrypoint backend Lettore (FastAPI + uvicorn).
 
-Avvio:  uvicorn main:app --host 127.0.0.1 --port 7788
-        (oppure python -m main)
+Avvio dalla root del repository:
+    python -m backend.main
+    # oppure
+    uvicorn backend.main:app --host 127.0.0.1 --port 7788
+
+L'entry point `python -m backend` è equivalente a `python -m backend.main`.
 """
 
 from __future__ import annotations
@@ -32,7 +36,10 @@ def create_app(config: BackendConfig | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.tts.start()
-        yield
+        try:
+            yield
+        finally:
+            app.state.tts.stop()
 
     app = FastAPI(title="Lettore backend", version="0.1.0", lifespan=lifespan)
     app.add_middleware(

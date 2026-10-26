@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ class VoiceRegistry:
     def __init__(self, config_dir: Path) -> None:
         self.config_dir = Path(config_dir)
         self._data: dict[str, dict] = {}
+        self._lock = threading.RLock()
 
     def _file(self) -> Path:
         return self.config_dir / "voices.json"
@@ -42,52 +45,61 @@ class VoiceRegistry:
 
     def _save(self) -> None:
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        tmp = self._file().with_suffix(".tmp")
-        tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp.rename(self._file())
+        tmp = self._file().with_name(f"voices.{uuid.uuid4().hex}.tmp")
+        try:
+            tmp.write_text(json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(self._file())
+        finally:
+            tmp.unlink(missing_ok=True)
 
     def catalog(self, builtin_ids: list[str], custom_ids: list[str]):
         """Ritorna (builtin_entries, custom_entries), seminando i default mancanti."""
-        self._load()
-        changed = False
-        for vid in builtin_ids:
-            if vid not in self._data:
-                self._data[vid] = {"name": BUILTIN_NAMES.get(vid, vid), "langs": []}
-                changed = True
-        for vid in custom_ids:
-            if vid not in self._data:
-                self._data[vid] = {"name": vid, "langs": []}
-                changed = True
-        if changed:
-            self._save()
+        with self._lock:
+            self._load()
+            changed = False
+            for vid in builtin_ids:
+                if vid not in self._data:
+                    self._data[vid] = {"name": BUILTIN_NAMES.get(vid, vid), "langs": []}
+                    changed = True
+            for vid in custom_ids:
+                if vid not in self._data:
+                    self._data[vid] = {"name": vid, "langs": []}
+                    changed = True
+            if changed:
+                self._save()
 
-        def entry(vid: str, group: str) -> dict:
-            e = self._data.get(vid, {"name": vid, "langs": []})
-            return {
-                "id": vid,
-                "name": e.get("name", vid),
-                "langs": list(e.get("langs", [])),
-                "group": group,
-            }
+            def entry(vid: str, group: str) -> dict:
+                e = self._data.get(vid, {"name": vid, "langs": []})
+                return {
+                    "id": vid,
+                    "name": e.get("name", vid),
+                    "langs": list(e.get("langs", [])),
+                    "group": group,
+                }
 
-        return [entry(v, "builtin") for v in builtin_ids], [entry(v, "custom") for v in custom_ids]
+            return (
+                [entry(v, "builtin") for v in builtin_ids],
+                [entry(v, "custom") for v in custom_ids],
+            )
 
     def name_for(self, voice_id: str) -> str:
-        self._load()
-        e = self._data.get(voice_id)
-        return e.get("name", voice_id) if e else voice_id
+        with self._lock:
+            self._load()
+            e = self._data.get(voice_id)
+            return e.get("name", voice_id) if e else voice_id
 
     def update(
         self, voice_id: str, name: str | None = None, langs: list[str] | None = None
     ) -> dict | None:
-        self._load()
-        if voice_id not in self._data:
-            return None
-        if name is not None and name.strip():
-            self._data[voice_id]["name"] = name.strip()
-        if langs is not None:
-            self._data[voice_id]["langs"] = sorted(
-                {lang.strip().lower() for lang in langs if lang.strip()}
-            )
-        self._save()
-        return dict(self._data[voice_id])
+        with self._lock:
+            self._load()
+            if voice_id not in self._data:
+                return None
+            if name is not None and name.strip():
+                self._data[voice_id]["name"] = name.strip()
+            if langs is not None:
+                self._data[voice_id]["langs"] = sorted(
+                    {lang.strip().lower() for lang in langs if lang.strip()}
+                )
+            self._save()
+            return dict(self._data[voice_id])

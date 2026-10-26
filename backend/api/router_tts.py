@@ -49,21 +49,23 @@ def preview_voice(
 @router.post("/tts", response_class=Response)
 def synthesize(req: TTSRequest, request: Request):
     manager = _tts(request)
-    runtime_cfg: AppConfig | None = getattr(request.app.state, "runtime_config", None)
-    exclusions = (
-        req.text_exclusions
-        if req.text_exclusions
-        else (runtime_cfg.text_exclusions if runtime_cfg else [])
-    )
+    runtime_cfg: AppConfig = request.app.state.runtime_config
+
+    # I campi omessi ereditano la configurazione runtime; i default del model
+    # restano `None` proprio per distinguere "non inviato" da "inviato uguale
+    # al default". Prima voice/speed/steps/normalize_text ignoravano il PUT.
+    voice = req.voice if req.voice is not None else runtime_cfg.voice
+    lang = req.lang if req.lang is not None else runtime_cfg.lang
+    steps = req.steps if req.steps is not None else runtime_cfg.steps
+    speed = req.speed if req.speed is not None else runtime_cfg.speed
+    exclusions = req.text_exclusions or runtime_cfg.text_exclusions
     normalize_enabled = (
-        req.normalize_text
-        if req.normalize_text is not None
-        else (runtime_cfg.normalize_text if runtime_cfg else True)
+        req.normalize_text if req.normalize_text is not None else runtime_cfg.normalize_text
     )
 
     clean_text = TextNormalizer.normalize(
         text=req.text,
-        lang=req.lang,
+        lang=lang,
         enabled=normalize_enabled,
         exclusions=exclusions,
     )
@@ -72,17 +74,17 @@ def synthesize(req: TTSRequest, request: Request):
 
     try:
         wav_bytes, duration_ms = manager.synthesize(
-            text=clean_text, lang=req.lang, voice=req.voice, steps=req.steps, speed=req.speed
+            text=clean_text, lang=lang, voice=voice, steps=steps, speed=speed
         )
     except ValueError as exc:
         logger.error(
             "TTS ValueError: %s (text=%r, lang=%r, voice=%r, steps=%r, speed=%r)",
             exc,
             clean_text,
-            req.lang,
-            req.voice,
-            req.steps,
-            req.speed,
+            lang,
+            voice,
+            steps,
+            speed,
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

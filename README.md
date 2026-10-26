@@ -76,7 +76,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Avvia il server locale su 127.0.0.1:7788
-python main.py
+# Dalla root della repository:
+cd ..
+python -m backend.main
 ```
 
 ### 2. Avvia l'Applicazione macOS (Swift)

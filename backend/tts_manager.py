@@ -86,7 +86,9 @@ class TTSManager:
         self._init_lock = threading.Lock()
         self.loading = False
         self.ready = False
-        self._load_thread = threading.Thread(target=self._load, name="tts-load", daemon=True)
+        self._load_thread: threading.Thread | None = None
+        self._started = False
+        self._start_lock = threading.Lock()
         self._cache: OrderedDict[tuple, tuple[bytes, int]] = OrderedDict()
         self._cache_lock = threading.Lock()
         self._cache_max_size = 64
@@ -96,7 +98,33 @@ class TTSManager:
         return self._engine.sample_rate if self._engine else None
 
     def start(self) -> None:
-        self._load_thread.start()
+        with self._start_lock:
+            if self._started:
+                return
+            self._started = True
+            self._load_thread = threading.Thread(target=self._load, name="tts-load", daemon=True)
+            self._load_thread.start()
+
+    def stop(self) -> None:
+        """Rilascia il motore; sicuro anche se il caricamento è ancora in corso."""
+        with self._start_lock:
+            self._started = False
+            thread = self._load_thread
+            self._load_thread = None
+
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=1.0)
+
+        if thread is not None and thread.is_alive():
+            # Il thread possiede ancora il motore: non azzerarlo da sotto.
+            return
+
+        engine = self._engine
+        self._engine = None
+        self.ready = False
+        self.loading = False
+        if engine is not None:
+            engine.unload()
 
     def _load(self) -> None:
         with self._init_lock:

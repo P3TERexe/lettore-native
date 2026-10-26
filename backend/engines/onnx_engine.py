@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -222,6 +223,8 @@ class SupertonicONNXEngine(BaseTTSEngine):
     def _resolve_style(self, voice: str) -> Any:
         if self._tts is None:
             raise RuntimeError("Motore ONNX non inizializzato")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", voice):
+            raise ValueError(f"ID voce non valido: {voice!r}")
         cached = self._style_cache.get(voice)
         if cached is not None:
             return cached
@@ -236,8 +239,11 @@ class SupertonicONNXEngine(BaseTTSEngine):
                 style = self._tts.get_voice_style(candidate)
             else:
                 # 3. Match su file di stile personalizzato
-                custom_path = _model_cache_dir(self.model) / "custom_styles" / f"{voice}.json"
-                if custom_path.is_file():
+                custom_dir = _model_cache_dir(self.model) / "custom_styles"
+                custom_path = custom_dir / f"{voice}.json"
+                if custom_path.is_file() and custom_path.resolve().is_relative_to(
+                    custom_dir.resolve()
+                ):
                     style = self._tts.get_voice_style_from_path(custom_path)
                 else:
                     # 4. Fallback sicuro su M1 invece di bloccare la sintesi con eccezione 400

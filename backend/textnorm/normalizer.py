@@ -136,16 +136,22 @@ class TextNormalizer:
     def _normalize_currencies(cls, text: str) -> str:
         """Espande importi monetari in euro, dollari e sterline."""
 
-        # 12.50€ o 12,50 € o 12,50 euro
+        # 12.50€ o 12,50 € o €12,50 o 12,50 euro
         def _replace_euro_cents(match: re.Match[str]) -> str:
             intero = match.group(1)
             decimali = match.group(2)
-            if decimali in ("0", "00"):
+            cents = int(decimali.ljust(2, "0"))
+            if cents == 0:
                 return f"{intero} euro"
             if intero == "0":
-                return f"{int(decimali)} centesimi"
-            return f"{intero} euro e {int(decimali)} centesimi"
+                return f"{cents} centesimi"
+            return f"{intero} euro e {cents} centesimi"
 
+        text = re.sub(
+            r"€\s*(\d+)[.,](\d{1,2})",
+            _replace_euro_cents,
+            text,
+        )
         text = re.sub(
             r"\b(\d+)[.,](\d{1,2})\s*(?:€|\beuro\b)",
             _replace_euro_cents,
@@ -158,9 +164,10 @@ class TextNormalizer:
         def _replace_dollar_cents(match: re.Match[str]) -> str:
             intero = match.group(1)
             decimali = match.group(2)
-            if decimali in ("0", "00"):
+            cents = int(decimali.ljust(2, "0"))
+            if cents == 0:
                 return f"{intero} dollari"
-            return f"{intero} dollari e {int(decimali)} centesimi"
+            return f"{intero} dollari e {cents} centesimi"
 
         text = re.sub(r"\$\s*(\d+)[.,](\d{1,2})\b", _replace_dollar_cents, text)
         text = re.sub(

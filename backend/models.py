@@ -24,11 +24,11 @@ class TTSRequest(BaseModel):
     """
 
     text: str = Field(min_length=1, max_length=20000)
-    lang: str = "auto"
-    voice: str = "M1"
-    steps: int = Field(default=8, ge=5, le=12)
-    speed: float = Field(default=1.05, ge=0.1, le=4.0)
-    normalize_text: bool = True
+    lang: str | None = None
+    voice: str | None = None
+    steps: int | None = Field(default=None, ge=5, le=12)
+    speed: float | None = Field(default=None, ge=0.7, le=2.0)
+    normalize_text: bool | None = None
     text_exclusions: list[str] = Field(default_factory=list)
 
 

@@ -29,6 +29,15 @@ class TestTextNormalizer(unittest.TestCase):
         self.assertIn("10 dollari", norm)
         self.assertIn("5 sterline", norm)
 
+    def test_currency_with_one_decimal(self):
+        norm = TextNormalizer.normalize_italian("Costa 12,5 € oppure 0,5 €.")
+        self.assertIn("12 euro e 50 centesimi", norm)
+        self.assertIn("50 centesimi", norm)
+
+    def test_currency_symbol_before_amount(self):
+        norm = TextNormalizer.normalize_italian("Costa €12,50 oggi.")
+        self.assertIn("12 euro e 50 centesimi", norm)
+
     def test_urls_and_emails(self):
         text = "Visita http://example.com oppure scrivi a mario.rossi@azienda.it per info."
         norm = TextNormalizer.normalize_italian(text)
