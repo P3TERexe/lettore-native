@@ -16,7 +16,12 @@ public struct TextNormalizer: Sendable {
         
         // 1. URLs e Link Web
         processed = processed.replacingOccurrences(
-            of: #"https?:\/\/[^\s]+"#,
+            of: #"https?:\/\/[^\s]*[^\s.,;:!?)\]\}]"#,
+            with: "link web",
+            options: .regularExpression
+        )
+        processed = processed.replacingOccurrences(
+            of: #"\bwww\.[^\s]*[^\s.,;:!?)\]\}]"#,
             with: "link web",
             options: .regularExpression
         )
@@ -28,14 +33,21 @@ public struct TextNormalizer: Sendable {
             options: .regularExpression
         )
         
-        // 3. Valuta Euro con decimali: es. "12,50 €" o "12.50€" -> "12 euro e 50 centesimi"
+        // 3. Valuta Euro con simbolo anteposto: es. "€12,50"
+        processed = processed.replacingOccurrences(
+            of: #"€\s*(\d+)[,.](\d{2})"#,
+            with: "$1 euro e $2 centesimi",
+            options: .regularExpression
+        )
+
+        // 4. Valuta Euro con decimali: es. "12,50 €" o "12.50€" -> "12 euro e 50 centesimi"
         processed = processed.replacingOccurrences(
             of: #"(\d+)[,\.](\d{2})\s*€"#,
             with: "$1 euro e $2 centesimi",
             options: .regularExpression
         )
         
-        // 4. Valuta Euro intera: es. "50 €" o "€ 50" -> "50 euro"
+        // 5. Valuta Euro intera: es. "50 €" o "€ 50" -> "50 euro"
         processed = processed.replacingOccurrences(
             of: #"(\d+)\s*€"#,
             with: "$1 euro",
@@ -47,14 +59,14 @@ public struct TextNormalizer: Sendable {
             options: .regularExpression
         )
         
-        // 5. Percentuali: es. "25%" -> "25 per cento"
+        // 6. Percentuali: es. "25%" -> "25 per cento"
         processed = processed.replacingOccurrences(
             of: #"(\d+)\s*%"#,
             with: "$1 per cento",
             options: .regularExpression
         )
         
-        // 6. Abbreviazioni comuni italiane
+        // 7. Abbreviazioni comuni italiane
         let wordReplacements: [(pattern: String, replacement: String)] = [
             (#"\b[Ee]s\.\s*"#, "ad esempio "),
             (#"\b[Ee]cc\.\s*"#, "eccetera "),
@@ -62,10 +74,12 @@ public struct TextNormalizer: Sendable {
             (#"\b[Pp]ag\.\s*(\d+)"#, "pagina $1"),
             (#"\b[Pp]agg\.\s*(\d+)"#, "pagine $1"),
             (#"\b[Nn]\.\s*(\d+)"#, "numero $1"),
-            (#"\b[Dd]ott\.\s*"#, "Dottor "),
+            // I titoli femminili vanno prima delle forme base: `Dott.` con
+            // `\s*` intercetterebbe anche il prefisso di `Dott.ssa`.
             (#"\b[Dd]ott\.ssa\s*"#, "Dottoressa "),
-            (#"\b[Pp]rof\.\s*"#, "Professor "),
+            (#"\b[Dd]ott\.(?!ssa)\s*"#, "Dottor "),
             (#"\b[Pp]rof\.ssa\s*"#, "Professoressa "),
+            (#"\b[Pp]rof\.(?!ssa)\s*"#, "Professor "),
             (#"\b[Aa]vv\.\s*"#, "Avvocato "),
             (#"\b[Ii]ng\.\s*"#, "Ingegner ")
         ]
@@ -78,9 +92,9 @@ public struct TextNormalizer: Sendable {
             )
         }
         
-        // 7. Rimuovi variation selectors Unicode e caratteri invisibili
+        // 8. Rimuovi variation selectors Unicode e caratteri invisibili
         processed = processed.replacingOccurrences(
-            of: #"[\u{FE00}-\u{FE0F}]"#,
+            of: #"[\x{FE00}-\x{FE0F}\x{200B}\x{FEFF}]"#,
             with: "",
             options: .regularExpression
         )

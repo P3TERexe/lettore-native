@@ -70,6 +70,37 @@ final class LettoreCoreTests: XCTestCase {
         
         XCTAssertEqual(normalized, "Questo è il testo principale.")
     }
+
+    func testNormalizerExpandsFeminineTitles() {
+        let normalizer = TextNormalizer()
+        let normalized = normalizer.normalize(text: "La Dott.ssa Rossi e la Prof.ssa Bianchi.")
+
+        XCTAssertTrue(normalized.contains("Dottoressa Rossi"))
+        XCTAssertTrue(normalized.contains("Professoressa Bianchi"))
+        XCTAssertFalse(normalized.contains("Dottor ssa"))
+        XCTAssertFalse(normalized.contains("Professor ssa"))
+    }
+
+    func testNormalizerRemovesVariationSelectorsAndZeroWidthSpaces() {
+        let normalizer = TextNormalizer()
+        let normalized = normalizer.normalize(text: "a\u{FE0F}b\u{200B}c")
+
+        XCTAssertEqual(normalized, "abc")
+    }
+
+    func testNormalizerHandlesEuroBeforeTheAmount() {
+        let normalizer = TextNormalizer()
+        let normalized = normalizer.normalize(text: "Costa €12,50 oggi.")
+
+        XCTAssertTrue(normalized.contains("12 euro e 50 centesimi"))
+    }
+
+    func testNormalizerPreservesTrailingUrlPunctuation() {
+        let normalizer = TextNormalizer()
+        let normalized = normalizer.normalize(text: "Visita https://example.com. Poi torna.")
+
+        XCTAssertTrue(normalized.contains("link web."))
+    }
     
     // MARK: - Test AppState
     
