@@ -13,6 +13,11 @@ import Foundation
 /// mai scartato per un cap fisso troppo basso.
 public enum DocumentPageOverlap {
 
+    /// Sotto questa soglia l'overlap è rumore: una singola lettera uguale in
+    /// coda alla pagina vecchia e in testa alla nuova non è una sovrapposizione
+    /// di viewport. Rimuoverla cancellava testo reale al cambio pagina.
+    private static let minimumUsefulOverlap = 4
+
     /// Restituisce la parte di `new` che non era già presente in coda a `old`.
     ///
     /// - Parameters:
@@ -37,7 +42,7 @@ public enum DocumentPageOverlap {
         let haystack = Array(old.suffix(limit))
 
         let overlap = longestPrefix(of: pattern, matchingSuffixOf: haystack)
-        guard overlap > 0 else { return new }
+        guard overlap >= Self.minimumUsefulOverlap else { return new }
 
         return String(new.dropFirst(overlap))
     }

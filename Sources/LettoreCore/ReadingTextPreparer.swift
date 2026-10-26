@@ -139,7 +139,8 @@ public struct ReadingTextPreparer: Sendable {
     /// contiguo del documento originale: i chunk restano senza range.
     public func preparePage(text: String, mode: NoiseFilterMode = .off) -> PreparedReading {
         let prepared = Self.cleanDocumentText(text, filter: filter, mode: mode)
-        let chunks = normalizer.normalize(chunker.chunk(text: prepared))
+        let normalized = normalizer.normalize(chunker.chunk(text: prepared))
+        let chunks = Self.boundNormalizedChunks(normalized)
         return PreparedReading(displayText: prepared, chunks: chunks)
     }
 
@@ -173,7 +174,79 @@ public struct ReadingTextPreparer: Sendable {
             )
         }
 
-        return normalizer.normalize(produced)
+        return Self.boundNormalizedChunks(normalizer.normalize(produced))
+    }
+
+    /// La normalizzazione può allungare il testo (`Es.` → `ad esempio`, URL,
+    /// valute): il limite dei 240 caratteri va riapplicato dopo di essa, non
+    /// solo sul testo grezzo. Le parti condividono la mappa della frase
+    /// originale, quindi l'evidenziazione resta corretta.
+    private static func boundNormalizedChunks(_ chunks: [ReadingChunk]) -> [ReadingChunk] {
+        let limit = SentenceChunker.defaultMaxChunkLength
+        var result: [ReadingChunk] = []
+        result.reserveCapacity(chunks.count)
+
+        for chunk in chunks {
+            let parts = splitForSpeech(chunk.text, maxLength: limit)
+            if parts.count <= 1 {
+                result.append(chunk.reindexed(result.count))
+                continue
+            }
+
+            for part in parts {
+                result.append(ReadingChunk(
+                    index: result.count,
+                    text: part,
+                    rawText: chunk.rawText,
+                    sourceDocumentID: chunk.sourceDocumentID,
+                    sourceRange: chunk.sourceRange
+                ))
+            }
+        }
+        return result
+    }
+
+    private static func splitForSpeech(_ text: String, maxLength: Int) -> [String] {
+        guard text.count > maxLength else { return [text] }
+        let limit = max(1, maxLength)
+        var parts: [String] = []
+        var start = text.startIndex
+
+        while start < text.endIndex {
+            if text[start...].count <= limit {
+                let tail = text[start...].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !tail.isEmpty {
+                    parts.append(tail)
+                }
+                break
+            }
+
+            var cut = text.index(start, offsetBy: limit, limitedBy: text.endIndex)
+                ?? text.endIndex
+
+            // Spezza sullo spazio più vicino al limite, se esiste.
+            var probe = cut
+            while probe > start {
+                let previous = text.index(before: probe)
+                if text[previous].isWhitespace {
+                    cut = previous
+                    break
+                }
+                probe = previous
+            }
+
+            let piece = text[start..<cut].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !piece.isEmpty {
+                parts.append(piece)
+            }
+
+            start = cut
+            while start < text.endIndex, text[start].isWhitespace {
+                start = text.index(after: start)
+            }
+        }
+
+        return parts
     }
 
     private static func cleanDocumentText(

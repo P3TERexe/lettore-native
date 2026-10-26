@@ -9,7 +9,11 @@ import NaturalLanguage
 /// storica e produce chunk senza range sorgente; le API con `sourceRange` o
 /// `FilteredText` producono chunk mappati sul testo originale.
 public struct SentenceChunker: Sendable {
-    
+
+    /// Limite condiviso con il contratto del backend: nessun chunk prodotto
+    /// dal client deve superarlo, anche quando la frase non ha delimitatori.
+    public static let defaultMaxChunkLength = 240
+
     /// Abbreviazioni frequenti nella lingua italiana che non devono spezzare la frase.
     private static let italianAbbreviations: Set<String> = [
         "dott.", "dott.ssa", "prof.", "prof.ssa", "avv.", "ing.", "sig.", "sig.ra",
@@ -26,9 +30,9 @@ public struct SentenceChunker: Sendable {
     ///
     /// - Parameters:
     ///   - text: Il testo in ingresso da segmentare.
-    ///   - maxChunkLength: Lunghezza massima consigliata per singola frase (default 240 caratteri).
+    ///   - maxChunkLength: Lunghezza massima per singola frase (default 240 caratteri).
     /// - Returns: Array di ReadingChunk pronti per la sintesi.
-    public func chunk(text: String, maxChunkLength: Int = 240) -> [ReadingChunk] {
+    public func chunk(text: String, maxChunkLength: Int = SentenceChunker.defaultMaxChunkLength) -> [ReadingChunk] {
         chunk(
             text: text,
             sourceRange: nil,
@@ -48,12 +52,12 @@ public struct SentenceChunker: Sendable {
     ///   - sourceRange: Posizione UTF-16 di `text` nella sorgente; `nil` per
     ///     lasciare i chunk senza mappa.
     ///   - sourceDocumentID: Identità del documento sorgente.
-    ///   - maxChunkLength: Lunghezza massima consigliata per singola frase.
+    ///   - maxChunkLength: Lunghezza massima per singola frase.
     public func chunk(
         text: String,
         sourceRange: SourceTextRange?,
         sourceDocumentID: UUID? = nil,
-        maxChunkLength: Int = 240
+        maxChunkLength: Int = SentenceChunker.defaultMaxChunkLength
     ) -> [ReadingChunk] {
         let spans = makeChunks(in: text, maxChunkLength: maxChunkLength)
 
@@ -92,12 +96,12 @@ public struct SentenceChunker: Sendable {
     ///   - range: Intervallo UTF-16 del testo filtrato da segmentare; `nil` per
     ///     l'intero testo. Serve per prefisso e remainder.
     ///   - sourceDocumentID: Identità del documento sorgente.
-    ///   - maxChunkLength: Lunghezza massima consigliata per singola frase.
+    ///   - maxChunkLength: Lunghezza massima per singola frase.
     public func chunk(
         filteredText: FilteredText,
         range: SourceTextRange? = nil,
         sourceDocumentID: UUID? = nil,
-        maxChunkLength: Int = 240
+        maxChunkLength: Int = SentenceChunker.defaultMaxChunkLength
     ) -> [ReadingChunk] {
         let fullLength = filteredText.utf16Length
         let slice = range ?? SourceTextRange(location: 0, length: fullLength)
@@ -145,17 +149,21 @@ public struct SentenceChunker: Sendable {
             return []
         }
 
+        let limit = max(1, maxChunkLength)
         var result: [ChunkSpan] = []
         for sentence in sentenceSpans(in: text) {
             let sentenceText = String(text[sentence])
             guard !sentenceText.isEmpty else { continue }
 
-            if sentenceText.count > maxChunkLength {
-                for subSentence in splitLongSentence(sentence, in: text, maxLen: maxChunkLength) {
-                    appendChunk(subSentence, in: text, to: &result)
-                }
+            let spans: [Range<String.Index>]
+            if sentenceText.count > limit {
+                spans = splitLongSentence(sentence, in: text, maxLen: limit)
+                    .flatMap { forceSplit($0, in: text, maxLen: limit) }
             } else {
-                appendChunk(sentence, in: text, to: &result)
+                spans = [sentence]
+            }
+            for span in spans {
+                appendChunk(span, in: text, to: &result)
             }
         }
         return result
@@ -274,6 +282,59 @@ public struct SentenceChunker: Sendable {
             result.append(current)
         }
         return result
+    }
+
+    /// Ultima rete di sicurezza del contratto: spezza un intervallo che nessun
+    /// delimitatore di frase o clausola ha ridotto sotto il limite. Preferisce
+    /// lo spazio più vicino al limite, così non taglia le parole quando può;
+    /// in assenza di spazi taglia comunque sui confini di `Character`.
+    private func forceSplit(
+        _ range: Range<String.Index>,
+        in text: String,
+        maxLen: Int
+    ) -> [Range<String.Index>] {
+        let trimmed = trimmedSpan(range, in: text)
+        guard !trimmed.isEmpty else { return [] }
+        guard text[trimmed].count > maxLen else { return [trimmed] }
+
+        let limit = max(1, maxLen)
+        var pieces: [Range<String.Index>] = []
+        var start = trimmed.lowerBound
+
+        while start < trimmed.upperBound {
+            let remaining = text[start..<trimmed.upperBound]
+            if remaining.count <= limit {
+                pieces.append(start..<trimmed.upperBound)
+                break
+            }
+
+            var cut = text.index(start, offsetBy: limit, limitedBy: trimmed.upperBound)
+                ?? trimmed.upperBound
+
+            // Preferisci l'ultimo spazio entro il limite; se non c'è, taglia
+            // esattamente al limite per non perdere testo.
+            var probe = cut
+            while probe > start {
+                let previous = text.index(before: probe)
+                if text[previous].isWhitespace {
+                    cut = previous
+                    break
+                }
+                probe = previous
+            }
+
+            let piece = trimmedSpan(start..<cut, in: text)
+            if !piece.isEmpty {
+                pieces.append(piece)
+            }
+
+            start = cut
+            while start < trimmed.upperBound, text[start].isWhitespace {
+                start = text.index(after: start)
+            }
+        }
+
+        return pieces
     }
 
     private func trimmedSpan(_ range: Range<String.Index>, in text: String) -> Range<String.Index> {
