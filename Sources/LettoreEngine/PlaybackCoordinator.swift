@@ -106,6 +106,12 @@ public final class PlaybackCoordinator {
         appState.playbackState = .paused
     }
 
+    /// Dimentica i fallimenti di preload dopo un reconnect riuscito al
+    /// backend, così il prossimo play prova davvero la sintesi neurale.
+    public func clearSynthesisFailures() {
+        speechOutput.clearSynthesisFailures()
+    }
+
     public func setSpeed(_ speed: Float) {
         appState.setSpeed(speed)
         speechOutput.setSpeed(appState.playbackSpeed)

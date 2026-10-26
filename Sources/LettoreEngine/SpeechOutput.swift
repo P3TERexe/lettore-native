@@ -104,6 +104,14 @@ public final class SpeechOutput {
         case cancelled
     }
 
+    /// Un fallimento di sintesi resta valido per un breve periodo: il play che
+    /// arriva dopo un preload già fallito deve passare subito alla voce di
+    /// sistema, senza ripetere il timeout del backend.
+    private struct PreloadFailure {
+        let error: Error
+        let expiresAt: CFAbsoluteTime
+    }
+
     /// Identifica la richiesta corrente: ogni play apre una generazione nuova
     /// e i callback della precedente vengono ignorati.
     private var generation: UInt64 = 0
@@ -117,8 +125,19 @@ public final class SpeechOutput {
 
     private var preloadTasks: [String: Task<PreloadOutcome, Never>] = [:]
     private var preloadTokens: [String: UUID] = [:]
+    /// Chiavi il cui preload è già stato reclamato da un play. Restano nelle
+    /// mappe per essere cancellabili con `cancelAll`, ma il cambio finestra
+    /// non le tocca e non ne avvia una seconda sintesi.
+    private var claimedPreloadKeys: Set<String> = []
+    private var preloadFailures: [String: PreloadFailure] = [:]
+    private let preloadFailureTTL: TimeInterval
 
     public var events: AsyncStream<SpeechEvent> { eventsStream }
+
+    /// Solo per test: stato interno del prefetch, per evitare sleep fragili.
+    var activePreloadCount: Int { preloadTasks.count }
+    var claimedPreloadCount: Int { claimedPreloadKeys.count }
+    var recordedPreloadFailureCount: Int { preloadFailures.count }
 
     public convenience init(
         audioEngine: AudioEngineService,
@@ -142,12 +161,14 @@ public final class SpeechOutput {
         audio: any SpeechAudioBackend,
         supertonicPipeline: any TTSPipelineProtocol,
         speechFallback: NativeSpeechService,
-        cacheManager: AudioCacheManager
+        cacheManager: AudioCacheManager,
+        preloadFailureTTL: TimeInterval = 30
     ) {
         self.audio = audio
         self.supertonicPipeline = supertonicPipeline
         self.speechFallback = speechFallback
         self.cacheManager = cacheManager
+        self.preloadFailureTTL = preloadFailureTTL
 
         let (stream, continuation) = AsyncStream.makeStream(of: SpeechEvent.self)
         self.eventsStream = stream
@@ -221,6 +242,9 @@ public final class SpeechOutput {
         let wantedKeys = Set(requests.map { cacheKey(for: $0) })
 
         for key in preloadTasks.keys where !wantedKeys.contains(key) {
+            // Un preload reclamato dal play sta già producendo l'audio che
+            // serve: il cambio finestra non deve cancellarlo.
+            guard !claimedPreloadKeys.contains(key) else { continue }
             preloadTasks[key]?.cancel()
             preloadTasks.removeValue(forKey: key)
             preloadTokens.removeValue(forKey: key)
@@ -229,7 +253,9 @@ public final class SpeechOutput {
         var scheduled = Set<String>()
         for request in requests {
             let key = cacheKey(for: request)
-            guard scheduled.insert(key).inserted, preloadTasks[key] == nil else { continue }
+            guard scheduled.insert(key).inserted,
+                  preloadTasks[key] == nil,
+                  !claimedPreloadKeys.contains(key) else { continue }
             startPreload(for: request, key: key)
         }
     }
@@ -248,6 +274,7 @@ public final class SpeechOutput {
         }
         preloadTasks.removeAll()
         preloadTokens.removeAll()
+        claimedPreloadKeys.removeAll()
 
         audio.stop()
     }
@@ -273,6 +300,7 @@ public final class SpeechOutput {
         generation: UInt64
     ) async -> Resolution {
         if let cached = await cacheManager.getAudioAsync(for: key) {
+            preloadFailures.removeValue(forKey: key)
             return .audio(cached.data, synthesisDurationMs: nil)
         }
 
@@ -281,11 +309,17 @@ public final class SpeechOutput {
         }
 
         if let activePreload = preloadTasks[key] {
+            // Il play rivendica il task: la finestra di prefetch non può più
+            // cancellarlo, ma `cancelAll` deve poterlo fermare. Il task resta
+            // quindi nelle mappe e la chiave viene marcata come reclamata.
+            claimedPreloadKeys.insert(key)
+
             switch await activePreload.value {
             case .success(let data):
                 guard isCurrent(request, generation: generation), !Task.isCancelled else {
                     return .cancelled
                 }
+                preloadFailures.removeValue(forKey: key)
                 return .audio(data, synthesisDurationMs: nil)
             case .failure(let error):
                 guard isCurrent(request, generation: generation), !Task.isCancelled else {
@@ -300,11 +334,18 @@ public final class SpeechOutput {
         // Un preload può essersi completato tra la prima lettura e questa:
         // il suo dato è in L1, non in una mappa separata.
         if let cached = await cacheManager.getAudioAsync(for: key) {
+            preloadFailures.removeValue(forKey: key)
             return .audio(cached.data, synthesisDurationMs: nil)
         }
 
         guard isCurrent(request, generation: generation), !Task.isCancelled else {
             return .cancelled
+        }
+
+        // Il preload è già fallito prima che questo play partisse: non
+        // ripetere la sintesi e sommare un secondo timeout.
+        if let error = activePreloadFailure(for: key) {
+            return .failed(error)
         }
 
         let startedAt = CFAbsoluteTimeGetCurrent()
@@ -321,11 +362,15 @@ public final class SpeechOutput {
 
             let durationMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000.0
             cacheManager.storeAudio(data, for: key)
+            preloadFailures.removeValue(forKey: key)
             return .audio(data, synthesisDurationMs: durationMs)
         } catch {
             guard isCurrent(request, generation: generation), !Task.isCancelled else {
                 return .cancelled
             }
+            // Un play diretto è un tentativo esplicito: non va memorizzato
+            // come un preload fallito, altrimenti il retry dell'utente verrebbe
+            // soppresso per tutto il TTL.
             return .failed(error)
         }
     }
@@ -345,7 +390,11 @@ public final class SpeechOutput {
 
             let outcome: PreloadOutcome
             if let cached = await self.cacheManager.getAudioAsync(for: key) {
+                self.preloadFailures.removeValue(forKey: key)
                 outcome = .success(cached.data)
+            } else if let error = self.activePreloadFailure(for: key) {
+                // Un fallimento recente non va ritentato a ogni prefetch.
+                outcome = .failure(error)
             } else if Task.isCancelled {
                 outcome = .cancelled
             } else {
@@ -360,12 +409,16 @@ public final class SpeechOutput {
                         outcome = .cancelled
                     } else {
                         self.cacheManager.storeAudio(synthesized, for: key)
+                        self.preloadFailures.removeValue(forKey: key)
                         outcome = .success(synthesized)
                     }
                 } catch {
-                    outcome = Task.isCancelled || error is CancellationError
-                        ? .cancelled
-                        : .failure(error)
+                    if Task.isCancelled || error is CancellationError {
+                        outcome = .cancelled
+                    } else {
+                        self.recordPreloadFailure(error, for: key)
+                        outcome = .failure(error)
+                    }
                 }
             }
 
@@ -373,10 +426,34 @@ public final class SpeechOutput {
 
             self.preloadTasks.removeValue(forKey: key)
             self.preloadTokens.removeValue(forKey: key)
+            self.claimedPreloadKeys.remove(key)
             return outcome
         }
 
         preloadTasks[key] = task
+    }
+
+    /// Dimentica i fallimenti registrati dai preload. Va chiamato quando il
+    /// backend è tornato disponibile, così un nuovo tentativo non viene
+    /// risolto con l'errore precedente.
+    public func clearSynthesisFailures() {
+        preloadFailures.removeAll()
+    }
+
+    private func recordPreloadFailure(_ error: Error, for key: String) {
+        preloadFailures[key] = PreloadFailure(
+            error: error,
+            expiresAt: CFAbsoluteTimeGetCurrent() + preloadFailureTTL
+        )
+    }
+
+    private func activePreloadFailure(for key: String) -> Error? {
+        guard let failure = preloadFailures[key] else { return nil }
+        guard failure.expiresAt > CFAbsoluteTimeGetCurrent() else {
+            preloadFailures.removeValue(forKey: key)
+            return nil
+        }
+        return failure.error
     }
 
     // MARK: - Riproduzione

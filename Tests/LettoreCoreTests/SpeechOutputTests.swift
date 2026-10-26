@@ -378,6 +378,248 @@ final class SpeechOutputTests: XCTestCase {
         XCTAssertEqual(collector.started.last?.source, .system)
     }
 
+    func testFailedPreloadCompletedBeforePlayIsNotRetried() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload fallito prima del play."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.error = NSError(
+            domain: "SpeechOutputTests",
+            code: 3,
+            userInfo: [NSLocalizedDescriptionKey: "backend non raggiungibile"]
+        )
+
+        output.preload([request])
+        await assertEventually {
+            pipeline.callCount == 1
+                && output.activePreloadCount == 0
+                && output.recordedPreloadFailureCount == 1
+        }
+
+        output.preload([request])
+        await Task.yield()
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Un fallimento recente non deve essere ritentato nemmeno dal prefetch"
+        )
+
+        output.play(request)
+        await assertEventually { audio.fallbackTexts.count == 1 }
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Il play dopo un preload fallito deve passare subito alla voce di sistema"
+        )
+        XCTAssertTrue(audio.playedData.isEmpty)
+        await assertEventually { collector.containsFailed(request.id) }
+        XCTAssertEqual(collector.started.last?.source, .system)
+    }
+
+    func testPreloadWindowChangeDoesNotCancelThePreloadBeingPlayed() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload reclamato dal play."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.waitsForRelease = true
+
+        output.preload([request])
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.play(request)
+        // Lascia al play il tempo di reclamare il task.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        // Simula il completamento del paging: la finestra di prefetch cambia
+        // mentre il play sta ancora aspettando la sintesi.
+        pipeline.waitsForRelease = false
+        output.preload([])
+        pipeline.release()
+
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Il cambio finestra non deve cancellare il preload che il play sta usando"
+        )
+    }
+
+    func testClaimedPreloadSurvivesWindowChangeAndIsCancelledByCancelAll() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload reclamato e poi fermato."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.hangs = true
+
+        output.preload([request])
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.play(request)
+        await assertEventually { output.claimedPreloadCount == 1 }
+
+        // Il paging cambia finestra mentre il play aspetta: il task reclamato
+        // non va cancellato.
+        output.preload([])
+        await Task.yield()
+        XCTAssertEqual(pipeline.cancelledCount, 0)
+        XCTAssertEqual(output.activePreloadCount, 1)
+
+        // Lo stop esplicito invece deve fermare anche la sintesi reclamata.
+        output.cancelAll()
+        await assertEventually { pipeline.cancelledCount == 1 }
+        XCTAssertEqual(output.activePreloadCount, 0)
+        XCTAssertTrue(audio.playedData.isEmpty)
+        XCTAssertFalse(collector.containsFinished(request.id))
+    }
+
+    func testPreloadAfterClaimDoesNotStartSecondSynthesis() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Preload reclamato una sola volta."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.waitsForRelease = true
+
+        output.preload([request])
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.play(request)
+        await assertEventually { output.claimedPreloadCount == 1 }
+
+        output.preload([request])
+        await Task.yield()
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Una chiave reclamata dal play non deve avviare una seconda sintesi"
+        )
+
+        pipeline.release()
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(pipeline.callCount, 1)
+    }
+
+    func testExpiredPreloadFailureAllowsRetry() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem(preloadFailureTTL: -1)
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Fallimento scaduto."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.error = NSError(domain: "SpeechOutputTests", code: 4)
+
+        output.preload([request])
+        await assertEventually {
+            pipeline.callCount == 1
+                && output.activePreloadCount == 0
+                && output.recordedPreloadFailureCount == 1
+        }
+
+        pipeline.error = nil
+        output.play(request)
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(pipeline.callCount, 2)
+        XCTAssertEqual(collector.started.last?.source, .neural)
+    }
+
+    func testClearSynthesisFailuresAllowsRetryAfterReconnect() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Backend riconnesso."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.error = NSError(domain: "SpeechOutputTests", code: 5)
+
+        output.preload([request])
+        await assertEventually {
+            pipeline.callCount == 1
+                && output.activePreloadCount == 0
+                && output.recordedPreloadFailureCount == 1
+        }
+
+        output.clearSynthesisFailures()
+        pipeline.error = nil
+        output.play(request)
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(pipeline.callCount, 2)
+        XCTAssertEqual(collector.started.last?.source, .neural)
+        XCTAssertTrue(audio.fallbackTexts.isEmpty)
+    }
+
+    func testDirectPlayFailureDoesNotPoisonExplicitRetry() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Retry esplicito."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.error = NSError(domain: "SpeechOutputTests", code: 6)
+
+        output.play(request)
+        await assertEventually { collector.started.last?.source == .system }
+        XCTAssertEqual(audio.fallbackTexts.count, 1)
+
+        pipeline.error = nil
+        output.play(request)
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(
+            pipeline.callCount,
+            2,
+            "Un play esplicito deve poter ritentare la sintesi dopo un fallimento"
+        )
+        XCTAssertEqual(collector.started.last?.source, .neural)
+    }
+
     // MARK: - Cancellazione
 
     func testCancelAllStopsPendingSynthesisAndDoesNotEmitFinished() async {
@@ -593,7 +835,7 @@ final class SpeechOutputTests: XCTestCase {
 
     // MARK: - Helper
 
-    private func makeSystem() -> (
+    private func makeSystem(preloadFailureTTL: TimeInterval = 30) -> (
         SpeechOutput,
         FakeTTSPipeline,
         FakeSpeechAudio,
@@ -609,7 +851,8 @@ final class SpeechOutputTests: XCTestCase {
             audio: audio,
             supertonicPipeline: pipeline,
             speechFallback: NativeSpeechService(),
-            cacheManager: cache
+            cacheManager: cache,
+            preloadFailureTTL: preloadFailureTTL
         )
         let collector = EventCollector(output.events)
         return (output, pipeline, audio, collector, {
