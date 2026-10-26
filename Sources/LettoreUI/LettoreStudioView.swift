@@ -18,6 +18,7 @@ public struct LettoreStudioView: View {
     
     @State private var inputText: String = ""
     @State private var showingNotchPreview: Bool = false
+    @State private var isCapturing: Bool = false
     
     public init(
         appState: AppState,
@@ -950,7 +951,11 @@ public struct LettoreStudioView: View {
     }
     
     private func captureFromFrontmostApp() {
-        Task {
+        guard !isCapturing else { return }
+        isCapturing = true
+        Task { @MainActor in
+            defer { isCapturing = false }
+
             let outcome = await readingCapture.playFromUI(
                 isContinuousEnabled: appState.isContinuousReadingEnabled
             )
@@ -962,7 +967,7 @@ public struct LettoreStudioView: View {
                 inputText = text
             case .fellBackToQueue:
                 requestAccessibilityPermissionIfNeeded()
-                coordinator.playCurrentChunk()
+                coordinator.play()
             case .unavailable:
                 requestAccessibilityPermissionIfNeeded()
             }

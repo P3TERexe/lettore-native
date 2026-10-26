@@ -14,6 +14,7 @@ struct LettoreApp: App {
     private let readingCapture: ReadingCaptureController
     @State private var sourceHighlightCoordinator: SourceHighlightCoordinator
     @State private var isCaptureLogicSetup = false
+    private let captureGate = CaptureInFlightGate()
 
     init() {
         let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
@@ -82,13 +83,21 @@ struct LettoreApp: App {
         guard !isCaptureLogicSetup else { return }
         isCaptureLogicSetup = true
         
-        let captureAction: @Sendable () -> Void = { [readingCapture, coordinator, sourceHighlightCoordinator, state] in
+        let captureAction: @Sendable () -> Void = { [readingCapture, coordinator, sourceHighlightCoordinator, state, captureGate] in
             Task { @MainActor in
+                guard !captureGate.isBusy else { return }
+                captureGate.isBusy = true
+                defer { captureGate.isBusy = false }
+
                 let outcome = await readingCapture.captureFromFrontmost(
                     isContinuousEnabled: state.isContinuousReadingEnabled
                 )
                 switch outcome {
                 case .captured(let selection):
+                    // La nuova selezione sostituisce la coda: ferma prima la
+                    // sessione precedente, altrimenti il vecchio audio
+                    // avanzerebbe la coda nuova saltandone il primo chunk.
+                    coordinator.stop()
                     if let documentID = selection.sourceDocumentID,
                        let sourcePID = selection.sourcePID,
                        selection.trimmedSourceRange != nil {
@@ -96,11 +105,11 @@ struct LettoreApp: App {
                     } else {
                         sourceHighlightCoordinator.end()
                     }
-                    if state.playbackState != .playing {
-                        coordinator.playCurrentChunk()
-                    }
-                case .fellBackToQueue:
                     coordinator.playCurrentChunk()
+                case .fellBackToQueue:
+                    // `play()` riprende una pausa invece di risintetizzare il
+                    // chunk dall'inizio.
+                    coordinator.play()
                 case .continuous, .unavailable:
                     break
                 }
@@ -110,11 +119,7 @@ struct LettoreApp: App {
         state.isAccessibilityGranted = AXIsProcessTrusted()
         
         shortcutManager.onTogglePlaybackRequested = { [weak coordinator] in
-            if state.playbackState == .playing {
-                coordinator?.stop()
-            } else {
-                coordinator?.playCurrentChunk()
-            }
+            coordinator?.togglePlayPause()
         }
 
         shortcutManager.onToggleContinuousReadingRequested = {
@@ -282,6 +287,13 @@ struct LettoreApp: App {
             }
         }
     }
+}
+
+/// Impedisce che due attivazioni ravvicinate (doppio tap sulla pillola,
+/// ripetizione della scorciatoia) avviino due catture concorrenti.
+@MainActor
+private final class CaptureInFlightGate {
+    var isBusy = false
 }
 
 /// Helper AppKit per ottenere il blur di sistema nativo NSVisualEffectView in SwiftUI.

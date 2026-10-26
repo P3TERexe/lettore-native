@@ -46,8 +46,14 @@ public final class NSEventSourceInputMonitor: SourceInputMonitoring {
         ]
 
         monitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { event in
+            // Le scorciatoie di Lettore e gli eventi sintetici (PageDown,
+            // Cmd+C del fallback) non sono interazione dell'utente: non devono
+            // fermare la lettura continua.
+            guard !ProgrammaticInputGate.isSuppressed(),
+                  !Self.isLettoreShortcut(event) else { return }
             guard let mapped = SourceInputEvent(eventType: event.type) else { return }
             Task { @MainActor in
+                guard !ProgrammaticInputGate.isSuppressed() else { return }
                 handler(mapped)
             }
         }
@@ -62,6 +68,22 @@ public final class NSEventSourceInputMonitor: SourceInputMonitoring {
     deinit {
         if let monitor {
             NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    /// Scorciatoie globali di Lettore: il monitor input non deve trattarle
+    /// come un'interazione che interrompe la sessione continua.
+    private static func isLettoreShortcut(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        switch event.keyCode {
+        case 8:
+            return flags.contains([.command, .shift])
+        case 35:
+            return flags.contains(.option)
+        case 37:
+            return flags.contains([.command, .shift])
+        default:
+            return false
         }
     }
 }

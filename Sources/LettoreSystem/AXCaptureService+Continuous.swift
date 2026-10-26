@@ -1062,6 +1062,10 @@ extension AXCaptureService: ContinuousTextSource {
 
     @discardableResult
     private func postPageDown() -> Bool {
+        // Il PageDown sintetico non è input utente: senza il gate il monitor
+        // della sessione continua fermerebbe la lettura proprio mentre carica
+        // la pagina successiva.
+        ProgrammaticInputGate.suppress()
         let source = CGEventSource(stateID: .hidSystemState)
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: 121, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: 121, keyDown: false) else {

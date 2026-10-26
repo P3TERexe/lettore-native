@@ -49,20 +49,27 @@ public final class GlobalShortcutManager {
     }
     
     private func handleKeyEvent(_ event: NSEvent) {
+        // La pressione prolungata genera ripetizioni: una sola cattura o un
+        // solo toggle per gesto.
+        guard !event.isARepeat else { return }
+
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         
         // Cmd+Shift+C → Cattura testo dall'app in primo piano
         if event.keyCode == 8 && flags.contains([.command, .shift]) {
+            ProgrammaticInputGate.suppress()
             onCaptureRequested?()
         }
         
         // Option+P → Toggle Play/Pausa
         if event.keyCode == 35 && flags.contains(.option) {
+            ProgrammaticInputGate.suppress()
             onTogglePlaybackRequested?()
         }
 
         // Cmd+Shift+L → Toggle Lettura continua (DSA-11)
         if event.keyCode == 37 && flags.contains([.command, .shift]) {
+            ProgrammaticInputGate.suppress()
             onToggleContinuousReadingRequested?()
         }
     }

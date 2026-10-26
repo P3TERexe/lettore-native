@@ -84,6 +84,9 @@ public struct FloatingPillView: View {
             handleHover(hovering)
         }
         .onReceive(NotificationCenter.default.publisher(for: .floatingPillTogglePlayPause)) { _ in
+            // La pillola incorporata nello Studio e quella flottante convivono:
+            // solo la seconda possiede il tap sulla capsula.
+            guard isStandalone else { return }
             handlePlayPause()
         }
         .onChange(of: appState.isUsingSpeechFallback) { _, _ in

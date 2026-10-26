@@ -191,8 +191,25 @@ public actor AXCaptureService {
     func captureViaClipboardFallback() async -> CapturedSelection? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
-        
-        // Simula Cmd+C
+        let previousItems = pasteboard.pasteboardItems ?? []
+
+        var didCopy = false
+        var copiedChangeCount = previousChangeCount
+        defer {
+            // Il fallback non deve lasciare la selezione dell'utente negli
+            // appunti: ripristina il contenuto precedente solo se il cambio è
+            // ancora quello prodotto dal nostro Cmd+C.
+            if didCopy, pasteboard.changeCount == copiedChangeCount {
+                pasteboard.clearContents()
+                if !previousItems.isEmpty {
+                    pasteboard.writeObjects(previousItems)
+                }
+            }
+        }
+
+        // Simula Cmd+C. Il gate evita che il monitor degli input della lettura
+        // continua interpreti questo evento sintetico come interazione utente.
+        ProgrammaticInputGate.suppress()
         let src = CGEventSource(stateID: .hidSystemState)
         let keyC: CGKeyCode = 8 // Codice per tasto 'C' su tastiera Mac
         
@@ -208,6 +225,10 @@ public actor AXCaptureService {
         for _ in 0..<15 {
             try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
             if pasteboard.changeCount != previousChangeCount {
+                if !didCopy {
+                    didCopy = true
+                    copiedChangeCount = pasteboard.changeCount
+                }
                 if let copied = pasteboard.string(forType: .string), !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     print("[AXCapture] Fallback clipboard riuscito (\(copied.count) caratteri).")
                     return CapturedSelection(
