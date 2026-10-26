@@ -13,7 +13,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     public static let idleWaveformLevels: [Float] = [0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15]
 
     private var player: AVAudioPlayer?
-    private var onPlaybackComplete: (() -> Void)?
+    private var onPlaybackComplete: ((Bool) -> Void)?
     private var meteringTimer: Timer?
     private var lastLevelsUpdate: CFAbsoluteTime = 0
     
@@ -69,8 +69,14 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         stopMetering()
     }
     
-    /// Riproduce dati WAV grezzi. Il callback onComplete scatta al termine della riproduzione.
-    public func playWAVData(_ data: Data, speed: Float = 1.0, onComplete: (() -> Void)? = nil) {
+    /// Riproduce dati WAV grezzi. Il callback riceve `false` quando il payload
+    /// non è decodificabile, `play()` fallisce o il player segnala un errore:
+    /// il chiamante può così invalidare la cache e usare il fallback vocale.
+    public func playWAVData(
+        _ data: Data,
+        speed: Float = 1.0,
+        onComplete: ((Bool) -> Void)? = nil
+    ) {
         // Ferma la riproduzione corrente
         player?.stop()
         stopMetering()
@@ -91,11 +97,15 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
                 startMetering()
             } else {
                 print("[AudioPlayer] ERRORE: play() ha restituito false")
-                onComplete?()
+                self.player = nil
+                self.onPlaybackComplete = nil
+                onComplete?(false)
             }
         } catch {
             print("[AudioPlayer] ERRORE inizializzazione: \(error)")
-            onComplete?()
+            self.player = nil
+            self.onPlaybackComplete = nil
+            onComplete?(false)
         }
     }
     
@@ -111,8 +121,10 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         let completion = onPlaybackComplete
         onPlaybackComplete = nil
         self.player = nil
-        self.onProgressUpdate?(1.0)
-        completion?()
+        if flag {
+            self.onProgressUpdate?(1.0)
+        }
+        completion?(flag)
     }
     
     public func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
@@ -122,7 +134,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
         let completion = onPlaybackComplete
         onPlaybackComplete = nil
         self.player = nil
-        completion?()
+        completion?(false)
     }
     
     // MARK: - Metering per Waveform

@@ -67,8 +67,8 @@ public final class AudioCacheManager: @unchecked Sendable {
         let nsKey = key as NSString
         
         // 1. Check L1 RAM
-        if let cachedData = memoryCache.object(forKey: nsKey) {
-            return (cachedData as Data, .memory)
+        if let cachedData = validMemoryData(for: nsKey) {
+            return (cachedData, .memory)
         }
         
         // 2. Check L2 Disk
@@ -86,8 +86,8 @@ public final class AudioCacheManager: @unchecked Sendable {
     func getAudioAsync(for key: String) async -> (data: Data, source: AudioCacheSource)? {
         let nsKey = key as NSString
 
-        if let cachedData = memoryCache.object(forKey: nsKey) {
-            return (cachedData as Data, .memory)
+        if let cachedData = validMemoryData(for: nsKey) {
+            return (cachedData, .memory)
         }
 
         let fileURL = cacheDirectoryURL.appendingPathComponent("\(key).wav")
@@ -102,10 +102,29 @@ public final class AudioCacheManager: @unchecked Sendable {
         return (data, .disk)
     }
 
+    /// Un dato non WAV non deve mai uscire dalla cache: viene rimosso da L1
+    /// e il chiamante lo tratta come cache miss, così può risintetizzare.
+    private func validMemoryData(for key: NSString) -> Data? {
+        guard let cachedData = memoryCache.object(forKey: key) else { return nil }
+        let data = cachedData as Data
+        guard WAVValidator.isValid(data) else {
+            memoryCache.removeObject(forKey: key)
+            return nil
+        }
+        return data
+    }
+
     private static func readFromDisk(at fileURL: URL) -> Data? {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
-        return try? Data(contentsOf: fileURL)
+        guard let data = try? Data(contentsOf: fileURL),
+              WAVValidator.isValid(data) else {
+            // Un file troncato o corrotto non è recuperabile: eliminarlo evita
+            // di riprovare lo stesso errore a ogni replay.
+            try? fileManager.removeItem(at: fileURL)
+            return nil
+        }
+        return data
     }
 
     private func promote(_ data: Data, for key: NSString, at fileURL: URL) {
@@ -116,7 +135,14 @@ public final class AudioCacheManager: @unchecked Sendable {
     // MARK: - Salvataggio Cache
     
     /// Memorizza l'audio sia in L1 RAM che asincronamente in L2 su disco.
+    /// I payload non WAV vengono ignorati: la cache deve contenere solo audio
+    /// riproducibile.
     public func storeAudio(_ data: Data, for key: String) {
+        guard WAVValidator.isValid(data) else {
+            print("[AudioCacheManager] Ignoro un payload non WAV per \(key)")
+            return
+        }
+
         let nsKey = key as NSString
         // Salva subito in L1 RAM
         memoryCache.setObject(data as NSData, forKey: nsKey, cost: data.count)
@@ -132,6 +158,16 @@ public final class AudioCacheManager: @unchecked Sendable {
             } catch {
                 print("[AudioCacheManager] Errore scrittura cache disco per \(key): \(error)")
             }
+        }
+    }
+
+    /// Rimuove una singola entry da L1 e L2. Usata quando la riproduzione
+    /// fallisce: il chunk torna risintetizzabile invece di restare avvelenato.
+    public func removeAudio(for key: String) {
+        memoryCache.removeObject(forKey: key as NSString)
+        let fileURL = cacheDirectoryURL.appendingPathComponent("\(key).wav")
+        diskQueue.async {
+            try? FileManager.default.removeItem(at: fileURL)
         }
     }
     

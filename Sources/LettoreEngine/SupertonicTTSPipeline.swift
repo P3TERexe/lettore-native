@@ -99,6 +99,17 @@ public final class SupertonicTTSPipeline: TTSPipelineProtocol, @unchecked Sendab
             throw NSError(domain: "SupertonicTTSPipeline", code: 2, userInfo: [NSLocalizedDescriptionKey: "Errore sintesi Supertonic: \(errorText)"])
         }
         
+        guard WAVValidator.isValid(data) else {
+            throw NSError(
+                domain: "SupertonicTTSPipeline",
+                code: 3,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "La risposta del backend non è un WAV valido (\(data.count) byte)."
+                ]
+            )
+        }
+
         let backendMs = httpRes.value(forHTTPHeaderField: "X-Duration-Ms") ?? "n/a"
         print("[SupertonicTTS] Sintetizzati \(data.count) bytes WAV in \(String(format: "%.1f", elapsedMs))ms (audio backend: \(backendMs)ms, steps: \(payload.steps)) per: \"\(text.prefix(35))...\"")
         self.isModelLoaded = true

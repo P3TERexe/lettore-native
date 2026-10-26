@@ -153,14 +153,22 @@ final class ReadingTextPreparerTests: XCTestCase {
     // MARK: - Filtro e paging
 
     func testFilteredRangesStillPointAtOriginalDocument() {
+        // Il filtro rimuove le righe ripetute solo quando il documento espone
+        // numeri di pagina: senza di essi potrebbero essere ritornelli.
         let text = """
+        Pagina 1
+
         Titolo corrente
 
         Prima frase sul documento.
 
+        Pagina 2
+
         Titolo corrente
 
         Seconda frase sul documento.
+
+        Pagina 3
 
         Titolo corrente
 

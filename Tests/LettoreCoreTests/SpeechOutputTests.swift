@@ -10,7 +10,7 @@ final class SpeechOutputTests: XCTestCase {
 
     private final class FakeTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
         var isModelLoaded = true
-        var data = Data("WAV_FAKE".utf8)
+        var data = TestWAV.data()
         var error: Error?
         var hangs = false
         var waitsForRelease = false
@@ -97,10 +97,10 @@ final class SpeechOutputTests: XCTestCase {
         private(set) var speeds: [Float] = []
         private(set) var stopCount = 0
 
-        private var playbackCompletions: [() -> Void] = []
+        private var playbackCompletions: [(Bool) -> Void] = []
         private var fallbackCompletions: [() -> Void] = []
 
-        func play(data: Data, speed: Float, onComplete: @escaping () -> Void) {
+        func play(data: Data, speed: Float, onComplete: @escaping (Bool) -> Void) {
             playedData.append(data)
             playbackSpeeds.append(speed)
             playbackCompletions.append(onComplete)
@@ -132,8 +132,8 @@ final class SpeechOutputTests: XCTestCase {
             speeds.append(speed)
         }
 
-        func completePlayback(at index: Int) {
-            playbackCompletions[index]()
+        func completePlayback(at index: Int, success: Bool = true) {
+            playbackCompletions[index](success)
         }
 
         func completeFallback() {
@@ -485,13 +485,54 @@ final class SpeechOutputTests: XCTestCase {
 
     // MARK: - Cache asincrona
 
+    func testPlaybackFailureInvalidatesCacheAndFallsBackToSystemVoice() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let voice = VoiceProfile.standardVoices[0]
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Audio non riproducibile."),
+            voice: voice,
+            speed: 1.0,
+            steps: 8
+        )
+
+        output.play(request)
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(pipeline.callCount, 1)
+
+        // Il player rifiuta il payload: il chunk non deve sparire in silenzio.
+        audio.completePlayback(at: 0, success: false)
+        await assertEventually { audio.fallbackTexts.count == 1 }
+        await assertEventually { collector.containsFailed(request.id) }
+        XCTAssertEqual(collector.started.last?.source, .system)
+        XCTAssertEqual(
+            collector.started.last?.notice,
+            "L'audio neurale non è riproducibile: riproduzione con la voce di sistema macOS."
+        )
+
+        // La entry è stata invalidata: il play successivo risintetizza.
+        let retry = SpeechRequest(
+            chunk: request.chunk,
+            voice: voice,
+            speed: 1.0,
+            steps: 8
+        )
+        output.play(retry)
+        await assertEventually { pipeline.callCount == 2 }
+        await assertEventually { audio.playedData.count == 2 }
+    }
+
     func testAsyncCacheReadReturnsDiskHitAndPromotesToRAM() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("LettoreSpeechOutputTests.\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let writer = AudioCacheManager(customCacheDirectory: tempDirectory)
-        let data = Data("AUDIO_SU_DISCO".utf8)
+        let data = TestWAV.data()
         let key = writer.cacheKey(for: "Cache su disco.", voiceId: "IT-M1", speed: 1.0, steps: 8)
         writer.storeAudio(data, for: key)
 

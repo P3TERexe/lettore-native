@@ -379,28 +379,52 @@ public final class SpeechOutput {
 
         guard isCurrent(request, generation: generation) else { return }
 
-        audio.play(data: data, speed: currentSpeed) { [weak self] in
-            self?.finish(request, generation: generation)
+        audio.play(data: data, speed: currentSpeed) { [weak self] success in
+            guard let self else { return }
+            guard success else {
+                guard self.isCurrent(request, generation: generation) else { return }
+                // Il payload è arrivato dal backend o dalla cache ma non è
+                // riproducibile: invalida la chiave e usa subito la voce di
+                // sistema, senza saltare il chunk in silenzio.
+                self.cacheManager.removeAudio(for: self.cacheKey(for: request))
+                self.startSystemVoiceFallback(
+                    for: request,
+                    generation: generation,
+                    error: NSError(
+                        domain: "SpeechOutput",
+                        code: 1,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "L'audio ricevuto non è riproducibile."
+                        ]
+                    ),
+                    notice: "L'audio neurale non è riproducibile: riproduzione con la voce di sistema macOS."
+                )
+                return
+            }
+            self.finish(request, generation: generation)
         }
     }
 
     private func startSystemVoiceFallback(
         for request: SpeechRequest,
         generation: UInt64,
-        error: Error
+        error: Error,
+        notice: String? = nil
     ) {
         guard isCurrent(request, generation: generation) else { return }
 
         let message = error.localizedDescription
         emit(.synthesisFailed(requestID: request.id, message: message))
 
-        let notice = "Motore Supertonic non raggiungibile su 127.0.0.1:7788 (\(message)). In riproduzione con la voce di sistema macOS di fallback."
+        let fallbackNotice = notice
+            ?? "Motore Supertonic non raggiungibile su 127.0.0.1:7788 (\(message)). In riproduzione con la voce di sistema macOS di fallback."
         activeVoiceSource = .system
         emit(.started(SpeechStarted(
             requestID: request.id,
             chunkID: request.chunk.id,
             source: .system,
-            notice: notice
+            notice: fallbackNotice
         )))
 
         guard isCurrent(request, generation: generation) else { return }
@@ -458,7 +482,7 @@ protocol SpeechAudioBackend: AnyObject {
     var onLevelsUpdate: (([Float]) -> Void)? { get set }
     var onProgressUpdate: ((Double) -> Void)? { get set }
 
-    func play(data: Data, speed: Float, onComplete: @escaping () -> Void)
+    func play(data: Data, speed: Float, onComplete: @escaping (Bool) -> Void)
     func speakFallback(
         text: String,
         voice: VoiceProfile,
@@ -497,7 +521,7 @@ final class SystemSpeechAudioBackend: SpeechAudioBackend {
         self.speechFallback = speechFallback
     }
 
-    func play(data: Data, speed: Float, onComplete: @escaping () -> Void) {
+    func play(data: Data, speed: Float, onComplete: @escaping (Bool) -> Void) {
         audioEngine.playWAVData(data, speed: speed, onComplete: onComplete)
     }
 
