@@ -19,8 +19,6 @@ public struct LettoreStudioView: View {
     @State private var inputText: String = ""
     @State private var showingNotchPreview: Bool = false
     @State private var isCapturing: Bool = false
-    /// Scarta il risultato di una preparazione superata da un nuovo Invio.
-    @State private var inputPreparationGeneration = 0
     
     public init(
         appState: AppState,
@@ -296,6 +294,7 @@ public struct LettoreStudioView: View {
                     do {
                         try await coordinator.supertonicPipeline.loadModel()
                         await MainActor.run {
+                            coordinator.clearSynthesisFailures()
                             appState.isUsingSpeechFallback = false
                             appState.speechFallbackNotice = nil
                         }
@@ -918,8 +917,9 @@ public struct LettoreStudioView: View {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        inputPreparationGeneration &+= 1
-        let generation = inputPreparationGeneration
+        // Lo stesso token delle catture: un Invio superato da una cattura
+        // (o viceversa) non può sostituire la coda della richiesta più recente.
+        let generation = readingCapture.beginManualReadingRequest()
 
         coordinator.stop()
         onSourceHighlightEnd?()
@@ -934,7 +934,7 @@ public struct LettoreStudioView: View {
                 ReadingTextPreparer().prepareInitial(text: text, mode: .off)
             }.value
 
-            guard generation == inputPreparationGeneration else { return }
+            guard readingCapture.isCurrentReadingRequest(generation) else { return }
             appState.setQueue(reading.chunks)
             coordinator.playCurrentChunk()
         }
@@ -945,8 +945,8 @@ public struct LettoreStudioView: View {
         coordinator.stop()
         guard !appState.readingQueue.isEmpty else { return }
 
-        inputText = selection.text
-
+        // `inputText` è la bozza dell'utente: il testo catturato vive nella
+        // coda e non deve sovrascrivere ciò che è stato digitato nel frattempo.
         if let documentID = selection.sourceDocumentID,
            let sourcePID = selection.sourcePID,
            selection.trimmedSourceRange != nil {

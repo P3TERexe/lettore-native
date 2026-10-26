@@ -43,6 +43,9 @@ struct LettoreApp: App {
             sourceApplications: sourceApplications,
             continuousCapture: { [captureController] applicationPID in
                 await captureController.captureAndPlay(from: applicationPID)
+            },
+            cancelContinuousSession: { [captureController] in
+                captureController.stopSession()
             }
         )
         let sourceHighlightCoordinator = SourceHighlightCoordinator(

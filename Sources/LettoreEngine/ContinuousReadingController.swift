@@ -59,6 +59,9 @@ public final class ContinuousReadingController {
     /// sessione e alla sua chiusura. I task asincroni la catturano all'avvio e
     /// la ricontrollano dopo ogni `await`.
     private var sessionGeneration = 0
+    /// Invalida anche una `captureAndPlay` che sta aspettando il cleanup AX
+    /// prima di `beginSession`, quando non esiste ancora una sessione attiva.
+    private var captureEpoch: UInt64 = 0
     private var didReachEnd = false
     private var pagingEnabled = true
     private var remainderTask: Task<[ReadingChunk], Never>?
@@ -133,12 +136,18 @@ public final class ContinuousReadingController {
             stopSession()
         }
 
+        // Anche una cattura precedente ferma prima di `beginSession` va
+        // invalidata: senza sessione attiva `stopSession` non la vede.
+        captureEpoch &+= 1
+        let epoch = captureEpoch
+
         // La chiusura della sessione AX precedente è asincrona: attendila
         // prima di aprirne una nuova, altrimenti potrebbe cancellarla.
         if let cleanup = sourceCleanupTask {
             await cleanup.value
             sourceCleanupTask = nil
         }
+        guard epoch == captureEpoch else { return nil }
 
         let generation = beginSession()
         isSessionActive = true
@@ -221,7 +230,11 @@ public final class ContinuousReadingController {
     }
 
     /// Ferma esplicitamente la sessione continua e la riproduzione.
+    ///
+    /// Incrementa sempre l'epoch di cattura, anche quando non c'è una sessione
+    /// attiva: deve invalidare una `captureAndPlay` sospesa sul cleanup AX.
     public func stopSession() {
+        captureEpoch &+= 1
         guard isSessionActive || appState.isContinuousSessionActive else { return }
         playback.stop(endingSession: true)
         finishSession()

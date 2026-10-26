@@ -20,8 +20,15 @@ final class ContinuousReadingControllerTests: XCTestCase {
         private(set) var pageCallCount = 0
         private(set) var isHoldingPage = false
 
+        /// Quando attivo, la prossima `endContinuousCapture` si blocca finché
+        /// il test non chiama `releaseEndCleanup()`.
+        var holdEndCleanup = false
+        private(set) var isHoldingEndCleanup = false
+
         private var releaseContinuation: CheckedContinuation<Void, Never>?
         private var pageRequestWaiters: [CheckedContinuation<Void, Never>] = []
+        private var endCleanupContinuation: CheckedContinuation<Void, Never>?
+        private var endCleanupWaiters: [CheckedContinuation<Void, Never>] = []
 
         func startContinuousCapture() async -> ContinuousCaptureStart {
             startCallCount += 1
@@ -55,7 +62,30 @@ final class ContinuousReadingControllerTests: XCTestCase {
             return pages.removeFirst()
         }
 
-        func endContinuousCapture() async {}
+        func endContinuousCapture() async {
+            guard holdEndCleanup else { return }
+            isHoldingEndCleanup = true
+            let waiters = endCleanupWaiters
+            endCleanupWaiters = []
+            waiters.forEach { $0.resume() }
+            await withCheckedContinuation { continuation in
+                endCleanupContinuation = continuation
+            }
+            isHoldingEndCleanup = false
+        }
+
+        /// Attende che la pulizia AX precedente sia entrata nella fase bloccata.
+        func waitUntilEndCleanupStarts() async {
+            if isHoldingEndCleanup { return }
+            await withCheckedContinuation { continuation in
+                endCleanupWaiters.append(continuation)
+            }
+        }
+
+        func releaseEndCleanup() {
+            endCleanupContinuation?.resume()
+            endCleanupContinuation = nil
+        }
 
         /// Attende che una richiesta di pagina sia entrata nella fase bloccata.
         func waitUntilPageRequestStarts() async {
@@ -129,6 +159,43 @@ final class ContinuousReadingControllerTests: XCTestCase {
         XCTAssertTrue(controller.pendingCarryText.isEmpty)
         XCTAssertTrue(state.isContinuousSessionActive)
         XCTAssertFalse(state.isFetchingMoreText)
+    }
+
+    func testStopDuringSourceCleanupInvalidatesPendingCapture() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+
+        let source = FakeContinuousTextSource()
+        source.startResults = [
+            ContinuousCaptureStart(text: "Sessione vecchia.", selectedText: "", canPage: false)
+        ]
+        let (controller, sink) = makeController(state: state, source: source)
+
+        let first = await controller.captureAndPlay()
+        XCTAssertEqual(first, "Sessione vecchia.")
+        XCTAssertEqual(sink.playCallCount, 1)
+
+        source.holdEndCleanup = true
+        source.startResults = [
+            ContinuousCaptureStart(text: "Sessione nuova.", selectedText: "", canPage: false)
+        ]
+
+        // La nuova cattura ferma la vecchia e resta sospesa sul cleanup AX,
+        // prima di `beginSession`.
+        let pending = Task { await controller.captureAndPlay() }
+        await source.waitUntilEndCleanupStarts()
+        XCTAssertFalse(state.isContinuousSessionActive)
+
+        // Una richiesta più recente deve invalidare anche questa cattura,
+        // che non ha ancora aperto una sessione.
+        controller.stopSession()
+        source.releaseEndCleanup()
+
+        let result = await pending.value
+        XCTAssertNil(result)
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Sessione vecchia."])
+        XCTAssertEqual(sink.playCallCount, 1, "La cattura superata non deve avviare il playback")
+        XCTAssertFalse(state.isContinuousSessionActive)
     }
 
     // MARK: - Test 2: pagina senza frasi, poi pagine successive

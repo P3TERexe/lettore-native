@@ -79,6 +79,44 @@ final class ReadingCaptureControllerTests: XCTestCase {
         }
     }
 
+    /// Cattura continua sospesa finché il test non la rilascia, per invertire
+    /// l'ordine di completamento rispetto a una selezione.
+    actor GatedContinuousCapture {
+        private let results: [String?]
+        private var nextIndex = 0
+        private var continuations: [Int: CheckedContinuation<String?, Never>] = [:]
+
+        init(results: [String?]) {
+            self.results = results
+        }
+
+        var startedCount: Int { nextIndex }
+
+        func capture(from applicationPID: pid_t?) async -> String? {
+            let index = nextIndex
+            nextIndex += 1
+            return await withCheckedContinuation { continuation in
+                continuations[index] = continuation
+            }
+        }
+
+        func release(_ index: Int) {
+            guard let continuation = continuations.removeValue(forKey: index) else { return }
+            continuation.resume(returning: results[index])
+        }
+    }
+
+    @MainActor
+    final class ContinuousSessionSpy {
+        var isActive = false
+        private(set) var stopCount = 0
+
+        func stop() {
+            stopCount += 1
+            isActive = false
+        }
+    }
+
     // MARK: - Play dalla UI
 
     func testValidSelectionReplacesQueueAndPreservesMappedRange() async {
@@ -142,6 +180,7 @@ final class ReadingCaptureControllerTests: XCTestCase {
         guard case .fellBackToQueue = outcome else {
             return XCTFail("Atteso .fellBackToQueue, ricevuto \(outcome)")
         }
+        XCTAssertEqual(state.continuationNotice, "Nessuna selezione leggibile.")
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
         let requestedPIDs = await capture.requestedPIDs
         XCTAssertEqual(requestedPIDs, [42])
@@ -211,6 +250,247 @@ final class ReadingCaptureControllerTests: XCTestCase {
         XCTAssertEqual(state.readingQueue.map(\.text), ["Selezione nuova."])
     }
 
+    func testOlderSelectionCannotReplaceNewerContinuousQueue() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = GatedSelectedTextCapture(results: [
+            CapturedSelection(text: "Selezione vecchia.")
+        ])
+        let continuousCapture = GatedContinuousCapture(results: ["Documento continuo."])
+        let session = ContinuousSessionSpy()
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            continuousCapture: { _ in
+                session.isActive = true
+                let text = await continuousCapture.capture(from: nil)
+                guard session.isActive else { return nil }
+                if let text {
+                    state.setQueue([ReadingChunk(index: 0, text: text)])
+                }
+                return text
+            },
+            cancelContinuousSession: { session.stop() }
+        )
+
+        // La selezione parte per prima ma è più lenta della lettura continua.
+        let selectionTask = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let selectionStarted = await waitUntil { await selectionCapture.startedCount == 1 }
+        XCTAssertTrue(selectionStarted)
+
+        let continuousTask = Task { await controller.playFromUI(isContinuousEnabled: true) }
+        let continuousStarted = await waitUntil { await continuousCapture.startedCount == 1 }
+        XCTAssertTrue(continuousStarted)
+
+        await continuousCapture.release(0)
+        let continuousOutcome = await continuousTask.value
+        guard case .continuous = continuousOutcome else {
+            return XCTFail("Atteso .continuous, ricevuto \(continuousOutcome)")
+        }
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Documento continuo."])
+
+        await selectionCapture.release(0)
+        let selectionOutcome = await selectionTask.value
+        guard case .unavailable = selectionOutcome else {
+            return XCTFail("La selezione superata deve essere scartata, ricevuto \(selectionOutcome)")
+        }
+        XCTAssertEqual(
+            state.readingQueue.map(\.text),
+            ["Documento continuo."],
+            "La selezione vecchia non deve sostituire la coda della lettura continua nuova"
+        )
+    }
+
+    func testNewerSelectionStopsContinuousAndKeepsItsOwnQueue() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = FakeSelectedTextCapture(
+            result: CapturedSelection(text: "Selezione nuova.")
+        )
+        let continuousCapture = GatedContinuousCapture(results: ["Documento vecchio."])
+        let session = ContinuousSessionSpy()
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            continuousCapture: { _ in
+                session.isActive = true
+                let text = await continuousCapture.capture(from: nil)
+                guard session.isActive else { return nil }
+                if let text {
+                    state.setQueue([ReadingChunk(index: 0, text: text)])
+                }
+                return text
+            },
+            cancelContinuousSession: { session.stop() }
+        )
+
+        let continuousTask = Task { await controller.playFromUI(isContinuousEnabled: true) }
+        let continuousStarted = await waitUntil { await continuousCapture.startedCount == 1 }
+        XCTAssertTrue(continuousStarted)
+        XCTAssertTrue(session.isActive)
+
+        let selectionOutcome = await controller.playFromUI(isContinuousEnabled: false)
+        guard case .captured = selectionOutcome else {
+            return XCTFail("Atteso .captured, ricevuto \(selectionOutcome)")
+        }
+        XCTAssertFalse(session.isActive, "La selezione deve fermare la sessione continua in volo")
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Selezione nuova."])
+
+        await continuousCapture.release(0)
+        let continuousOutcome = await continuousTask.value
+        guard case .unavailable = continuousOutcome else {
+            return XCTFail("La continua superata deve essere scartata, ricevuto \(continuousOutcome)")
+        }
+        XCTAssertEqual(
+            state.readingQueue.map(\.text),
+            ["Selezione nuova."],
+            "La cattura continua vecchia non deve rimpiazzare la selezione nuova"
+        )
+    }
+
+    func testStaleSelectionFailureDoesNotClearNewerContinuousNotice() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = GatedSelectedTextCapture(results: [nil])
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            continuousCapture: { _ in
+                state.continuationNotice = "Lettura continua attiva."
+                state.setQueue([ReadingChunk(index: 0, text: "Documento continuo.")])
+                return "Documento continuo."
+            }
+        )
+
+        let selectionTask = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let selectionStarted = await waitUntil { await selectionCapture.startedCount == 1 }
+        XCTAssertTrue(selectionStarted)
+
+        let continuousOutcome = await controller.playFromUI(isContinuousEnabled: true)
+        guard case .continuous = continuousOutcome else {
+            return XCTFail("Atteso .continuous, ricevuto \(continuousOutcome)")
+        }
+
+        await selectionCapture.release(0)
+        let selectionOutcome = await selectionTask.value
+        guard case .unavailable = selectionOutcome else {
+            return XCTFail("La cattura superata deve essere scartata, ricevuto \(selectionOutcome)")
+        }
+        XCTAssertEqual(
+            state.continuationNotice,
+            "Lettura continua attiva.",
+            "Un fallback vecchio non deve cancellare l'avviso della richiesta nuova"
+        )
+        XCTAssertEqual(state.readingQueue.map(\.text), ["Documento continuo."])
+    }
+
+    func testManualRequestStopsContinuousSessionAndInvalidatesCapture() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = GatedSelectedTextCapture(results: [
+            CapturedSelection(text: "Selezione superata.")
+        ])
+        let session = ContinuousSessionSpy()
+        session.isActive = true
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            cancelContinuousSession: { session.stop() }
+        )
+
+        let selectionTask = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let selectionStarted = await waitUntil { await selectionCapture.startedCount == 1 }
+        XCTAssertTrue(selectionStarted)
+
+        let manualToken = controller.beginManualReadingRequest()
+        XCTAssertTrue(controller.isCurrentReadingRequest(manualToken))
+        XCTAssertFalse(session.isActive, "L'input manuale deve fermare la sessione continua")
+        XCTAssertEqual(session.stopCount, 2, "Una volta per la selezione e una per l'input manuale")
+
+        await selectionCapture.release(0)
+        let outcome = await selectionTask.value
+        guard case .unavailable = outcome else {
+            return XCTFail("La selezione superata dall'input manuale deve essere scartata, ricevuto \(outcome)")
+        }
+        XCTAssertTrue(state.readingQueue.isEmpty)
+    }
+
+    func testInvalidSourceDuringContinuousCaptureStopsTheSession() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = FakeSelectedTextCapture(result: nil)
+        let continuousCapture = GatedContinuousCapture(results: ["Documento in volo."])
+        let session = ContinuousSessionSpy()
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            continuousCapture: { _ in
+                session.isActive = true
+                let text = await continuousCapture.capture(from: nil)
+                guard session.isActive else { return nil }
+                if let text {
+                    state.setQueue([ReadingChunk(index: 0, text: text)])
+                }
+                return text
+            },
+            cancelContinuousSession: { session.stop() }
+        )
+
+        let continuousTask = Task { await controller.playFromUI(isContinuousEnabled: true) }
+        let started = await waitUntil { await continuousCapture.startedCount == 1 }
+        XCTAssertTrue(started)
+        XCTAssertTrue(session.isActive)
+
+        // La UI perde l'app di origine mentre la cattura continua è in volo.
+        state.lastExternalApplicationPID = nil
+        let invalidOutcome = await controller.playFromUI(isContinuousEnabled: false)
+        guard case .unavailable = invalidOutcome else {
+            return XCTFail("Atteso .unavailable, ricevuto \(invalidOutcome)")
+        }
+        XCTAssertEqual(
+            session.stopCount,
+            2,
+            "Anche una richiesta che fallisce prima della cattura deve fermare la continua"
+        )
+        XCTAssertFalse(session.isActive)
+        XCTAssertEqual(
+            state.continuationNotice,
+            ReadingCaptureController.missingSourceApplicationNotice
+        )
+
+        await continuousCapture.release(0)
+        let continuousOutcome = await continuousTask.value
+        guard case .unavailable = continuousOutcome else {
+            return XCTFail("La continua superata deve essere scartata, ricevuto \(continuousOutcome)")
+        }
+        XCTAssertTrue(state.readingQueue.isEmpty)
+        XCTAssertEqual(
+            state.continuationNotice,
+            ReadingCaptureController.missingSourceApplicationNotice,
+            "La cattura vecchia non deve cancellare l'avviso della richiesta nuova"
+        )
+    }
+
     // MARK: - App di origine
 
     func testInvalidExternalPIDFallsBackToQueueWhenAvailable() async {
@@ -232,7 +512,10 @@ final class ReadingCaptureControllerTests: XCTestCase {
         guard case .fellBackToQueue = outcome else {
             return XCTFail("Atteso .fellBackToQueue, ricevuto \(outcome)")
         }
-        XCTAssertNil(state.continuationNotice)
+        XCTAssertEqual(
+            state.continuationNotice,
+            ReadingCaptureController.missingSourceApplicationNotice
+        )
         let requestedPIDs = await capture.requestedPIDs
         XCTAssertTrue(requestedPIDs.isEmpty, "Un PID invalido non deve arrivare alla cattura")
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
@@ -313,11 +596,12 @@ final class ReadingCaptureControllerTests: XCTestCase {
         XCTAssertTrue(requestedPIDs.isEmpty, "La modalità continua non passa dalla selezione")
     }
 
-    func testFailedContinuousCaptureFallsBackToQueueAndClearsNotice() async {
+    func testFailedContinuousCaptureFallsBackToQueueAndKeepsNotice() async {
         let (state, cleanup) = makeState(queue: [makeChunk("Coda pronta.")])
         defer { cleanup() }
         state.lastExternalApplicationPID = 42
-        state.continuationNotice = "Nessun testo leggibile nell'app in primo piano."
+        let reason = "Nessun testo leggibile nell'app in primo piano."
+        state.continuationNotice = reason
 
         let capture = FakeSelectedTextCapture(result: nil)
         let applications = makeApplications(runningExternalPIDs: [42])
@@ -334,7 +618,7 @@ final class ReadingCaptureControllerTests: XCTestCase {
         guard case .fellBackToQueue = outcome else {
             return XCTFail("Atteso .fellBackToQueue, ricevuto \(outcome)")
         }
-        XCTAssertNil(state.continuationNotice)
+        XCTAssertEqual(state.continuationNotice, reason)
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
     }
 
@@ -426,15 +710,18 @@ final class ReadingCaptureControllerTests: XCTestCase {
         state: AppState,
         selectedText: any SelectedTextCapturing,
         sourceApplications: FakeSourceApplications,
-        continuous: ContinuousCaptureSpy = ContinuousCaptureSpy()
+        continuous: ContinuousCaptureSpy = ContinuousCaptureSpy(),
+        continuousCapture: ReadingCaptureController.ContinuousCapture? = nil,
+        cancelContinuousSession: @escaping ReadingCaptureController.ContinuousSessionCancellation = {}
     ) -> ReadingCaptureController {
         ReadingCaptureController(
             appState: state,
             selectedText: selectedText,
             sourceApplications: sourceApplications,
-            continuousCapture: { applicationPID in
+            continuousCapture: continuousCapture ?? { applicationPID in
                 await continuous.capture(from: applicationPID)
-            }
+            },
+            cancelContinuousSession: cancelContinuousSession
         )
     }
 
