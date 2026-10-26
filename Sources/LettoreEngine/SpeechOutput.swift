@@ -101,6 +101,10 @@ public final class SpeechOutput {
     private var activeRequest: SpeechRequest?
     private var activeVoiceSource: VoiceSource?
     private var playbackTask: Task<Void, Never>?
+    /// Ultima velocità richiesta dall'utente. Il player la applica all'avvio
+    /// della riproduzione, così un cambio durante la sintesi vale subito per
+    /// il chunk che sta per partire.
+    private var currentSpeed: Float = 1.0
 
     private var preloadTasks: [String: Task<Data?, Never>] = [:]
     private var preloadTokens: [String: UUID] = [:]
@@ -167,6 +171,7 @@ public final class SpeechOutput {
         audio.stop()
 
         activeRequest = request
+        currentSpeed = request.speed
         let key = cacheKey(for: request)
 
         playbackTask = Task { [weak self] in
@@ -247,6 +252,7 @@ public final class SpeechOutput {
     }
 
     public func setSpeed(_ speed: Float) {
+        currentSpeed = speed
         audio.setSpeed(speed)
     }
 
@@ -373,7 +379,7 @@ public final class SpeechOutput {
 
         guard isCurrent(request, generation: generation) else { return }
 
-        audio.play(data: data, speed: request.speed) { [weak self] in
+        audio.play(data: data, speed: currentSpeed) { [weak self] in
             self?.finish(request, generation: generation)
         }
     }
@@ -402,7 +408,7 @@ public final class SpeechOutput {
         audio.speakFallback(
             text: request.chunk.text,
             voice: request.voice,
-            speed: request.speed
+            speed: currentSpeed
         ) { [weak self] in
             self?.finish(request, generation: generation)
         }

@@ -81,6 +81,9 @@ public final class PlaybackCoordinator {
     }
 
     public func play() {
+        // Durante la sintesi non esiste una pausa reale: riavviare qui
+        // cancellerebbe la richiesta in volo e rimanderebbe l'audio a ogni tap.
+        guard appState.playbackState != .synthesizing else { return }
         if appState.playbackState == .paused {
             resume()
         } else {
@@ -126,6 +129,7 @@ public final class PlaybackCoordinator {
             pendingPlayAfterFetch = false
         }
         appState.playbackState = .idle
+        appState.liveWaveformLevels = AudioEngineService.idleWaveformLevels
         if appState.currentChunk == nil {
             appState.playbackProgress = 0.0
         }
@@ -187,6 +191,12 @@ public final class PlaybackCoordinator {
             notifyPlaybackEnded()
             return
         }
+
+        // Un chunk esiste: un eventuale Play rimasto in attesa della pagina è
+        // stato soddisfatto da questo play (skip, jump o nuova sessione). Senza
+        // questo azzeramento la fetch in volo riavvierebbe o chiuderebbe la
+        // coda appena avviata.
+        pendingPlayAfterFetch = false
 
         // Segnala il chunk prima della sintesi: il cambio copre play, skip,
         // jump e avanzamento automatico, senza toccare l'highlight a ogni

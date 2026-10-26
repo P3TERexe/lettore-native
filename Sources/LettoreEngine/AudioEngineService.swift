@@ -7,7 +7,11 @@ import LettoreCore
 /// (che non funziona da processi swift run / CLI su macOS).
 @MainActor
 public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
-    
+
+    /// Livelli mostrati quando non c'è audio: usati anche dallo stop esplicito
+    /// per non lasciare l'onda congelata sull'ultimo frame.
+    public static let idleWaveformLevels: [Float] = [0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15]
+
     private var player: AVAudioPlayer?
     private var onPlaybackComplete: (() -> Void)?
     private var meteringTimer: Timer?
@@ -156,6 +160,6 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     private func stopMetering() {
         meteringTimer?.invalidate()
         meteringTimer = nil
-        self.onAudioLevelsUpdate?([0.15, 0.25, 0.4, 0.5, 0.4, 0.25, 0.15])
+        self.onAudioLevelsUpdate?(Self.idleWaveformLevels)
     }
 }

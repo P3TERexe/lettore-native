@@ -30,24 +30,42 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     
     // MARK: - Controlli di Riproduzione
     
+    /// Lingua BCP-47 usata per scegliere la voce di sistema quando il motore
+    /// neurale non è disponibile. Gli ID di `VoiceProfile` (`IT-M1`, `EN-F1`)
+    /// non sono identificatori AVSpeech: senza questa mappa il fallback
+    /// leggeva qualsiasi lingua con la fonetica italiana.
+    static func systemLanguage(for voice: VoiceProfile?) -> String {
+        switch voice?.language.lowercased() {
+        case "en": return "en-US"
+        case "es": return "es-ES"
+        case "fr": return "fr-FR"
+        case "de": return "de-DE"
+        default: return "it-IT"
+        }
+    }
+
     /// Legge ad alta voce il testo specificato con voce e velocità configurate.
     public func speak(text: String, voice: VoiceProfile? = nil, speed: Float = 1.05) {
         stop()
         
         let utterance = AVSpeechUtterance(string: text)
         
-        // Seleziona la voce italiana migliore disponibile nel sistema
+        // Se l'ID è un identificatore AV reale (voce di sistema personalizzata)
+        // usalo; altrimenti scegli la voce migliore nella lingua richiesta.
         if let voiceID = voice?.id, let specificVoice = AVSpeechSynthesisVoice(identifier: voiceID) {
             utterance.voice = specificVoice
         } else {
-            // Cerca prima le voci italiane di qualità premium o enhanced (es. Alice, Federica, Luca)
-            let italianVoices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("it") }
-            if let preferred = italianVoices.first(where: { $0.quality == .premium }) ??
-                               italianVoices.first(where: { $0.quality == .enhanced }) ??
-                               italianVoices.first {
+            let language = Self.systemLanguage(for: voice)
+            let languagePrefix = String(language.prefix(2))
+            let voices = AVSpeechSynthesisVoice.speechVoices().filter {
+                $0.language.hasPrefix(languagePrefix)
+            }
+            if let preferred = voices.first(where: { $0.quality == .premium }) ??
+                               voices.first(where: { $0.quality == .enhanced }) ??
+                               voices.first {
                 utterance.voice = preferred
             } else {
-                utterance.voice = AVSpeechSynthesisVoice(language: "it-IT")
+                utterance.voice = AVSpeechSynthesisVoice(language: language)
             }
         }
         
@@ -126,8 +144,13 @@ public final class NativeSpeechService: NSObject, AVSpeechSynthesizerDelegate {
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
-        let totalChars = utterance.speechString.count
+        let utteranceID = ObjectIdentifier(utterance)
+        // `characterRange` è UTF-16; `String.count` conta grapheme cluster.
+        // Con emoji o caratteri composti il denominatore sbagliato faceva
+        // arrivare il progresso a 1.0 in anticipo.
+        let totalChars = (utterance.speechString as NSString).length
         Task { @MainActor in
+            guard self.activeUtteranceID == utteranceID else { return }
             self.onWordHighlight?(characterRange)
             if totalChars > 0 {
                 let progress = min(1.0, max(0.0, Double(characterRange.location + characterRange.length) / Double(totalChars)))

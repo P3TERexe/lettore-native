@@ -90,6 +90,7 @@ final class SpeechOutputTests: XCTestCase {
         var onProgressUpdate: ((Double) -> Void)?
 
         private(set) var playedData: [Data] = []
+        private(set) var playbackSpeeds: [Float] = []
         private(set) var fallbackTexts: [String] = []
         private(set) var pauses: [VoiceSource] = []
         private(set) var resumes: [VoiceSource] = []
@@ -101,6 +102,7 @@ final class SpeechOutputTests: XCTestCase {
 
         func play(data: Data, speed: Float, onComplete: @escaping () -> Void) {
             playedData.append(data)
+            playbackSpeeds.append(speed)
             playbackCompletions.append(onComplete)
         }
 
@@ -235,6 +237,46 @@ final class SpeechOutputTests: XCTestCase {
     }
 
     // MARK: - Preload
+
+    func testFallbackVoiceUsesTheSelectedLanguage() {
+        XCTAssertEqual(
+            NativeSpeechService.systemLanguage(for: VoiceProfile.standardVoices[0]),
+            "it-IT"
+        )
+        XCTAssertEqual(
+            NativeSpeechService.systemLanguage(for: VoiceProfile(id: "EN-M1", name: "John", language: "en")),
+            "en-US"
+        )
+        XCTAssertEqual(
+            NativeSpeechService.systemLanguage(for: VoiceProfile(id: "FR-F1", name: "Camille", language: "fr")),
+            "fr-FR"
+        )
+        XCTAssertEqual(NativeSpeechService.systemLanguage(for: nil), "it-IT")
+    }
+
+    func testSpeedChangedDuringSynthesisAppliesToTheIncomingPlayback() async {        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        pipeline.waitsForRelease = true
+        let request = SpeechRequest(
+            chunk: ReadingChunk(index: 0, text: "Velocità."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+
+        output.play(request)
+        await assertEventually { pipeline.callCount == 1 }
+
+        output.setSpeed(1.75)
+        pipeline.release()
+
+        await assertEventually { audio.playbackSpeeds.count == 1 }
+        XCTAssertEqual(audio.playbackSpeeds.first, 1.75)
+    }
 
     func testPreloadDeduplicatesAndNeverPlays() async {
         let (output, pipeline, audio, collector, cleanup) = makeSystem()

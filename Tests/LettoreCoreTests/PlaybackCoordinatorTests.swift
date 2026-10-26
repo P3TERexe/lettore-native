@@ -87,6 +87,73 @@ final class PlaybackCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    // MARK: - Stato durante sintesi e paging
+
+    func testPlayDuringSynthesisDoesNotRestartTheRequest() {
+        let (state, cleanup) = makeState(["Uno.", "Due."])
+        defer { cleanup() }
+        let coordinator = makeCoordinator(state: state)
+
+        var seen: [String] = []
+        coordinator.onCurrentChunkChanged = { seen.append($0.text) }
+
+        coordinator.playCurrentChunk()
+        XCTAssertEqual(state.playbackState, .synthesizing)
+        XCTAssertEqual(seen, ["Uno."])
+
+        coordinator.play()
+        XCTAssertEqual(seen, ["Uno."], "Play durante la sintesi non deve riavviare il chunk")
+        XCTAssertEqual(state.playbackState, .synthesizing)
+
+        coordinator.stop()
+    }
+
+    func testJumpWhileFetchIsPendingCancelsThePendingPlay() async {
+        let (state, cleanup) = makeState(["Uno.", "Due."])
+        defer { cleanup() }
+        let coordinator = makeCoordinator(state: state)
+
+        let gate = DeferredQueueLow()
+        coordinator.onQueueLow = { await gate.wait() }
+
+        var ended = 0
+        coordinator.onPlaybackEnded = { ended += 1 }
+
+        coordinator.playCurrentChunk()
+        for _ in 0..<200 where gate.continuation == nil {
+            await Task.yield()
+        }
+        XCTAssertNotNil(gate.continuation, "La fetch pagina deve essere in volo")
+
+        // Esaurisce la coda mentre la pagina è in volo: il Play resta armato.
+        coordinator.skipForward()
+        coordinator.skipForward()
+        XCTAssertEqual(state.playbackState, .synthesizing)
+
+        // Il jump sceglie un chunk esistente: l'attesa non deve più chiudere
+        // la sessione né riavviare la coda quando la fetch termina.
+        coordinator.jumpToChunk(state.readingQueue[0])
+        gate.resolve(false)
+        for _ in 0..<200 where ended > 0 {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(ended, 0, "Il jump ha soddisfatto il Play: la fetch non chiude la sessione")
+        XCTAssertEqual(state.playbackState, .synthesizing)
+        coordinator.stop()
+    }
+
+    func testStopResetsWaveformLevels() {
+        let (state, cleanup) = makeState(["Uno."])
+        defer { cleanup() }
+        let coordinator = makeCoordinator(state: state)
+
+        state.liveWaveformLevels = [1, 1, 1, 1, 1, 1, 1]
+        coordinator.stop()
+
+        XCTAssertEqual(state.liveWaveformLevels, AudioEngineService.idleWaveformLevels)
+    }
+
     // MARK: - Fine sessione
 
     func testPlaybackEndedFiresOnceOnRepeatedStop() {
