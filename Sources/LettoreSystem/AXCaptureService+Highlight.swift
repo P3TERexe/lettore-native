@@ -166,6 +166,7 @@ extension AXCaptureService {
         selectionObserverHandle?.invalidate()
         selectionObserverHandle = nil
         selectionNotificationGeneration &+= 1
+        selectionObservationGeneration &+= 1
         highlightSession = nil
     }
 }
@@ -328,6 +329,8 @@ extension AXCaptureService: SourceSelectionChangeObserving {
         selectionObserverHandle = nil
         // Le notifiche già in debounce appartengono all'osservazione vecchia.
         selectionNotificationGeneration &+= 1
+        selectionObservationGeneration &+= 1
+        let observationGeneration = selectionObservationGeneration
 
         guard let pid = session.sourcePID ?? processIdentifier(of: session.element) else {
             return false
@@ -338,15 +341,22 @@ extension AXCaptureService: SourceSelectionChangeObserving {
             Task {
                 await self.handleSelectionChanged(
                     documentID: documentID,
+                    observationGeneration: observationGeneration,
                     onChange: onChange
                 )
             }
         }
         let box = AXSelectionNotificationBox(handler: handler)
+        let token = AXSelectionHandlerRegistry.shared.register(box)
+        guard let refcon = AXSelectionHandlerRegistry.pointer(forToken: token) else {
+            AXSelectionHandlerRegistry.shared.unregister(token)
+            return false
+        }
 
         var observer: AXObserver?
         guard AXObserverCreate(pid, axSelectionChangedCallback, &observer) == .success,
               let observer else {
+            AXSelectionHandlerRegistry.shared.unregister(token)
             return false
         }
 
@@ -354,26 +364,39 @@ extension AXCaptureService: SourceSelectionChangeObserving {
         // verrebbe notificata due volte. Per Safari l'elemento osservato è la
         // web area che possiede i marker.
         let element = session.markerContainer ?? session.element
-        let refcon = Unmanaged.passUnretained(box).toOpaque()
         guard AXObserverAddNotification(
             observer,
             element,
             kAXSelectedTextChangedNotification as CFString,
             refcon
         ) == .success else {
+            AXSelectionHandlerRegistry.shared.unregister(token)
             return false
         }
 
-        CFRunLoopAddSource(
-            CFRunLoopGetMain(),
-            AXObserverGetRunLoopSource(observer),
-            .defaultMode
-        )
-        selectionObserverHandle = AXSelectionObserverHandle(
+        let handle = AXSelectionObserverHandle(
             observer: observer,
             element: element,
-            box: box
+            token: token
         )
+
+        // CFRunLoop non è thread-safe: la source va aggiunta al run loop
+        // principale dal thread principale.
+        await MainActor.run {
+            handle.installOnMainRunLoop()
+        }
+
+        // Durante l'attesa l'attore è rientrante: uno stop o una nuova
+        // osservazione possono aver già sostituito questa installazione.
+        guard !Task.isCancelled,
+              highlightSession?.documentID == documentID,
+              selectionObservationGeneration == observationGeneration,
+              selectionObserverHandle == nil else {
+            handle.invalidate()
+            return false
+        }
+
+        selectionObserverHandle = handle
         return true
     }
 
@@ -381,15 +404,23 @@ extension AXCaptureService: SourceSelectionChangeObserving {
         guard highlightSession?.documentID == documentID else { return }
         selectionObserverHandle?.invalidate()
         selectionObserverHandle = nil
-        // Annulla un eventuale debounce già in corso.
+        // Annulla un eventuale debounce già in corso e un'installazione
+        // dell'observer ancora in volo.
         selectionNotificationGeneration &+= 1
+        selectionObservationGeneration &+= 1
     }
 
     private func handleSelectionChanged(
         documentID: UUID,
+        observationGeneration: Int,
         onChange: @escaping @Sendable () -> Void
     ) async {
-        guard highlightSession?.documentID == documentID else { return }
+        // Una notifica già accodata può arrivare dopo lo stop: il token
+        // dell'osservazione la scarta anche prima che la source sia rimossa.
+        guard selectionObservationGeneration == observationGeneration,
+              highlightSession?.documentID == documentID else {
+            return
+        }
 
         // Le notifiche possono arrivare duplicate: solo l'ultima della
         // finestra di debounce viene valutata.
@@ -399,6 +430,7 @@ extension AXCaptureService: SourceSelectionChangeObserving {
 
         guard !Task.isCancelled,
               generation == selectionNotificationGeneration,
+              selectionObservationGeneration == observationGeneration,
               let session = highlightSession,
               session.documentID == documentID else {
             return
@@ -453,39 +485,97 @@ final class AXSelectionNotificationBox: @unchecked Sendable {
     }
 }
 
-final class AXSelectionObserverHandle {
+/// Registro degli handler dei callback AX.
+///
+/// Il `refcon` è un token numerico, non un puntatore a un oggetto: un callback
+/// già accodato sul run loop può essere consegnato dopo la rimozione della
+/// source. Cercando l'handler nel registro, quel callback trova un dizionario
+/// valido (al più senza voce) invece di memoria liberata.
+final class AXSelectionHandlerRegistry: @unchecked Sendable {
+    static let shared = AXSelectionHandlerRegistry()
+
+    private let lock = NSLock()
+    private var nextToken = 1
+    private var handlers: [Int: AXSelectionNotificationBox] = [:]
+
+    func register(_ box: AXSelectionNotificationBox) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        let token = nextToken
+        nextToken += 1
+        handlers[token] = box
+        return token
+    }
+
+    func unregister(_ token: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        handlers.removeValue(forKey: token)
+    }
+
+    func handler(forToken token: Int) -> AXSelectionNotificationBox? {
+        lock.lock()
+        defer { lock.unlock() }
+        return handlers[token]
+    }
+
+    static func pointer(forToken token: Int) -> UnsafeMutableRawPointer? {
+        UnsafeMutableRawPointer(bitPattern: token)
+    }
+
+    static func token(from pointer: UnsafeMutableRawPointer) -> Int {
+        Int(bitPattern: pointer)
+    }
+}
+
+final class AXSelectionObserverHandle: @unchecked Sendable {
     private let observer: AXObserver
     private let element: AXUIElement
-    private let box: AXSelectionNotificationBox
+    private let token: Int
     private var isInvalidated = false
 
     init(
         observer: AXObserver,
         element: AXUIElement,
-        box: AXSelectionNotificationBox
+        token: Int
     ) {
         self.observer = observer
         self.element = element
-        self.box = box
+        self.token = token
     }
 
-    func invalidate() {
-        guard !isInvalidated else { return }
-        isInvalidated = true
-        AXObserverRemoveNotification(
-            observer,
-            element,
-            kAXSelectedTextChangedNotification as CFString
-        )
-        CFRunLoopRemoveSource(
+    /// Deve girare sul main run loop, dove vive la source.
+    func installOnMainRunLoop() {
+        CFRunLoopAddSource(
             CFRunLoopGetMain(),
             AXObserverGetRunLoopSource(observer),
             .defaultMode
         )
     }
 
-    deinit {
-        invalidate()
+    /// Rimuove notifica e source sul main run loop. Il box resta nel registro
+    /// finché la rimozione non è completata: un callback già in coda non può
+    /// leggere memoria liberata.
+    func invalidate() {
+        guard !isInvalidated else { return }
+        isInvalidated = true
+
+        let observer = self.observer
+        let element = self.element
+        let token = self.token
+        DispatchQueue.main.async {
+            AXObserverRemoveNotification(
+                observer,
+                element,
+                kAXSelectedTextChangedNotification as CFString
+            )
+            CFRunLoopRemoveSource(
+                CFRunLoopGetMain(),
+                AXObserverGetRunLoopSource(observer),
+                .defaultMode
+            )
+            AXSelectionHandlerRegistry.shared.unregister(token)
+        }
     }
 }
 
@@ -496,8 +586,9 @@ private func axSelectionChangedCallback(
     _ refcon: UnsafeMutableRawPointer?
 ) {
     guard let refcon else { return }
-    let box = Unmanaged<AXSelectionNotificationBox>
-        .fromOpaque(refcon)
-        .takeUnretainedValue()
+    let token = AXSelectionHandlerRegistry.token(from: refcon)
+    guard let box = AXSelectionHandlerRegistry.shared.handler(forToken: token) else {
+        return
+    }
     box.fire()
 }

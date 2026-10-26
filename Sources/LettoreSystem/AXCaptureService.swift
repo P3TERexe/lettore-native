@@ -14,7 +14,13 @@ public actor AXCaptureService {
     /// Sessione di highlight nativa registrata alla cattura.
     var highlightSession: SourceHighlightSession?
     var selectionObserverHandle: AXSelectionObserverHandle?
+    /// Token del debounce delle notifiche di selezione.
     var selectionNotificationGeneration = 0
+    /// Token dell'installazione corrente dell'observer. Serve a scartare
+    /// un'installazione che termina dopo uno stop o una nuova osservazione
+    /// (il passaggio sul MainActor per aggiungere la source è un punto di
+    /// reentrancy dell'attore).
+    var selectionObservationGeneration = 0
 
     public init() {}
     
