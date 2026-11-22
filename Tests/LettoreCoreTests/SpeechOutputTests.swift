@@ -530,6 +530,50 @@ final class SpeechOutputTests: XCTestCase {
         XCTAssertEqual(pipeline.callCount, 1)
     }
 
+    func testCancelPlaybackKeepsInFlightPreloadReclaimableAfterSkip() async {
+        let (output, pipeline, audio, collector, cleanup) = makeSystem()
+        defer {
+            collector.stop()
+            cleanup()
+        }
+
+        let next = SpeechRequest(
+            chunk: ReadingChunk(index: 1, text: "Chunk successivo già in prefetch."),
+            voice: VoiceProfile.standardVoices[0],
+            speed: 1.0,
+            steps: 8
+        )
+        pipeline.waitsForRelease = true
+
+        output.preload([next])
+        await assertEventually { pipeline.callCount == 1 }
+
+        // Il play del chunk corrente reclama il preload del successivo.
+        output.play(next)
+        await assertEventually { output.claimedPreloadCount == 1 }
+
+        // Lo skip ferma solo la riproduzione: il preload deve restare in volo.
+        output.cancelPlayback()
+        await Task.yield()
+        XCTAssertEqual(pipeline.cancelledCount, 0, "Lo skip non deve cancellare il preload")
+        XCTAssertEqual(output.activePreloadCount, 1)
+
+        // Il nuovo play riusa lo stesso task di sintesi, senza risintetizzare.
+        output.play(next)
+        await assertEventually { output.claimedPreloadCount == 1 }
+
+        pipeline.waitsForRelease = false
+        pipeline.release()
+
+        await assertEventually { audio.playedData.count == 1 }
+        XCTAssertEqual(
+            pipeline.callCount,
+            1,
+            "Un preload in volo deve sopravvivere allo skip ed essere riusato dal chunk nuovo"
+        )
+        XCTAssertEqual(collector.started.count, 1, "Solo il play dopo lo skip deve partire")
+    }
+
     func testExpiredPreloadFailureAllowsRetry() async {
         let (output, pipeline, audio, collector, cleanup) = makeSystem(preloadFailureTTL: -1)
         defer {

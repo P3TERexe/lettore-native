@@ -285,13 +285,16 @@ extension AXCaptureService: ContinuousTextSource {
         // documento": in Safari `value/min/max` restano a zero su documenti
         // lunghi. Solo un range valido con `value >= max` dichiara la fine;
         // negli altri casi si tenta comunque lo scroll AX (o PageDown).
-        if scrollEndState(of: container) == .atEnd {
+        // Lo stato pre-scroll viene letto una volta sola: serve al controllo di
+        // fine e come base per riconoscere il cambio di viewport senza DFS.
+        let beforeScrollBar = verticalScrollBarState(of: container)
+        if scrollEndState(ofBarState: beforeScrollBar) == .atEnd {
             return finishPage(.end, session: local)
         }
 
         let before = collectViewportText(from: container) ?? local.lastViewportText
         let attempt = scrollDownOneViewport(container)
-        print("[AXCapture][Continuo] pagina before=\(before.count) attempt=\(String(describing: attempt)) atEnd=\(scrollEndState(of: container))")
+        print("[AXCapture][Continuo] pagina before=\(before.count) attempt=\(String(describing: attempt))")
 
         if case .unavailable = attempt {
             return finishPage(
@@ -304,26 +307,43 @@ extension AXCaptureService: ContinuousTextSource {
             )
         }
 
-        var after = await waitForViewportChange(container: container, before: before)
+        var change = await waitForViewportChange(
+            container: container,
+            before: before,
+            beforeScrollBarValue: beforeScrollBar?.value
+        )
         guard isContinuousSessionCurrent(local) else { return .end }
 
         // Se lo scroll AX non ha prodotto un aggiornamento, l'unico fallback
         // sicuro è PageDown, e solo quando l'app di origine è già in primo
-        // piano: non rubiamo mai il focus.
-        if after == nil {
+        // piano: non rubiamo mai il focus. Il secondo giro riparte dall'ultimo
+        // valore di scroll bar osservato dal primo: riusare la baseline
+        // pre-scroll farebbe scattare `barChanged` al primo tick e
+        // trasformerebbe il fallback in una DFS a ogni tentativo.
+        if change.text == nil {
             let isFrontmost = await isSourceFrontmost(local)
             guard isContinuousSessionCurrent(local) else { return .end }
 
             if isFrontmost {
                 print("[AXCapture][Continuo] fallback PageDown (app di origine in primo piano)")
                 postPageDown()
-                after = await waitForViewportChange(container: container, before: before)
+                change = await waitForViewportChange(
+                    container: container,
+                    before: before,
+                    beforeScrollBarValue: change.lastScrollBarValue
+                )
                 guard isContinuousSessionCurrent(local) else { return .end }
             }
         }
 
+        let after = change.text
+
+        // Un solo punto di osservazione per la fine documento: tutti i rami
+        // successivi riusano il valore già letto.
+        let scrollState = scrollEndState(of: container)
+
         guard let after, !after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            if scrollEndState(of: container) == .atEnd {
+            if scrollState == .atEnd {
                 return finishPage(.end, session: local)
             }
 
@@ -340,10 +360,10 @@ extension AXCaptureService: ContinuousTextSource {
         }
 
         let delta = DocumentPageOverlap.textAfterOverlap(before, after)
-        print("[AXCapture][Continuo] dopo scroll after=\(after.count) delta=\(delta.count) atEnd=\(scrollEndState(of: container))")
+        print("[AXCapture][Continuo] dopo scroll after=\(after.count) delta=\(delta.count) atEnd=\(scrollState)")
 
         guard !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            if scrollEndState(of: container) == .atEnd {
+            if scrollState == .atEnd {
                 return finishPage(.end, session: local)
             }
             return finishPage(
@@ -370,7 +390,7 @@ extension AXCaptureService: ContinuousTextSource {
         var updated = local
         updated.capturedText += pageText
         updated.lastViewportText = after
-        updated.reachedEnd = hitSafetyCap || scrollEndState(of: container) == .atEnd
+        updated.reachedEnd = hitSafetyCap || scrollState == .atEnd
 
         guard commitContinuousSession(updated) else { return .end }
 
@@ -1017,6 +1037,18 @@ extension AXCaptureService: ContinuousTextSource {
         case unavailable
     }
 
+    /// Esito di un'attesa della viewport.
+    ///
+    /// `lastScrollBarValue` è l'ultimo valore di scroll bar osservato durante
+    /// l'attesa: chi richiama `waitForViewportChange` (il fallback PageDown) lo
+    /// passa come baseline, così un movimento già avvenuto nel primo giro non
+    /// fa scattare `barChanged` a ogni tentativo e la DFS resta differita
+    /// finché la barra non si muove davvero.
+    private struct ViewportChange {
+        let text: String?
+        let lastScrollBarValue: Double?
+    }
+
     private func scrollDownOneViewport(_ container: AXUIElement) -> ScrollAttempt {
         let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString)
 
@@ -1080,19 +1112,46 @@ extension AXCaptureService: ContinuousTextSource {
     private func waitForViewportChange(
         container: AXUIElement,
         before: String,
+        beforeScrollBarValue: Double?,
         attempts: Int = 14
-    ) async -> String? {
-        for _ in 0..<attempts {
-            if Task.isCancelled { return nil }
+    ) async -> ViewportChange {
+        // Con una scroll bar leggibile la DFS dell'albero si fa dopo un cambio
+        // del suo valore rispetto al tentativo precedente (o al valore
+        // osservato dal chiamante), ai tick di sicurezza e sempre all'ultimo
+        // tentativo: finché nulla si muove non serve scandagliare centinaia di
+        // nodi, ma l'ultima raccolta non si può saltare. La cadenza vive in
+        // `ViewportPollingPolicy`.
+        var lastBarValue = beforeScrollBarValue
+        var barChanged = false
+
+        for attempt in 0..<attempts {
+            if Task.isCancelled { return ViewportChange(text: nil, lastScrollBarValue: lastBarValue) }
             try? await Task.sleep(nanoseconds: 50_000_000)
-            if Task.isCancelled { return nil }
+            if Task.isCancelled { return ViewportChange(text: nil, lastScrollBarValue: lastBarValue) }
+
+            let barValue = verticalScrollBarState(of: container)?.value
+            if let barValue, barValue != lastBarValue {
+                lastBarValue = barValue
+                barChanged = true
+            }
+
+            // Dopo un cambio reale si torna a scandagliare a ogni tentativo,
+            // come prima: il testo può materializzarsi con qualche tick di
+            // ritardo rispetto alla scroll bar.
+            guard ViewportPollingPolicy.shouldCollect(
+                attempt: attempt,
+                totalAttempts: attempts,
+                scrollBarAvailable: barValue != nil,
+                scrollBarChanged: barChanged
+            ) else { continue }
+
             if let after = collectViewportText(from: container),
                after != before,
                !after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return after
+                return ViewportChange(text: after, lastScrollBarValue: lastBarValue)
             }
         }
-        return nil
+        return ViewportChange(text: nil, lastScrollBarValue: lastBarValue)
     }
 
     private func isSourceFrontmost(_ session: ContinuousAXSession) async -> Bool {
@@ -1106,8 +1165,13 @@ extension AXCaptureService: ContinuousTextSource {
     /// Adapter AX del classificatore: legge la scroll bar verticale e delega
     /// la decisione a `ScrollEndClassifier`.
     private func scrollEndState(of container: AXUIElement) -> ScrollEndState {
-        guard let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString),
-              let state = scrollBarState(of: bar) else {
+        scrollEndState(ofBarState: verticalScrollBarState(of: container))
+    }
+
+    private func scrollEndState(
+        ofBarState state: (value: Double, min: Double, max: Double)?
+    ) -> ScrollEndState {
+        guard let state else {
             return ScrollEndClassifier.classify(value: nil, minValue: nil, maxValue: nil)
         }
 
@@ -1116,6 +1180,22 @@ extension AXCaptureService: ContinuousTextSource {
             minValue: state.min,
             maxValue: state.max
         )
+    }
+
+    /// Stato della scroll bar verticale del contenitore, oppure `nil` quando la
+    /// barra manca o espone un range non utilizzabile (`max <= min`, il caso di
+    /// Safari): in entrambi i casi non è una prova di fine documento e non
+    /// serve come segnale di cambio viewport.
+    private func verticalScrollBarState(
+        of container: AXUIElement
+    ) -> (value: Double, min: Double, max: Double)? {
+        guard let bar = elementAttribute(container, kAXVerticalScrollBarAttribute as CFString),
+              let state = scrollBarState(of: bar),
+              state.max > state.min else {
+            return nil
+        }
+
+        return state
     }
 
     private func scrollBarState(of bar: AXUIElement) -> (value: Double, min: Double, max: Double)? {

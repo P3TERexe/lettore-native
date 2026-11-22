@@ -36,6 +36,11 @@ public struct SourceTextRange: Hashable, Codable, Sendable {
 public struct FilteredText: Hashable, Sendable {
 
     public let text: String
+    /// Lunghezza UTF-16 del testo filtrato, memorizzata alla costruzione.
+    ///
+    /// `text.utf16.count` è O(n): ricalcolarla a ogni mappatura renderebbe la
+    /// conversione dei chunk quadratica sul documento.
+    public let utf16Length: Int
     /// Lunghezza UTF-16 del testo originale da cui è stata costruita la mappa.
     public let sourceLength: Int
 
@@ -44,6 +49,7 @@ public struct FilteredText: Hashable, Sendable {
     public init(text: String) {
         let length = text.utf16.count
         self.text = text
+        self.utf16Length = length
         self.sourceLength = length
         self.segments = length == 0
             ? []
@@ -57,11 +63,10 @@ public struct FilteredText: Hashable, Sendable {
 
     internal init(text: String, sourceLength: Int, segments: [Segment]) {
         self.text = text
+        self.utf16Length = text.utf16.count
         self.sourceLength = sourceLength
         self.segments = segments
     }
-
-    public var utf16Length: Int { text.utf16.count }
 
     /// Offset UTF-16 sorgente corrispondente all'inizio della posizione
     /// filtrata. Per un offset in corrispondenza di testo rimosso viene
@@ -155,13 +160,14 @@ public struct FilteredText: Hashable, Sendable {
         if offset == utf16Length {
             return segments.last?.sourceEnd ?? 0
         }
-        for segment in segments where offset < segment.outputEnd {
-            if offset <= segment.outputStart {
-                return segment.sourceStart
-            }
-            return scale(offset - segment.outputStart, in: segment, roundUp: false)
+        guard let index = firstSegmentIndex(endingAfter: offset) else {
+            return segments.last?.sourceEnd ?? 0
         }
-        return segments.last?.sourceEnd ?? 0
+        let segment = segments[index]
+        if offset <= segment.outputStart {
+            return segment.sourceStart
+        }
+        return scale(offset - segment.outputStart, in: segment, roundUp: false)
     }
 
     internal func mapEnd(_ offset: Int) -> Int? {
@@ -169,21 +175,51 @@ public struct FilteredText: Hashable, Sendable {
         if offset == 0 {
             return segments.first?.sourceStart ?? 0
         }
-
-        var lastSourceEnd: Int?
-        for segment in segments {
-            if offset <= segment.outputStart {
-                return lastSourceEnd ?? segment.sourceStart
-            }
-            if offset <= segment.outputEnd {
-                if offset == segment.outputEnd {
-                    return segment.sourceEnd
-                }
-                return scale(offset - segment.outputStart, in: segment, roundUp: true)
-            }
-            lastSourceEnd = segment.sourceEnd
+        guard let index = firstSegmentIndex(endingAtOrAfter: offset) else {
+            return segments.last?.sourceEnd ?? 0
         }
-        return lastSourceEnd ?? 0
+        let segment = segments[index]
+        if offset <= segment.outputStart {
+            return index > 0 ? segments[index - 1].sourceEnd : segment.sourceStart
+        }
+        if offset == segment.outputEnd {
+            return segment.sourceEnd
+        }
+        return scale(offset - segment.outputStart, in: segment, roundUp: true)
+    }
+
+    /// Indice del primo segmento con `outputEnd > offset`.
+    ///
+    /// I segmenti sono ordinati e non sovrapposti (invariante del builder),
+    /// quindi la ricerca binaria sostituisce la scansione lineare senza
+    /// cambiare la semantica di `mapStart`.
+    private func firstSegmentIndex(endingAfter offset: Int) -> Int? {
+        var low = 0
+        var high = segments.count
+        while low < high {
+            let mid = low + (high - low) / 2
+            if segments[mid].outputEnd > offset {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        return low < segments.count ? low : nil
+    }
+
+    /// Indice del primo segmento con `outputEnd >= offset`.
+    private func firstSegmentIndex(endingAtOrAfter offset: Int) -> Int? {
+        var low = 0
+        var high = segments.count
+        while low < high {
+            let mid = low + (high - low) / 2
+            if segments[mid].outputEnd >= offset {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        return low < segments.count ? low : nil
     }
 
     private func scale(_ localOffset: Int, in segment: Segment, roundUp: Bool) -> Int {

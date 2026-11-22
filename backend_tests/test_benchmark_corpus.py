@@ -5,6 +5,8 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
+from backend.models import REQUEST_TEXT_MAX_CHARS
+
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "benchmarks" / "tts_corpus_it.jsonl"
 
@@ -77,7 +79,7 @@ class TestTTSCorpus(unittest.TestCase):
     def test_texts_fit_backend_limit(self) -> None:
         for item in self.items:
             self.assertIsInstance(item["text"], str)
-            self.assertLessEqual(len(item["text"]), 20000, item["id"])
+            self.assertLessEqual(len(item["text"]), REQUEST_TEXT_MAX_CHARS, item["id"])
 
 
 if __name__ == "__main__":

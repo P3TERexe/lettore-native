@@ -124,6 +124,82 @@ final class SourceRangeMappingTests: XCTestCase {
         XCTAssertNil(filtered.sourceRange(atUTF16Offset: filtered.utf16Length + 1))
     }
 
+    // MARK: - Equivalenza mappa (ricerca binaria vs scansione lineare)
+
+    func testMappingMatchesNaiveScanOnASCII() {
+        let text = FilteredText.identity("Prima frase. Seconda frase! Terza, con dettagli.")
+        assertMappingMatchesNaive(text)
+        assertRangeMappingMatchesNaive(text)
+    }
+
+    func testMappingMatchesNaiveScanWithEmojiAndSurrogates() {
+        let text = FilteredText.identity("😀 È già 😀 tutto pronto. Seconda 😀 frase àccéntata. Fine 😀.")
+        XCTAssertEqual(text.utf16Length, text.text.utf16.count)
+
+        assertMappingMatchesNaive(text)
+        assertRangeMappingMatchesNaive(text)
+    }
+
+    func testMappingMatchesNaiveScanOnFilteredTextWithHoles() {
+        let source = """
+        Titolo corrente
+
+        Pagina 1
+
+        Prima frase con una parola spez-
+        iale. 😀
+
+        Titolo corrente
+
+        Seconda frase, con più dettagli.
+
+        Titolo corrente
+        """
+        let filtered = filter.filterWithMapping(source, mode: .light)
+        XCTAssertLessThan(
+            filtered.utf16Length,
+            source.utf16.count,
+            "Il filtro deve creare buchi nella mappa"
+        )
+
+        assertMappingMatchesNaive(filtered)
+        assertRangeMappingMatchesNaive(filtered)
+    }
+
+    func testMappingMatchesNaiveScanOnScaledSyntheticSegments() {
+        let text = FilteredText(
+            text: String(repeating: "a", count: 20),
+            sourceLength: 40,
+            segments: [
+                FilteredText.Segment(outputStart: 0, outputEnd: 5, sourceStart: 0, sourceEnd: 8),
+                FilteredText.Segment(outputStart: 7, outputEnd: 12, sourceStart: 10, sourceEnd: 13),
+                FilteredText.Segment(outputStart: 13, outputEnd: 20, sourceStart: 25, sourceEnd: 40)
+            ]
+        )
+
+        assertMappingMatchesNaive(text)
+        assertRangeMappingMatchesNaive(text)
+    }
+
+    func testUtf16LengthStaysConsistentAfterDerivedMaps() {
+        let source = "Prima 😀 frase.\r\n\r\n\r\nSeconda frase con spez-\niale."
+        let filtered = filter.filterWithMapping(source, mode: .light)
+        XCTAssertEqual(filtered.utf16Length, filtered.text.utf16.count)
+
+        let shortened = filtered.deleting(utf16Ranges: [1..<4, 2..<6])
+        XCTAssertEqual(shortened.utf16Length, shortened.text.utf16.count)
+
+        let sameLength = filtered.replacingCharactersPreservingMapping(
+            String(repeating: "x", count: filtered.utf16Length)
+        )
+        XCTAssertEqual(sameLength.utf16Length, filtered.utf16Length)
+        XCTAssertEqual(sameLength.segments, filtered.segments)
+
+        let differentLength = filtered.replacingCharactersPreservingMapping("ab")
+        XCTAssertEqual(differentLength.text, "ab")
+        XCTAssertEqual(differentLength.utf16Length, 2)
+    }
+
     // MARK: - Normalizzazione dopo il chunking
 
     func testNormalizationAfterChunkingKeepsRawTextAndSourceRange() {
@@ -389,5 +465,150 @@ final class SourceRangeMappingTests: XCTestCase {
             )
             previousEnd = range.end
         }
+    }
+
+    // MARK: - Riferimento naive (scansione lineare pre-ottimizzazione)
+
+    private func assertMappingMatchesNaive(
+        _ text: FilteredText,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for offset in -1...(text.utf16Length + 1) {
+            XCTAssertEqual(
+                text.mapStart(offset),
+                naiveMapStart(text, offset),
+                "mapStart(\(offset))",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                text.mapEnd(offset),
+                naiveMapEnd(text, offset),
+                "mapEnd(\(offset))",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                text.sourceOffset(atUTF16Offset: offset),
+                naiveMapStart(text, offset),
+                "sourceOffset(\(offset))",
+                file: file,
+                line: line
+            )
+            let expectedPoint = naiveMapStart(text, offset)
+                .map { SourceTextRange(location: $0, length: 0) }
+            XCTAssertEqual(
+                text.sourceRange(atUTF16Offset: offset),
+                expectedPoint,
+                "sourceRange(atUTF16Offset: \(offset))",
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func assertRangeMappingMatchesNaive(
+        _ text: FilteredText,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let length = text.utf16Length
+        for location in 0...length {
+            for rangeLength in 0...(length - location) {
+                let range = SourceTextRange(location: location, length: rangeLength)
+                XCTAssertEqual(
+                    text.sourceRange(forRelativeRange: range),
+                    naiveSourceRange(text, range),
+                    "sourceRange(forRelativeRange: \(location), \(rangeLength))",
+                    file: file,
+                    line: line
+                )
+            }
+        }
+
+        let invalidRanges = [
+            SourceTextRange(location: -1, length: 1),
+            SourceTextRange(location: 0, length: length + 1),
+            SourceTextRange(location: length + 1, length: 0)
+        ]
+        for invalid in invalidRanges {
+            XCTAssertNil(
+                text.sourceRange(forRelativeRange: invalid),
+                "Range non valido: \(invalid)",
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func naiveSourceRange(_ text: FilteredText, _ range: SourceTextRange) -> SourceTextRange? {
+        guard range.location >= 0,
+              range.length >= 0,
+              range.end <= text.utf16Length else {
+            return nil
+        }
+        guard let start = naiveMapStart(text, range.location) else { return nil }
+        guard range.length > 0 else {
+            return SourceTextRange(location: start, length: 0)
+        }
+        let end = naiveMapEnd(text, range.end) ?? start
+        return SourceTextRange(location: start, length: max(0, end - start))
+    }
+
+    private func naiveMapStart(_ text: FilteredText, _ offset: Int) -> Int? {
+        guard offset >= 0, offset <= text.utf16Length else { return nil }
+        if offset == text.utf16Length {
+            return text.segments.last?.sourceEnd ?? 0
+        }
+        for segment in text.segments where offset < segment.outputEnd {
+            if offset <= segment.outputStart {
+                return segment.sourceStart
+            }
+            return naiveScale(offset - segment.outputStart, in: segment, roundUp: false)
+        }
+        return text.segments.last?.sourceEnd ?? 0
+    }
+
+    private func naiveMapEnd(_ text: FilteredText, _ offset: Int) -> Int? {
+        guard offset >= 0, offset <= text.utf16Length else { return nil }
+        if offset == 0 {
+            return text.segments.first?.sourceStart ?? 0
+        }
+
+        var lastSourceEnd: Int?
+        for segment in text.segments {
+            if offset <= segment.outputStart {
+                return lastSourceEnd ?? segment.sourceStart
+            }
+            if offset <= segment.outputEnd {
+                if offset == segment.outputEnd {
+                    return segment.sourceEnd
+                }
+                return naiveScale(offset - segment.outputStart, in: segment, roundUp: true)
+            }
+            lastSourceEnd = segment.sourceEnd
+        }
+        return lastSourceEnd ?? 0
+    }
+
+    private func naiveScale(
+        _ localOffset: Int,
+        in segment: FilteredText.Segment,
+        roundUp: Bool
+    ) -> Int {
+        let outputLength = segment.outputEnd - segment.outputStart
+        let sourceLength = segment.sourceEnd - segment.sourceStart
+        guard outputLength > 0 else { return segment.sourceStart }
+        guard sourceLength != outputLength else {
+            return segment.sourceStart + localOffset
+        }
+
+        let numerator = localOffset * sourceLength
+        let quotient = numerator / outputLength
+        if roundUp && numerator % outputLength != 0 {
+            return segment.sourceStart + quotient + 1
+        }
+        return segment.sourceStart + quotient
     }
 }

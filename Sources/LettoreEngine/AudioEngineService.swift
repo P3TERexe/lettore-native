@@ -15,6 +15,7 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     private var player: AVAudioPlayer?
     private var onPlaybackComplete: ((Bool) -> Void)?
     private var meteringTimer: Timer?
+    private var meterTickCount = 0
     private var lastLevelsUpdate: CFAbsoluteTime = 0
     
     /// Callback per aggiornare i livelli audio dell'onda visiva (7 barre normalizzate 0.0 - 1.0)
@@ -141,7 +142,8 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
     
     private func startMetering() {
         meteringTimer?.invalidate()
-        meteringTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+        meterTickCount = 0
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self = self, let player = self.player, player.isPlaying else { return }
                 player.updateMeters()
@@ -162,11 +164,21 @@ public final class AudioEngineService: NSObject, AVAudioPlayerDelegate, @uncheck
                 ]
                 
                 let chunkProgress = player.duration > 0 ? max(0.0, min(1.0, player.currentTime / player.duration)) : 0.0
-                
+
+                self.meterTickCount &+= 1
                 self.onAudioLevelsUpdate?(levels)
-                self.onProgressUpdate?(chunkProgress)
+                // Le barre seguono i 20 Hz del timer, il progresso aggregato
+                // basta a 5 Hz: sono 15 aggiornamenti di stato in meno al secondo.
+                if self.meterTickCount % 4 == 0 {
+                    self.onProgressUpdate?(chunkProgress)
+                }
             }
         }
+        // Il timer serve solo alle barre: la tolerance (10% del periodo di
+        // 50 ms) concede al run loop al massimo 5 ms di ritardo per
+        // raggruppare i risvegli; non riduce il numero di tick.
+        timer.tolerance = 0.005
+        meteringTimer = timer
     }
     
     private func stopMetering() {

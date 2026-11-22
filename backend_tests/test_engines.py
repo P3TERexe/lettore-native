@@ -87,6 +87,50 @@ class TestTTSEngines(unittest.TestCase):
         self.assertEqual(dummy.calls, 1)
 
 
+class FakeSupertonicTTS:
+    """Sostituto minimale di ``supertonic.TTS`` per i test di ``load()``."""
+
+    sample_rate = 24000
+    voice_style_names = ["M1", "F1"]
+
+    def __init__(self, **kwargs):
+        self.init_kwargs = kwargs
+        self.calls = []
+
+    def get_voice_style(self, name: str) -> str:
+        return f"style:{name}"
+
+    def synthesize(self, **kwargs):
+        self.calls.append(kwargs)
+        return np.zeros((1, 100), dtype=np.float32), np.array([0.1], dtype=np.float32)
+
+
+class TestONNXLoad(unittest.TestCase):
+    def test_load_builds_the_session_without_synthesizing(self):
+        fake = FakeSupertonicTTS()
+        with patch.object(onnx_engine, "TTS", return_value=fake):
+            engine = SupertonicONNXEngine(auto_download=False)
+            engine.load()
+
+        # Il costo di avvio è solo la creazione della sessione: nessuna
+        # inferenza usa-e-getta e nessuno stile pre-caricato in cache.
+        self.assertEqual(fake.calls, [])
+        self.assertEqual(engine._style_cache, {})
+        self.assertEqual(engine.sample_rate, 24000)
+
+    def test_synthesize_leaves_internal_silence_to_the_runtime(self):
+        fake = FakeSupertonicTTS()
+        with patch.object(onnx_engine, "TTS", return_value=fake):
+            engine = SupertonicONNXEngine(auto_download=False)
+            engine.load()
+
+        engine.synthesize(text="Test", voice="M1", lang="it", steps=5, speed=1.0)
+
+        self.assertEqual(fake.calls[-1]["text"], "Test")
+        # Il default del runtime resta valido: non lo forziamo dal backend.
+        self.assertNotIn("silence_duration", fake.calls[-1])
+
+
 class TestONNXProviderConfig(unittest.TestCase):
     def test_hybrid_uses_coreml_only_for_configured_sessions(self):
         available = ["CoreMLExecutionProvider", "CPUExecutionProvider"]

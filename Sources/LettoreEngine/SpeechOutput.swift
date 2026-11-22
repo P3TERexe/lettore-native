@@ -260,6 +260,19 @@ public final class SpeechOutput {
         }
     }
 
+    /// Ferma la sola riproduzione corrente senza emettere `finished`.
+    /// Il prefetch resta vivo: dopo uno skip/jump il chunk successivo può
+    /// reclamare la sintesi già in volo invece di ripeterla. Lo stop esplicito
+    /// dell'utente usa `cancelAll`.
+    public func cancelPlayback() {
+        generation &+= 1
+        playbackTask?.cancel()
+        playbackTask = nil
+        activeRequest = nil
+        activeVoiceSource = nil
+        audio.stop()
+    }
+
     /// Ferma sintesi, prefetch, riproduzione neurale e voce di sistema senza
     /// emettere `finished` per la richiesta interrotta.
     public func cancelAll() {

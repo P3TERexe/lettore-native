@@ -279,8 +279,14 @@ public final class FloatingPillPanelManager {
         liveDockSide = dock
 
         let orientation: PillOrientation = dock == .center ? .horizontal : .vertical
-        appState?.pillOrientation = orientation
-        appState?.pillDockSide = dock
+        // Ogni evento mouse arriva a raffica: scrivere gli stessi valori
+        // invaliderebbe la UI a ogni frame senza che nulla sia cambiato.
+        if appState?.pillOrientation != orientation {
+            appState?.pillOrientation = orientation
+        }
+        if appState?.pillDockSide != dock {
+            appState?.pillDockSide = dock
+        }
 
         let target = PillGeometry.resolvedFrame(
             current: proposed,
@@ -428,8 +434,15 @@ public final class FloatingPillPanelManager {
             rightDist: rightDist
         )
 
-        appState.pillOrientation = dock == .center ? .horizontal : .vertical
-        appState.pillDockSide = dock
+        let resolvedOrientation: PillOrientation = dock == .center ? .horizontal : .vertical
+        // Assegna solo sui cambi reali: l'evento mouse può ripetere lo stesso
+        // dock e una scrittura identica invaliderebbe comunque la UI.
+        if appState.pillOrientation != resolvedOrientation {
+            appState.pillOrientation = resolvedOrientation
+        }
+        if appState.pillDockSide != dock {
+            appState.pillDockSide = dock
+        }
 
         // Riallinea sempre: copre anche lo snap al bordo quando l'orientamento
         // non cambia ma la pillola va riportata dentro lo schermo.

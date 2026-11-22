@@ -18,20 +18,21 @@ public struct DynamicNotchView: View {
     public var body: some View {
         HStack(spacing: 24) {
             // Ala Sinistra della Tacca: Onde Vocali Fluide
-            HStack(spacing: 3) {
-                ForEach(0..<min(7, appState.liveWaveformLevels.count), id: \.self) { idx in
-                    let level = CGFloat(appState.liveWaveformLevels[idx])
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color.purple],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .frame(width: 3, height: max(5, level * 20))
-                }
-            }
+            WaveformBarsView(
+                appState: appState,
+                maxBars: 7,
+                spacing: 3,
+                barWidth: 3,
+                maxBarHeight: 20,
+                minBarHeight: 5,
+                fill: AnyShapeStyle(
+                    LinearGradient(
+                        colors: [Color(red: 0.0, green: 0.9, blue: 1.0), Color.purple],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            )
             .frame(width: 80, height: 28)
             .contentShape(Rectangle())
             .onTapGesture {

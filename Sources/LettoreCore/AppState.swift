@@ -95,8 +95,17 @@ public final class AppState: @unchecked Sendable {
     public var isContinuousSessionActive: Bool = false
     /// Il documento è virtualizzato e verrà caricato a pagine.
     public var isContinuousDocumentPaged: Bool = false
+    /// Pagine del documento catturato, tenute separate per accodare una pagina
+    /// in O(1). L'unione avviene solo quando qualcuno legge il testo completo.
+    private var capturedPages: [String] = []
+    /// Separatore fra le pagine del documento catturato.
+    private static let capturedPageSeparator = "\n\n"
     /// Testo documentale catturato e preparato, mostrato nello Studio.
-    public var capturedDocumentText: String = ""
+    /// Assegnare un valore sostituisce l'intero documento con una sola pagina.
+    public var capturedDocumentText: String {
+        get { capturedPages.joined(separator: Self.capturedPageSeparator) }
+        set { capturedPages = newValue.isEmpty ? [] : [newValue] }
+    }
     /// Una richiesta di pagina successiva è in corso.
     public var isFetchingMoreText: Bool = false
 
@@ -128,6 +137,13 @@ public final class AppState: @unchecked Sendable {
     public func setQueue(_ chunks: [ReadingChunk]) {
         queue.replace(chunks)
         self.playbackProgress = 0.0
+    }
+
+    /// Accoda una pagina al documento catturato senza ricostruire il testo
+    /// completo: il costo è proporzionale alla sola pagina nuova.
+    public func appendCapturedPage(_ text: String) {
+        guard !text.isEmpty else { return }
+        capturedPages.append(text)
     }
 
     /// Aggiunge in coda nuovi chunk preservandone l'identità (e quindi la cache

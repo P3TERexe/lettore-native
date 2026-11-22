@@ -248,15 +248,16 @@ public struct SuperAccessibleView: View {
             
             // Visualizzatore Waveform ad Alto Rilievo
             VStack(spacing: 12) {
-                HStack(spacing: 5) {
-                    ForEach(0..<appState.liveWaveformLevels.count, id: \.self) { idx in
-                        let level = CGFloat(appState.liveWaveformLevels[idx])
-                        Capsule()
-                            .fill(solarAmber)
-                            .frame(width: 6, height: max(8, level * 34))
-                            .shadow(color: solarAmber.opacity(0.4), radius: 4)
-                    }
-                }
+                WaveformBarsView(
+                    appState: appState,
+                    spacing: 5,
+                    barWidth: 6,
+                    maxBarHeight: 34,
+                    minBarHeight: 8,
+                    fill: AnyShapeStyle(solarAmber),
+                    shadowColor: solarAmber.opacity(0.4),
+                    shadowRadius: 4
+                )
                 .frame(height: 48)
                 
                 HStack {

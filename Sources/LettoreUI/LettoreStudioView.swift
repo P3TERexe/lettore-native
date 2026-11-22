@@ -593,21 +593,20 @@ public struct LettoreStudioView: View {
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.5))
                     
-                    HStack(spacing: 5) {
-                        ForEach(0..<appState.liveWaveformLevels.count, id: \.self) { idx in
-                            let level = CGFloat(appState.liveWaveformLevels[idx])
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [brandCyan, brandGreen],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .frame(maxWidth: .infinity)
-                                .frame(height: max(6, level * 40))
-                        }
-                    }
+                    WaveformBarsView(
+                        appState: appState,
+                        spacing: 5,
+                        maxBarHeight: 40,
+                        minBarHeight: 6,
+                        cornerRadius: 3,
+                        fill: AnyShapeStyle(
+                            LinearGradient(
+                                colors: [brandCyan, brandGreen],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    )
                     .frame(height: 44, alignment: .bottom)
                     .padding(10)
                     .background(Color.black.opacity(0.35))

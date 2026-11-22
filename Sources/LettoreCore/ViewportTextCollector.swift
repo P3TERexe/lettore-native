@@ -108,9 +108,16 @@ public struct ViewportTextCollector {
         return joined.isEmpty ? nil : joined
     }
 
+    /// Precompilata una sola volta: la chiave viene calcolata per ogni nodo.
+    private static let whitespaceRegex = try? NSRegularExpression(pattern: #"\s+"#)
+
     private static func normalizedKey(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        let collapsed = whitespaceRegex?.stringByReplacingMatches(
+            in: text,
+            range: NSRange(location: 0, length: (text as NSString).length),
+            withTemplate: " "
+        ) ?? text
+        return collapsed
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
     }

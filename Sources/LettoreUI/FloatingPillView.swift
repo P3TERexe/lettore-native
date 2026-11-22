@@ -156,11 +156,6 @@ public struct FloatingPillView: View {
         )
     }
 
-    private func waveformLevel(at index: Int) -> CGFloat {
-        guard index >= 0 && index < appState.liveWaveformLevels.count else { return 0.15 }
-        return CGFloat(appState.liveWaveformLevels[index])
-    }
-
     // MARK: - Layout Orizzontale (Top / Centro Schermo)
 
     private var horizontalPill: some View {
@@ -213,13 +208,18 @@ public struct FloatingPillView: View {
                     .foregroundStyle(Color(red: 0.2, green: 0.95, blue: 0.5))
                     .shadow(color: Color(red: 0.2, green: 0.95, blue: 0.5).opacity(0.5), radius: 3)
             } else {
-                ForEach(0..<min(5, appState.liveWaveformLevels.count), id: \.self) { idx in
-                    let level = waveformLevel(at: idx)
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(waveformGradient)
-                        .frame(width: 2.8, height: max(5, level * 20))
-                        .shadow(color: brandCyan.opacity(0.4), radius: 2)
-                }
+                WaveformBarsView(
+                    appState: appState,
+                    maxBars: 5,
+                    spacing: 2.5,
+                    barWidth: 2.8,
+                    maxBarHeight: 20,
+                    minBarHeight: 5,
+                    cornerRadius: 1.5,
+                    fill: AnyShapeStyle(waveformGradient),
+                    shadowColor: brandCyan.opacity(0.4),
+                    shadowRadius: 2
+                )
             }
         }
         .frame(width: 32, height: 22, alignment: .center)
@@ -300,13 +300,18 @@ public struct FloatingPillView: View {
                     .foregroundStyle(Color(red: 0.2, green: 0.95, blue: 0.5))
                     .shadow(color: Color(red: 0.2, green: 0.95, blue: 0.5).opacity(0.5), radius: 3)
             } else {
-                ForEach(0..<min(4, appState.liveWaveformLevels.count), id: \.self) { idx in
-                    let level = waveformLevel(at: idx)
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(waveformGradient)
-                        .frame(width: 2.6, height: max(5, level * 18))
-                        .shadow(color: brandCyan.opacity(0.4), radius: 2)
-                }
+                WaveformBarsView(
+                    appState: appState,
+                    maxBars: 4,
+                    spacing: 2.2,
+                    barWidth: 2.6,
+                    maxBarHeight: 18,
+                    minBarHeight: 5,
+                    cornerRadius: 1.5,
+                    fill: AnyShapeStyle(waveformGradient),
+                    shadowColor: brandCyan.opacity(0.4),
+                    shadowRadius: 2
+                )
             }
         }
         .frame(width: 22, height: 20, alignment: .center)

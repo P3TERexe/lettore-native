@@ -68,6 +68,16 @@ _LANGUAGE_LABELS = {
 VoiceSpec = str
 
 
+class TTSEngineError(RuntimeError):
+    """Errore di inferenza del motore TTS (ONNX/CoreML, forma, conversione).
+
+    Supertonic e onnxruntime sollevano eccezioni pybind (`Fail`,
+    `RuntimeException`, `InvalidArgument`, ...) che derivano direttamente da
+    `Exception`, non da `RuntimeError`: senza questo wrapper arriverebbero al
+    router come errori non gestiti e diventerebbero HTTP 500.
+    """
+
+
 class TTSManager:
     """Gestore unificato e thread-safe del motore vocale."""
 
@@ -206,15 +216,27 @@ class TTSManager:
             if cached is not None:
                 logger.info("TTS Cache HIT dopo attesa lock: %d char", len(text))
                 return cached
-            wav, duration_sec = self._engine.synthesize(
-                text=text,
-                voice=voice,
-                lang=effective_lang,
-                steps=steps,
-                speed=speed,
-            )
+            try:
+                wav, duration_sec = self._engine.synthesize(
+                    text=text,
+                    voice=voice,
+                    lang=effective_lang,
+                    steps=steps,
+                    speed=speed,
+                )
+            except ValueError:
+                # Errore di input (voce o testo non validi): il router risponde 400.
+                raise
+            except Exception as exc:  # noqa: BLE001 - confine del motore nativo
+                logger.exception("Errore di inferenza del motore TTS")
+                raise TTSEngineError("sintesi vocale non riuscita") from exc
+
             duration_ms = int(duration_sec * 1000.0)
-            wav_bytes = numpy_to_wav_bytes(wav, self.sample_rate)
+            try:
+                wav_bytes = numpy_to_wav_bytes(wav, self.sample_rate)
+            except Exception as exc:  # noqa: BLE001 - output motore malformato
+                logger.exception("Errore di conversione WAV del motore TTS")
+                raise TTSEngineError("sintesi vocale non riuscita") from exc
             res = (wav_bytes, duration_ms)
             # Pubblica il risultato prima di rilasciare il lock: una richiesta
             # identica in attesa deve trovarlo in cache, non risintetizzarlo.

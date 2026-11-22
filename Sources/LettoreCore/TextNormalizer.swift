@@ -2,72 +2,33 @@ import Foundation
 
 /// Modulo di normalizzazione fonetica ed espansione del testo prima della sintesi vocale.
 public struct TextNormalizer: Sendable {
-    
-    public init() {}
-    
-    /// Normalizza un testo espandendo valute, simboli, link e abbreviazioni frequenti.
-    ///
-    /// - Parameters:
-    ///   - text: Testo grezzo in ingresso.
-    ///   - exclusions: Lista di stringhe o firme escluse da rimuovere prima della lettura.
-    /// - Returns: Testo foneticamente ottimizzato per la sintesi vocale.
-    public func normalize(text: String, exclusions: [String] = []) -> String {
-        var processed = filterExclusions(text: text, exclusions: exclusions)
-        
-        // 1. URLs e Link Web
-        processed = processed.replacingOccurrences(
-            of: #"https?:\/\/[^\s]*[^\s.,;:!?)\]\}]"#,
-            with: "link web",
-            options: .regularExpression
-        )
-        processed = processed.replacingOccurrences(
-            of: #"\bwww\.[^\s]*[^\s.,;:!?)\]\}]"#,
-            with: "link web",
-            options: .regularExpression
-        )
-        
-        // 2. Indirizzi Email
-        processed = processed.replacingOccurrences(
-            of: #"[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#,
-            with: "indirizzo email",
-            options: .regularExpression
-        )
-        
-        // 3. Valuta Euro con simbolo anteposto: es. "€12,50"
-        processed = processed.replacingOccurrences(
-            of: #"€\s*(\d+)[,.](\d{2})"#,
-            with: "$1 euro e $2 centesimi",
-            options: .regularExpression
-        )
 
-        // 4. Valuta Euro con decimali: es. "12,50 €" o "12.50€" -> "12 euro e 50 centesimi"
-        processed = processed.replacingOccurrences(
-            of: #"(\d+)[,\.](\d{2})\s*€"#,
-            with: "$1 euro e $2 centesimi",
-            options: .regularExpression
-        )
-        
-        // 5. Valuta Euro intera: es. "50 €" o "€ 50" -> "50 euro"
-        processed = processed.replacingOccurrences(
-            of: #"(\d+)\s*€"#,
-            with: "$1 euro",
-            options: .regularExpression
-        )
-        processed = processed.replacingOccurrences(
-            of: #"€\s*(\d+)"#,
-            with: "$1 euro",
-            options: .regularExpression
-        )
-        
-        // 6. Percentuali: es. "25%" -> "25 per cento"
-        processed = processed.replacingOccurrences(
-            of: #"(\d+)\s*%"#,
-            with: "$1 per cento",
-            options: .regularExpression
-        )
-        
-        // 7. Abbreviazioni comuni italiane
-        let wordReplacements: [(pattern: String, replacement: String)] = [
+    /// Regola precompilata: `NSRegularExpression` non è `Sendable`, ma è
+    /// immutabile e sicura da condividere tra thread.
+    private struct RegexRule: @unchecked Sendable {
+        let regex: NSRegularExpression
+        let template: String
+    }
+
+    /// Le regole sono compilate una sola volta e applicate nello stesso ordine
+    /// della versione storica, a ogni chunk.
+    private static let rules: [RegexRule] = {
+        let specs: [(pattern: String, template: String)] = [
+            // 1. URLs e Link Web
+            (#"https?:\/\/[^\s]*[^\s.,;:!?)\]\}]"#, "link web"),
+            (#"\bwww\.[^\s]*[^\s.,;:!?)\]\}]"#, "link web"),
+            // 2. Indirizzi Email
+            (#"[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#, "indirizzo email"),
+            // 3. Valuta Euro con simbolo anteposto: es. "€12,50"
+            (#"€\s*(\d+)[,.](\d{2})"#, "$1 euro e $2 centesimi"),
+            // 4. Valuta Euro con decimali: es. "12,50 €" o "12.50€"
+            (#"(\d+)[,\.](\d{2})\s*€"#, "$1 euro e $2 centesimi"),
+            // 5. Valuta Euro intera: es. "50 €" o "€ 50"
+            (#"(\d+)\s*€"#, "$1 euro"),
+            (#"€\s*(\d+)"#, "$1 euro"),
+            // 6. Percentuali: es. "25%"
+            (#"(\d+)\s*%"#, "$1 per cento"),
+            // 7. Abbreviazioni comuni italiane
             (#"\b[Ee]s\.\s*"#, "ad esempio "),
             (#"\b[Ee]cc\.\s*"#, "eccetera "),
             (#"\b[Aa]rt\.\s*(\d+)"#, "articolo $1"),
@@ -81,31 +42,37 @@ public struct TextNormalizer: Sendable {
             (#"\b[Pp]rof\.ssa\s*"#, "Professoressa "),
             (#"\b[Pp]rof\.(?!ssa)\s*"#, "Professor "),
             (#"\b[Aa]vv\.\s*"#, "Avvocato "),
-            (#"\b[Ii]ng\.\s*"#, "Ingegner ")
+            (#"\b[Ii]ng\.\s*"#, "Ingegner "),
+            // 8. Rimuovi variation selectors Unicode e caratteri invisibili
+            (#"[\x{FE00}-\x{FE0F}\x{200B}\x{FEFF}]"#, ""),
+            // Rimuovi spazi doppi orfani
+            (#"\s{2,}"#, " ")
         ]
-        
-        for rule in wordReplacements {
-            processed = processed.replacingOccurrences(
-                of: rule.pattern,
-                with: rule.replacement,
-                options: .regularExpression
+        return specs.compactMap { spec in
+            guard let regex = try? NSRegularExpression(pattern: spec.pattern) else { return nil }
+            return RegexRule(regex: regex, template: spec.template)
+        }
+    }()
+
+    public init() {}
+
+    /// Normalizza un testo espandendo valute, simboli, link e abbreviazioni frequenti.
+    ///
+    /// - Parameters:
+    ///   - text: Testo grezzo in ingresso.
+    ///   - exclusions: Lista di stringhe o firme escluse da rimuovere prima della lettura.
+    /// - Returns: Testo foneticamente ottimizzato per la sintesi vocale.
+    public func normalize(text: String, exclusions: [String] = []) -> String {
+        var processed = filterExclusions(text: text, exclusions: exclusions)
+
+        for rule in Self.rules {
+            processed = rule.regex.stringByReplacingMatches(
+                in: processed,
+                range: NSRange(location: 0, length: (processed as NSString).length),
+                withTemplate: rule.template
             )
         }
-        
-        // 8. Rimuovi variation selectors Unicode e caratteri invisibili
-        processed = processed.replacingOccurrences(
-            of: #"[\x{FE00}-\x{FE0F}\x{200B}\x{FEFF}]"#,
-            with: "",
-            options: .regularExpression
-        )
-        
-        // Rimuovi spazi doppi orfani
-        processed = processed.replacingOccurrences(
-            of: #"\s{2,}"#,
-            with: " ",
-            options: .regularExpression
-        )
-        
+
         return processed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     

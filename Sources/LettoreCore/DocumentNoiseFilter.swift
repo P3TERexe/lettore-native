@@ -319,31 +319,43 @@ public struct DocumentNoiseFilter: Sendable {
         return true
     }
 
+    /// Pattern precompilati: `isPageNumber` e `normalizedKey` girano per ogni
+    /// riga di ogni blocco.
+    private static let fourDigitYearRegex = try? NSRegularExpression(
+        pattern: #"^\s*(?:[—–-]\s*)?\d{4}(?:\s*[—–-])?\s*$"#
+    )
+
+    private static let pageNumberRegexes: [NSRegularExpression] = [
+        #"^\s*(?:[—–-]\s*)?\d{1,4}(?:\s*[—–-])?\s*$"#,
+        #"^\s*(?:pag(?:ina)?\.?\s*)\d{1,4}(?:\s*(?:di|/)\s*\d{1,4})?\s*$"#,
+        #"^\s*\d{1,4}\s*/\s*\d{1,4}\s*$"#
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: .caseInsensitive) }
+
+    private static let whitespaceRegex = try? NSRegularExpression(pattern: #"\s+"#)
+
     private func isPageNumber(_ line: String) -> Bool {
+        // Tutti i pattern richiedono almeno una cifra: precheck economico.
+        guard line.rangeOfCharacter(from: .decimalDigits) != nil else { return false }
+
+        let range = NSRange(location: 0, length: (line as NSString).length)
+
         // Un numero isolato di quattro cifre è più probabilmente un anno o un
         // titolo ("1984") che un numero di pagina. Le pagine esplicite
         // ("Pagina 2024") restano gestite dai pattern successivi.
-        if line.range(
-            of: #"^\s*(?:[—–-]\s*)?\d{4}(?:\s*[—–-])?\s*$"#,
-            options: .regularExpression
-        ) != nil {
+        if Self.fourDigitYearRegex?.firstMatch(in: line, range: range) != nil {
             return false
         }
 
-        let patterns = [
-            #"^\s*(?:[—–-]\s*)?\d{1,4}(?:\s*[—–-])?\s*$"#,
-            #"^\s*(?:pag(?:ina)?\.?\s*)\d{1,4}(?:\s*(?:di|/)\s*\d{1,4})?\s*$"#,
-            #"^\s*\d{1,4}\s*/\s*\d{1,4}\s*$"#
-        ]
-
-        return patterns.contains { pattern in
-            line.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-        }
+        return Self.pageNumberRegexes.contains { $0.firstMatch(in: line, range: range) != nil }
     }
 
     private func normalizedKey(_ line: String) -> String {
-        line
-            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        let collapsed = Self.whitespaceRegex?.stringByReplacingMatches(
+            in: line,
+            range: NSRange(location: 0, length: (line as NSString).length),
+            withTemplate: " "
+        ) ?? line
+        return collapsed
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
     }

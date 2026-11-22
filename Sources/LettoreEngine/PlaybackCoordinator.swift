@@ -125,7 +125,13 @@ public final class PlaybackCoordinator {
     public func stop(endingSession: Bool = true) {
         activeSpeechRequestID = nil
         playRequestedTime = 0
-        speechOutput.cancelAll()
+        if endingSession {
+            speechOutput.cancelAll()
+        } else {
+            // Skip/jump: il prefetch resta vivo, così il chunk nuovo può
+            // riusare la sintesi già avviata invece di rifarla.
+            speechOutput.cancelPlayback()
+        }
         if endingSession {
             // Uno skip/jump interno non deve interrompere una richiesta di
             // pagina già in volo: la coda continua a vivere.
@@ -283,7 +289,11 @@ public final class PlaybackCoordinator {
 
         case .levels(let requestID, let levels):
             guard requestID == activeSpeechRequestID else { return }
-            appState.liveWaveformLevels = levels
+            // Durante il silenzio arriva lo stesso array 20 volte al secondo:
+            // riassegnarlo invalida WaveformBarsView inutilmente.
+            if levels != appState.liveWaveformLevels {
+                appState.liveWaveformLevels = levels
+            }
 
         case .finished(let requestID):
             guard requestID == activeSpeechRequestID else { return }

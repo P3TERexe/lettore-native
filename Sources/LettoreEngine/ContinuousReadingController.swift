@@ -356,11 +356,7 @@ public final class ContinuousReadingController {
 
         appState.appendChunks(pendingChunks)
         if !appendedText.isEmpty {
-            if appState.capturedDocumentText.isEmpty {
-                appState.capturedDocumentText = appendedText
-            } else {
-                appState.capturedDocumentText += "\n\n" + appendedText
-            }
+            appState.appendCapturedPage(appendedText)
         }
 
         return true
