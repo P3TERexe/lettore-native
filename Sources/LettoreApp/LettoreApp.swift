@@ -241,7 +241,7 @@ struct LettoreApp: App {
                     NSApplication.shared.orderFrontStandardAboutPanel(
                         options: [
                             .applicationName: "Lettore Native",
-                            .applicationVersion: "0.3.2",
+                            .applicationVersion: "0.3.3",
                             .version: "Native macOS Edition",
                             .credits: NSAttributedString(
                                 string: "Applicazione 100% nativa progettata per l'accessibilità.\nSintesi neurale locale potenziata da Supertonic ONNX.",

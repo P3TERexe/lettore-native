@@ -13,7 +13,7 @@
 > 🚀 **Prova subito la simulazione nel browser:** [**p3terexe.github.io/lettore-native/#hero**](https://p3terexe.github.io/lettore-native/#hero) (include la Floating Pill interattiva e la sintesi vocale di prova).
 
 ### 🌐 [👉 Prova la Demo Interattiva nel Browser](https://p3terexe.github.io/lettore-native/#hero)
-### 📥 [Scarica l'Ultima Versione per macOS (v0.3.2)](https://github.com/P3TERexe/lettore-native/releases/latest)
+### 📥 [Scarica l'Ultima Versione per macOS (v0.3.3)](https://github.com/P3TERexe/lettore-native/releases/latest)
 
 ## 🚀 Funzionalità Chiave
 
@@ -55,7 +55,7 @@ L'app è ottimizzata per funzionare anche su Mac da 8 GB. Il profilo TTS cambia 
 | --- | --- | --- | --- | --- |
 | **Minimo consigliato** | MacBook Air M1 · 8 GB | ~0,75 GB | 2–4 s (stima) | Avvia il backend con `LETTORE_TTS_PROVIDER=cpu` |
 | **Ideale** | Apple Silicon · 16 GB | ~4,1 GB | ~1,3 s (misurato su M5) | Profilo ibrido, predefinito |
-| **Solo compatibilità** | Intel i5 8ª gen · 8 GB | ~0,75 GB | 5–10 s (stima) | Non consigliato per nuovi acquisti |
+| **Solo da sorgente** | Intel i5 8ª gen · 8 GB | ~0,75 GB | 5–10 s (stima) | La release macOS è arm64: su Intel occorre compilare dal sorgente |
 
 - **Minimo:** Apple Silicon con 8 GB di RAM e profilo CPU. 4 GB di RAM non sono consigliati.
 - **Consigliato:** Apple Silicon con 16 GB di RAM e profilo ibrido.

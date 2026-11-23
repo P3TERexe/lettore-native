@@ -49,10 +49,10 @@ swift run LettoreApp`;
                 {isEnglish ? 'Download for Mac' : 'Scarica per Mac'}
               </h3>
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20 }}>
-                {isEnglish ? 'Ready for all Mac models (Apple Silicon M1/M2/M3/M4 & Intel). Fast to install and runs immediately.' : 'Pronto per tutti i modelli di Mac (Apple Silicon M1/M2/M3/M4 e Intel). Facile da installare e subito pronto all\'uso.'}
+                {isEnglish ? 'Ready for Apple Silicon (M1/M2/M3/M4); on Intel, build from source. Fast to install and runs immediately.' : 'Pronto per Apple Silicon (M1/M2/M3/M4); su Intel compila dal sorgente. Facile da installare e subito pronto all\'uso.'}
               </p>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginBottom: 24 }}>
-                {isEnglish ? 'Version 0.3.2 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 0.3.2 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
+                {isEnglish ? 'Version 0.3.3 · Swift 6 · Requirements: macOS 14 Sonoma or later' : 'Versione 0.3.3 · Swift 6 · Requisiti: macOS 14 Sonoma o successivo'}
               </div>
             </div>
 

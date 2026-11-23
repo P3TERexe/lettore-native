@@ -13,7 +13,7 @@ export const TRANSLATIONS = {
       dyslexia: 'Dislessia',
       dyslexiaTitle: 'Attiva/Disattiva font per dislessia (Lexend)',
       themeTitle: 'Cambia tema colore',
-      downloadBtn: 'Scarica v0.3.2',
+      downloadBtn: 'Scarica v0.3.3',
       langToggleTitle: 'Lingua: Italiano (Clicca per passare a Inglese)'
     },
     hero: {
@@ -156,7 +156,7 @@ export const TRANSLATIONS = {
     download: {
       kicker: 'Disponibile Gratuitamente',
       title: 'Inizia subito a leggere con voce naturale',
-      subtitle: 'Compatibile con macOS Sonoma e Sequoia (Apple Silicon M1/M2/M3/M4 & Intel).',
+      subtitle: 'Compatibile con macOS Sonoma e Sequoia (Apple Silicon M1/M2/M3/M4); su Intel compila dal sorgente.',
       dmgBtn: 'Scarica .dmg per macOS',
       sourceBtn: 'Compila dal codice sorgente',
       cliTitle: 'Installazione rapida da Terminale (CLI):',
@@ -183,10 +183,10 @@ export const TRANSLATIONS = {
             tag: 'Consigliato'
           },
           {
-            title: 'Compatibilità tecnica',
-            device: 'Intel i5 8ª gen · 8 GB',
-            profile: 'Solo profilo CPU',
-            desc: 'Funziona, ma è più lento: prima frase in 5–10 secondi (stima). Scegli questa configurazione solo se hai già il Mac.',
+            title: 'Solo da sorgente',
+            device: 'Intel (compila dal sorgente)',
+            profile: 'Profilo CPU',
+            desc: 'La release macOS è arm64: su Intel serve compilare dal sorgente. Prima frase in 5–10 secondi (stima).',
             tag: 'Non per nuovi acquisti'
           }
         ],
@@ -226,7 +226,7 @@ export const TRANSLATIONS = {
       dyslexia: 'Dyslexia',
       dyslexiaTitle: 'Toggle dyslexia font (Lexend)',
       themeTitle: 'Toggle color theme',
-      downloadBtn: 'Download v0.3.2',
+      downloadBtn: 'Download v0.3.3',
       langToggleTitle: 'Language: English (Click to switch to Italian)'
     },
     hero: {
@@ -369,7 +369,7 @@ export const TRANSLATIONS = {
     download: {
       kicker: 'Free & Open Source',
       title: 'Start reading with a natural voice today',
-      subtitle: 'Compatible with macOS Sonoma and Sequoia (Apple Silicon M1/M2/M3/M4 & Intel).',
+      subtitle: 'Compatible with macOS Sonoma and Sequoia (Apple Silicon M1/M2/M3/M4); on Intel, build from source.',
       dmgBtn: 'Download .dmg for macOS',
       sourceBtn: 'Build from source code',
       cliTitle: 'Quick Terminal install (CLI):',
@@ -396,10 +396,10 @@ export const TRANSLATIONS = {
             tag: 'Recommended'
           },
           {
-            title: 'Technical compatibility',
-            device: 'Intel i5 8th gen · 8 GB',
-            profile: 'CPU profile only',
-            desc: 'Works, but it is slower: first sentence in 5–10 seconds (estimate). Choose this only if you already own the Mac.',
+            title: 'Source build only',
+            device: 'Intel (build from source)',
+            profile: 'CPU profile',
+            desc: 'The macOS release is arm64: on Intel you need to build from source. First sentence in 5–10 seconds (estimate).',
             tag: 'Not for new purchases'
           }
         ],

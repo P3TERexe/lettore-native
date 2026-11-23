@@ -39,7 +39,7 @@ export default function ArchitectureComparison() {
       value: '< 0.2s',
       badge: 'Swift 6',
       badgeColor: 'var(--accent-amber)',
-      desc: isEnglish ? 'Compiled directly to native machine code for Apple Silicon and Intel with zero-overhead CoreAudio integration.' : 'Compilato direttamente in codice macchina nativo per Apple Silicon e Intel con accesso diretto alle API CoreAudio.',
+      desc: isEnglish ? 'Compiled directly to native machine code for Apple Silicon (on Intel, build from source) with zero-overhead CoreAudio integration.' : 'Compilato direttamente in codice macchina nativo per Apple Silicon (su Intel si compila dal sorgente) con accesso diretto alle API CoreAudio.',
       shortDesc: isEnglish ? 'Native for Mac M1/M2/M3/M4' : 'Compilato nativo per Mac M1/M2/M3/M4'
     },
     {
