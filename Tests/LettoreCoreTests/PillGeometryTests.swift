@@ -83,6 +83,26 @@ final class PillGeometryTests: XCTestCase {
             "Il badge di fallback non deve spingere i controlli fuori dalla capsula"
         )
 
+        // Il vincolo che evita il taglio non è "il contenuto ci sta", ma
+        // "resta slack sotto l'ultima riga": la capsula ha i cappucci curvi e
+        // pin+chiudi sono l'ultima riga del VStack top-aligned. Con meno di
+        // 6 pt l'ultima riga entra nel cappuccio e viene toccata dal bordo.
+        let normalBottomSlack =
+            normalContent.height - PillGeometry.verticalExpandedContentHeight
+        XCTAssertGreaterThanOrEqual(
+            normalBottomSlack,
+            6,
+            "Sotto pin+chiudi servono almeno 6 pt: il cappuccio della capsula taglia l'ultima riga"
+        )
+
+        let fallbackBottomSlack =
+            fallbackContent.height - PillGeometry.verticalExpandedFallbackContentHeight
+        XCTAssertGreaterThanOrEqual(
+            fallbackBottomSlack,
+            6,
+            "Anche col badge il cappuccio deve restare fuori dall'ultima riga"
+        )
+
         // Il compatto non cambia con questa rifinitura.
         XCTAssertEqual(PillGeometry.verticalCompact, CGSize(width: 48, height: 104))
     }

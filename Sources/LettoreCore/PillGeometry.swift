@@ -20,23 +20,27 @@ public enum PillGeometry {
     // target da 22 pt con un margine: con i 48 pt di prima il contenuto utile
     // era 42 pt e i controlli venivano compressi. In altezza lo Stop vive su
     // una riga propria sotto il Play (spacing 5): il contenuto reale misura
-    // 173 pt (190 con il badge), quindi 180/202 lasciano 1/6 pt di margine
-    // dentro `contentSize` senza tagliare nulla.
-    public static let verticalExpanded = CGSize(width: 52, height: 180)
+    // 173 pt (190 con il badge). La capsula ha i cappucci curvi alle due
+    // estremità: il VStack è top-aligned, quindi i 185/202 lasciano 179/196 pt
+    // di `contentSize` e 6 pt di slack sotto l'ultima riga, gli stessi del
+    // fallback, così pin e chiudi non finiscono più dentro il cappuccio.
+    public static let verticalExpanded = CGSize(width: 52, height: 185)
     public static let verticalExpandedFallback = CGSize(width: 52, height: 202)
 
     /// Larghezza misurata della riga orizzontale espansa: onda + controlli +
     /// margini interni, con lo stop a target 26 pt e 2 pt di respiro per lato.
     /// Il contenuto disponibile deve superarla di almeno 4 pt.
     public static let horizontalExpandedContentRowWidth: CGFloat = 277
-    /// Stessa misura con il badge di fallback: il badge occupa 12 pt più lo
-    /// spacing di 4 della riga controlli, quindi la riga sale a 294 pt.
+    /// Stessa misura con il badge di fallback: il badge contribuisce per 17 pt
+    /// (12 del glifo più lo spacing di 5 che lo separa dai controlli), quindi
+    /// la riga sale a 294 pt.
     public static let horizontalExpandedFallbackContentRowWidth: CGFloat = 294
     /// Altezza misurata del contenuto verticale espanso: grip 12 + onda 20 +
     /// controlli impilati 117 + due spacing da 6 + padding verticale 12.
     public static let verticalExpandedContentHeight: CGFloat = 173
-    /// Stessa misura con il badge di fallback (12 pt più lo spacing di 5):
-    /// il contenuto verticale arriva a 190 pt.
+    /// Stessa misura con il badge di fallback: il badge contribuisce per 17 pt
+    /// (12 del glifo più lo spacing di 5), quindi il contenuto verticale arriva
+    /// a 190 pt.
     public static let verticalExpandedFallbackContentHeight: CGFloat = 190
 
     /// Margine di sicurezza dai bordi dello schermo visibile.

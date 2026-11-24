@@ -4,7 +4,7 @@ import LettoreEngine
 
 /// Vista della pillola fluttuante con animazione elastica Dynamic Island a due stati.
 /// - Stato compatto: drag ovunque sulla capsula, indicatore di stato e onda vocale live, zero spazio vuoto.
-/// - Stato espanso: controlli completi e compatti (Frase Precedente/Successiva, Play/Pausa, Velocità, Pin, Chiudi).
+/// - Stato espanso: controlli completi e compatti (Frase Precedente/Successiva, Play/Pausa, Stop, Velocità, Pin, Chiudi).
 /// - Nessuna barra inferiore ingannevole stile scrollbar.
 public struct FloatingPillView: View {
     @Bindable public var appState: AppState
