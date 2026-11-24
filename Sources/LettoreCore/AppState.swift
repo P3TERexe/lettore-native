@@ -36,10 +36,18 @@ public final class AppState: @unchecked Sendable {
     }
     
     // MARK: - Performance Vocale & Telemetria (PERF-1, PERF-2, PERF-3)
-    /// Precisione di generazione Supertonic (default: 8 step, turbo: 5-6 step, hi-fi: 10-12 step)
-    public var synthesisSteps: Int = 8
-    /// Attiva la sintesi a bassa latenza per il primo frammento audio (chunk 0) per avvio istantaneo
-    public var isFirstChunkBoostEnabled: Bool = true
+    /// Precisione di generazione Supertonic (turbo: 5 step, bilanciato: 8,
+    /// hi-fi: 12). Persistita: il default adattivo (Hi-Fi se la macchina lo
+    /// sostiene, altrimenti bilanciato) vale solo al primo avvio, quando la
+    /// chiave non esiste ancora.
+    public var synthesisSteps: Int = SynthesisQuality.recommendedSteps {
+        didSet { preferences.synthesisSteps = synthesisSteps }
+    }
+    /// Riduce a 5 step la sola sintesi del primo chunk quando la qualità scelta
+    /// è bilanciata (8); con Turbo (5) e Hi-Fi (12) non ha effetto. Persistito.
+    public var isFirstChunkBoostEnabled: Bool = true {
+        didSet { preferences.isFirstChunkBoostEnabled = isFirstChunkBoostEnabled }
+    }
     /// Profondità del buffer circolare di pre-caricamento (2 = precarica N+1 e N+2)
     public var preloadDepth: Int = 2
     /// Latenza effettiva in millisecondi registrata tra il comando Play e l'emissione del primo audio
@@ -130,6 +138,26 @@ public final class AppState: @unchecked Sendable {
         self.isAutoPageEnabled = preferences.isAutoPageEnabled
         self.isSourceHighlightEnabled = preferences.isSourceHighlightEnabled
         self.noiseFilterMode = preferences.noiseFilterMode
+
+        // Il default adattivo si applica solo se la chiave manca (primo avvio
+        // o preferenze mai salvate); poi la scelta dell'utente resta sovrana.
+        // Il valore letto viene clampato anche qui come normalizzazione
+        // difensiva dello stato (5...12): il motore clampa comunque prima
+        // dell'invio, ma lo stato dell'app deve restare nell'intervallo.
+        if let storedSteps = preferences.synthesisSteps {
+            self.synthesisSteps = PreferencesStore.clampedSynthesisSteps(storedSteps)
+        } else {
+            let recommended = SynthesisQuality.recommendedSteps
+            self.synthesisSteps = recommended
+            preferences.synthesisSteps = recommended
+        }
+
+        if let storedBoost = preferences.isFirstChunkBoostEnabled {
+            self.isFirstChunkBoostEnabled = storedBoost
+        } else {
+            self.isFirstChunkBoostEnabled = true
+            preferences.isFirstChunkBoostEnabled = true
+        }
     }
 
     // MARK: - Metodi di Mutazione Stato

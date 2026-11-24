@@ -30,7 +30,7 @@ La sintesi vocale di Lettore Native è interamente basata su **[Supertonic](http
 * **Architettura On-Device**: Modello compatto (~99M parametri, ~400MB) eseguito localmente tramite ONNX Runtime. Il profilo predefinito è ibrido (CoreML solo per `vector_estimator`, CPU per le altre sessioni); `LETTORE_TTS_PROVIDER=cpu|coreml|auto` permette di cambiare configurazione.
 * **Supporto Multilingua**: Oltre 30 lingue supportate nativamente con rilevamento automatico del testo.
 * **Profili Vocali Neurali**: 10 voci predefinite (5 maschili `M1`–`M5` e 5 femminili `F1`–`F5`) calibrate per una dizione chiara, naturale e a basso affaticamento cognitivo.
-* **Latenza contenuta**: Nel benchmark locale la mediana cold è ~1,3 s sul corpus di 28 testi (frasi brevi sotto 0,6 s); il prefetch dei chunk successivi rende continua la lettura.
+* **Latenza contenuta**: Nel benchmark locale la mediana cold è ~1,3 s sul corpus di 28 testi con il preset bilanciato (8 step; frasi brevi sotto 0,6 s). Con il default Hi-Fi (12 step) la latenza può essere maggiore; il prefetch dei chunk successivi rende continua la lettura.
 
 ## 🏗️ Architettura Ibrida (Fase 3.0)
 
@@ -54,7 +54,7 @@ L'app è ottimizzata per funzionare anche su Mac da 8 GB. Il profilo TTS cambia 
 | Profilo | Mac consigliato | RAM TTS | Prima frase | Note |
 | --- | --- | --- | --- | --- |
 | **Minimo consigliato** | MacBook Air M1 · 8 GB | ~0,75 GB | 2–4 s (stima) | Avvia il backend con `LETTORE_TTS_PROVIDER=cpu` |
-| **Ideale** | Apple Silicon · 16 GB | ~4,1 GB | ~1,3 s (misurato su M5) | Profilo ibrido, predefinito |
+| **Ideale** | Apple Silicon · 16 GB | ~4,1 GB | ~1,3 s a 8 step (misurato su M5); con Hi-Fi (12) può aumentare | Profilo ibrido, predefinito |
 | **Solo da sorgente** | Intel i5 8ª gen · 8 GB | ~0,75 GB | 5–10 s (stima) | La release macOS è arm64: su Intel occorre compilare dal sorgente |
 
 - **Minimo:** Apple Silicon con 8 GB di RAM e profilo CPU. 4 GB di RAM non sono consigliati.
@@ -91,7 +91,7 @@ In alternativa, puoi aprire il file `Package.swift` direttamente con **Xcode** e
 
 ## ⚙️ Configurazione Accessibilità (AX)
 
-Affinché l'app possa leggere il testo che evidenzi (premendo Play sulla Pillola o usando la scorciatoia da tastiera `⌥ + C`), deve poter interagire con le finestre e il testo del Mac.
+Affinché l'app possa leggere il testo che evidenzi (premendo Play sulla Pillola o usando la scorciatoia da tastiera `⌘ + ⇧ + C`), deve poter interagire con le finestre e il testo del Mac.
 
 Al primo avvio, l'applicazione mostrerà automaticamente la richiesta di autorizzazione:
 1. Sposta prima di tutto l'applicazione nella cartella **/Applicazioni** (`/Applications`) per evitare l'App Translocation di macOS.

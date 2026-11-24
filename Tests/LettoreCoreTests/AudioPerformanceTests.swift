@@ -878,7 +878,10 @@ final class AudioPerformanceTests: XCTestCase {
 
     // MARK: - Test Deep Preload Ring Buffer Logic
     func testRingBufferEffectiveDepthOnShortChunks() {
-        let appState = AppState()
+        let suiteName = "LettoreTests.RingBuffer.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let appState = AppState(preferences: PreferencesStore(defaults: defaults))
         let chunk0 = ReadingChunk(index: 0, text: "Introduzione al capitolo uno con frase lunga.")
         let chunk1 = ReadingChunk(index: 1, text: "Sì.") // < 25 caratteri!
         let chunk2 = ReadingChunk(index: 2, text: "Esattamente così procediamo.")
@@ -897,26 +900,102 @@ final class AudioPerformanceTests: XCTestCase {
     // MARK: - Test First-Chunk Boost Settings
 
     func testFirstChunkBoostConfiguration() {
-        let appState = AppState()
-        appState.synthesisSteps = 12
-        appState.isFirstChunkBoostEnabled = true
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 12, isFirstChunk: true, boostEnabled: true),
+            12,
+            "Con Hi-Fi il primo chunk resta a 12 step"
+        )
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 8, isFirstChunk: true, boostEnabled: true),
+            5,
+            "Il default bilanciato usa il boost a 5 step sul primo chunk"
+        )
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 5, isFirstChunk: true, boostEnabled: true),
+            5,
+            "Turbo resta a 5 step"
+        )
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 12, isFirstChunk: false, boostEnabled: true),
+            12,
+            "I chunk successivi usano la qualità piena"
+        )
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 8, isFirstChunk: true, boostEnabled: false),
+            8,
+            "Con boost disattivato il primo chunk usa la qualità piena"
+        )
+    }
 
-        let chunk0 = ReadingChunk(index: 0, text: "Frase iniziale di apertura.")
-        let chunk1 = ReadingChunk(index: 1, text: "Seconda frase regolare.")
-        appState.setQueue([chunk0, chunk1])
+    // MARK: - Test Wiring qualità di default
 
-        let isFirst = chunk0.index == 0
-        let effectiveStepsChunk0 = (isFirst && appState.isFirstChunkBoostEnabled)
-            ? min(appState.synthesisSteps, 5)
-            : appState.synthesisSteps
+    /// Il default di `AppState` e il boost del primo chunk devono restare
+    /// allineati alla politica di qualità: il valore iniziale dell'app è
+    /// `SynthesisQuality.recommendedSteps` e, con Hi-Fi (12), il primo chunk
+    /// non viene declassato. La suite `UserDefaults` è dedicata: il dominio
+    /// condiviso di xctest non è un ambiente ermetico.
+    func testAppStateWiringUsesRecommendedQuality() {
+        let suiteName = "LettoreTests.Wiring.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Impossibile creare la suite UserDefaults isolata")
+            return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        XCTAssertEqual(effectiveStepsChunk0, 5, "Il primo chunk deve essere limitato a 5 step per avvio istantaneo")
+        let state = AppState(preferences: PreferencesStore(defaults: defaults))
+        XCTAssertEqual(state.synthesisSteps, SynthesisQuality.recommendedSteps)
+        XCTAssertEqual(
+            PlaybackCoordinator.effectiveSteps(total: 12, isFirstChunk: true, boostEnabled: true),
+            12
+        )
+    }
 
-        let isSecond = chunk1.index == 0
-        let effectiveStepsChunk1 = (isSecond && appState.isFirstChunkBoostEnabled)
-            ? min(appState.synthesisSteps, 5)
-            : appState.synthesisSteps
+    // MARK: - Clamp degli step di sintesi persistiti
 
-        XCTAssertEqual(effectiveStepsChunk1, 12, "I chunk successivi devono mantenere tutti i 12 step richiesti")
+    /// Il payload TTS clampa comunque `5...12` prima dell'invio, quindi una
+    /// preferenza fuori intervallo non produce un 422: getter e setter la
+    /// normalizzano lo stesso, per non lasciare stato e chiavi di cache
+    /// incoerenti. Suite isolata per non toccare le preferenze reali né il
+    /// dominio condiviso di xctest.
+    func testPersistedSynthesisStepsAreClamped() {
+        let suiteName = "LettoreTests.StepsClamp.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Impossibile creare la suite UserDefaults isolata")
+            return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Valore scritto direttamente, come farebbe una versione precedente
+        // dell'app: il getter deve clampare, non fidarsi del dato su disco.
+        defaults.set(1, forKey: PreferencesStore.Key.synthesisSteps)
+        XCTAssertEqual(
+            PreferencesStore(defaults: defaults).synthesisSteps,
+            5,
+            "1 step va riportato al minimo supportato"
+        )
+        XCTAssertEqual(
+            AppState(preferences: PreferencesStore(defaults: defaults)).synthesisSteps,
+            5,
+            "AppState deve leggere il valore normalizzato"
+        )
+
+        defaults.set(99, forKey: PreferencesStore.Key.synthesisSteps)
+        XCTAssertEqual(
+            PreferencesStore(defaults: defaults).synthesisSteps,
+            12,
+            "99 step vanno riportati al massimo supportato"
+        )
+        XCTAssertEqual(
+            AppState(preferences: PreferencesStore(defaults: defaults)).synthesisSteps,
+            12,
+            "AppState deve leggere il valore normalizzato"
+        )
+
+        // Anche il setter non deve persistire valori fuori intervallo.
+        let store = PreferencesStore(defaults: defaults)
+        store.synthesisSteps = 99
+        XCTAssertEqual(defaults.object(forKey: PreferencesStore.Key.synthesisSteps) as? Int, 12)
+        store.synthesisSteps = 1
+        XCTAssertEqual(defaults.object(forKey: PreferencesStore.Key.synthesisSteps) as? Int, 5)
     }
 }

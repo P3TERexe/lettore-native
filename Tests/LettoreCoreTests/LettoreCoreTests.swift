@@ -7,6 +7,17 @@ import AppKit
 @testable import LettoreUI
 
 final class LettoreCoreTests: XCTestCase {
+
+    /// `AppState` inizializza e salva i default di qualità in `UserDefaults`:
+    /// una suite dedicata evita di scrivere nelle preferenze reali dell'utente.
+    private func makeIsolatedAppState() -> AppState {
+        let suiteName = "LettoreTests.Core.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        addTeardownBlock {
+            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        }
+        return AppState(preferences: PreferencesStore(defaults: defaults))
+    }
     
     // MARK: - Test SentenceChunker
     
@@ -105,7 +116,7 @@ final class LettoreCoreTests: XCTestCase {
     // MARK: - Test AppState
     
     func testAppStateQueueAdvancement() {
-        let state = AppState()
+        let state = makeIsolatedAppState()
         let chunk1 = ReadingChunk(index: 0, text: "Frase 1")
         let chunk2 = ReadingChunk(index: 1, text: "Frase 2")
         
@@ -125,7 +136,7 @@ final class LettoreCoreTests: XCTestCase {
     }
     
     func testAppStateSpeedClampMatchesPlayerLimits() {
-        let state = AppState()
+        let state = makeIsolatedAppState()
 
         state.setSpeed(3.0)
         XCTAssertEqual(state.playbackSpeed, 2.0)
@@ -135,7 +146,7 @@ final class LettoreCoreTests: XCTestCase {
     }
 
     func testPillOrientationState() {
-        let state = AppState()
+        let state = makeIsolatedAppState()
         XCTAssertEqual(state.pillOrientation, .horizontal)
         XCTAssertEqual(state.pillDockSide, .center)
         XCTAssertFalse(state.isFloatingPillVisible)
@@ -247,7 +258,7 @@ final class LettoreCoreTests: XCTestCase {
     func testFloatingPillDockingExecution() {
         guard let screen = NSScreen.main else { return }
         let screenRect = screen.visibleFrame
-        let appState = AppState()
+        let appState = makeIsolatedAppState()
         let manager = FloatingPillPanelManager.shared
         
         let panel = NSPanel(

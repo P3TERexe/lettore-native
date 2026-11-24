@@ -180,7 +180,10 @@ final class ReadingCaptureControllerTests: XCTestCase {
         guard case .fellBackToQueue = outcome else {
             return XCTFail("Atteso .fellBackToQueue, ricevuto \(outcome)")
         }
-        XCTAssertEqual(state.continuationNotice, "Nessuna selezione leggibile.")
+        XCTAssertEqual(
+            state.continuationNotice,
+            "Nessuna selezione leggibile: seleziona testo nell'app di origine e verifica l'Accessibilità di Lettore."
+        )
         XCTAssertEqual(state.readingQueue.map(\.text), ["Coda pronta."])
         let requestedPIDs = await capture.requestedPIDs
         XCTAssertEqual(requestedPIDs, [42])

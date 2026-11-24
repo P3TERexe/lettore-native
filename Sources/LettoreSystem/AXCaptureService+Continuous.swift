@@ -93,11 +93,11 @@ extension AXCaptureService: ContinuousTextSource {
             appElement = focusedApp
         } else {
             // Alcune app (editor PDF, Electron) non espongono nemmeno
-            // l'applicazione focalizzata a livello di sistema. Se stiamo
-            // leggendo l'app in primo piano, l'unica strada è Cmd+C: non
-            // ruba il focus e permette almeno di leggere la selezione.
+            // l'applicazione focalizzata a livello di sistema. L'unica strada è
+            // Cmd+C: il tentativo mirato non sposta il focus, il ripiego con
+            // attivazione lo sposta temporaneamente.
             let frontmostName = NSWorkspace.shared.frontmostApplication?.localizedName
-            if let clipboard = await captureViaClipboardFallback() {
+            if let clipboard = await captureViaClipboardFallback(targeting: applicationPID) {
                 return ContinuousCaptureStart(
                     text: clipboard.text,
                     selectedText: clipboard.text,
@@ -125,11 +125,10 @@ extension AXCaptureService: ContinuousTextSource {
 
         guard let focused else {
             // Alcune app (per esempio editor PDF o app Electron) non espongono
-            // il focused element via AX. Se stiamo leggendo l'app in primo piano
-            // possiamo usare Cmd+C senza rubare il focus; con un PID esplicito
-            // il fallback è vietato perché Cmd+C finirebbe nell'app sbagliata.
-            if applicationPID == nil,
-               let clipboard = await captureViaClipboardFallback() {
+            // il focused element via AX. Con un PID esplicito il Cmd+C mirato
+            // va direttamente all'app di origine senza spostare il focus; il
+            // ripiego con attivazione lo sposta temporaneamente.
+            if let clipboard = await captureViaClipboardFallback(targeting: applicationPID) {
                 return ContinuousCaptureStart(
                     text: clipboard.text,
                     selectedText: clipboard.text,
@@ -146,13 +145,14 @@ extension AXCaptureService: ContinuousTextSource {
             )
         }
 
-        let selectedText = stringAttribute(focused, kAXSelectedTextAttribute as CFString) ?? ""
+        let selection = selectionReadout(of: focused)
+        let selectedText = selection.raw
         let selectedRange = copySelectedRange(of: focused)
         let scrollContainer = nearestScrollContainer(from: focused)
         let numberOfCharacters = intAttribute(focused, kAXNumberOfCharactersAttribute as CFString)
         let focusedValue = stringAttribute(focused, kAXValueAttribute as CFString)
 
-        print("[AXCapture][Continuo] app=\(appName ?? "?") role=\(role(of: focused) ?? "?") selezione=\(selectedText.count) valore=\(focusedValue?.count ?? 0) numberOfCharacters=\(numberOfCharacters.map(String.init) ?? "nil") scroll=\(scrollContainer != nil)")
+        print("[AXCapture][Continuo] app=\(appName ?? "?") role=\(role(of: focused) ?? "?") selezione=\(selectedText.count) readout=\(selection.readout.logName) valore=\(focusedValue?.count ?? 0) numberOfCharacters=\(numberOfCharacters.map(String.init) ?? "nil") scroll=\(scrollContainer != nil)")
 
         if let resolved = resolveDocument(
             focused: focused,
@@ -236,13 +236,37 @@ extension AXCaptureService: ContinuousTextSource {
             )
         }
 
-        // Ultima spiaggia: la vecchia cattura via clipboard copre le app che
-        // non espongono né valore né range. Non può continuare, ma almeno
-        // legge la selezione corrente. Con un PID esplicito il fallback è
-        // vietato: Cmd+C finirebbe nell'app in primo piano (lo Studio), non
-        // nell'app di origine.
-        if applicationPID == nil,
-           let clipboard = await captureViaClipboardFallback() {
+        // Se AX espone già una selezione, quella è la fonte più fedele:
+        // `selectionOnlyFallback` conserva range e highlight e non sposta il
+        // focus. Il clipboard resta l'ultima spiaggia solo quando l'app non
+        // espone affatto `kAXSelectedTextAttribute`: una selezione vuota è una
+        // risposta valida e non autorizza Cmd+C (il ripiego con attivazione può
+        // spostare il focus e cambiare Space con un'app a schermo intero).
+        if !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return selectionOnlyFallback(
+                selectedText: selectedText,
+                focused: focused,
+                sourcePID: sourcePID,
+                appName: appName,
+                notice: "Continuazione non disponibile in questa app: seleziona del testo e riprova."
+            )
+        }
+
+        // Una selezione AX esplicitamente vuota è una risposta valida dell'app:
+        // il fallback clipboard copierebbe e potrebbe spostare il focus, quindi
+        // si tenta solo quando l'attributo non è affatto disponibile.
+        guard selection.readout.requiresClipboardFallback else {
+            print("[AXCapture][Continuo] Selezione AX vuota: fallback clipboard saltato.")
+            return selectionOnlyFallback(
+                selectedText: selectedText,
+                focused: focused,
+                sourcePID: sourcePID,
+                appName: appName,
+                notice: "Nessuna selezione nell'app: seleziona del testo e riprova."
+            )
+        }
+
+        if let clipboard = await captureViaClipboardFallback(targeting: applicationPID) {
             return ContinuousCaptureStart(
                 text: clipboard.text,
                 selectedText: clipboard.text,

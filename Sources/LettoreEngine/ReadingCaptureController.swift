@@ -191,7 +191,7 @@ public final class ReadingCaptureController {
         guard let selection = await selectedText.captureSelectedText(from: applicationPID),
               !selection.trimmedText.isEmpty else {
             return fallbackToQueue(
-                reason: "Nessuna selezione leggibile.",
+                reason: "Nessuna selezione leggibile: seleziona testo nell'app di origine e verifica l'Accessibilità di Lettore.",
                 generation: generation
             )
         }

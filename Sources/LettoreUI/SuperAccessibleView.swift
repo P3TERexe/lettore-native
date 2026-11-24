@@ -91,7 +91,7 @@ public struct SuperAccessibleView: View {
                 HStack(spacing: 10) {
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
                     Text(appState.playbackState == .playing ? "SOSPENDI" : "RIPRODUCI")
-                    Text("Spazio")
+                    Text("⌥P")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -115,12 +115,6 @@ public struct SuperAccessibleView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "stop.fill")
                     Text("FERMA")
-                    Text("Esc")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
@@ -199,7 +193,7 @@ public struct SuperAccessibleView: View {
                         .shadow(color: solarAmber.opacity(0.5), radius: 5)
                     
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(appState.currentChunk?.text ?? (appState.readingQueue.first?.text ?? "Nessun testo in riproduzione. Incolla un testo o catturalo con ⌥+C."))
+                        Text(appState.currentChunk?.text ?? (appState.readingQueue.first?.text ?? "Nessun testo in riproduzione. Incolla un testo o catturalo con ⌘⇧C."))
                             .font(.system(size: 25, weight: .bold))
                             .foregroundStyle(.white)
                             .lineSpacing(12)
@@ -283,10 +277,12 @@ public struct SuperAccessibleView: View {
     
     private var footerBar: some View {
         HStack {
+            // Scorciatoie reali (`GlobalShortcutManager`): monitor globale per
+            // Lettore in background e locale per quando è in primo piano.
             HStack(spacing: 18) {
-                Label("Spazio: Play/Pausa", systemImage: "keyboard")
-                Label("⌥ + ←/→: Frase", systemImage: "arrow.left.arrow.right")
-                Label("+ / −: Velocità", systemImage: "speaker.wave.2")
+                Label("⌘⇧C: Cattura", systemImage: "text.cursor")
+                Label("⌥P: Play/Pausa", systemImage: "playpause")
+                Label("⌘⇧L: Lettura continua", systemImage: "text.line.last.and.arrowtriangle.forward")
             }
             .font(.system(size: 13, weight: .bold))
             .foregroundStyle(Color.white.opacity(0.75))

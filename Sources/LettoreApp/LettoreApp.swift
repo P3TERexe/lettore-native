@@ -130,10 +130,13 @@ struct LettoreApp: App {
         }
         
         shortcutManager.onCaptureRequested = captureAction
-        if state.isAccessibilityGranted {
-            shortcutManager.startMonitoring()
-        } else {
-            print("[LettoreApp] ⚠️ Monitor scorciatoie in attesa dei permessi di Accessibilità...")
+        // Il monitor locale non richiede Accessibilità: va avviato sempre, così
+        // ⌘⇧C e ⌥P funzionano in Studio anche senza permesso. Il monitor
+        // globale (app in background) fallisce senza permesso e viene
+        // ritentato su didBecomeActive, perché isMonitoring resta false.
+        shortcutManager.startMonitoring()
+        if !shortcutManager.isMonitoring {
+            print("[LettoreApp] ⚠️ Monitor globale scorciatoie in attesa dei permessi di Accessibilità (monitor locale attivo).")
         }
         
         // Ascolta richieste di cattura provenienti dalla UI (es. Pillola)

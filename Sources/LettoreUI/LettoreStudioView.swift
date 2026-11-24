@@ -172,8 +172,11 @@ public struct LettoreStudioView: View {
             HStack(spacing: 8) {
                 actionButton(
                     icon: "text.cursor",
-                    title: "Leggi da qui",
-                    isActive: appState.isContinuousReadingEnabled
+                    title: isCapturing ? "Cattura…" : "Leggi da qui",
+                    isActive: appState.isContinuousReadingEnabled,
+                    isDisabled: isCapturing,
+                    fixedWidth: 132,
+                    isBusy: isCapturing
                 ) {
                     captureFromFrontmostApp()
                 }
@@ -228,7 +231,7 @@ public struct LettoreStudioView: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
                 
-                Text("Necessari per catturare il testo con ⌥+C nelle app esterne. Se l'interruttore in macOS è già attivo ma non rileva i tasti, rimuovi 'Lettore Native' con '-' e riaggiungilo con '+'.")
+                Text("Necessari per catturare il testo con ⌘⇧C nelle app esterne. Se l'interruttore in macOS è già attivo ma non rileva i tasti, rimuovi 'Lettore Native' con '-' e riaggiungilo con '+'.")
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.75))
             }
@@ -332,7 +335,7 @@ public struct LettoreStudioView: View {
                 .foregroundStyle(brandCyan)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Lettura continua")
+                Text(appState.isContinuousReadingEnabled ? "Lettura continua" : "Cattura")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.white)
 
@@ -344,9 +347,18 @@ public struct LettoreStudioView: View {
 
             Spacer()
 
-            Text("⌘⇧L")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.45))
+            // La lettura continua ha ⌘⇧L (menu); con la modalità spenta
+            // l'azione successiva è la cattura, che ha ⌘⇧C
+            // (`GlobalShortcutManager`, monitor globale + locale).
+            if appState.isContinuousReadingEnabled {
+                Text("⌘⇧L")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+            } else {
+                Text("⌘⇧C")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
@@ -630,12 +642,17 @@ public struct LettoreStudioView: View {
                         stepOptionButton(title: "Hi-Fi (12)", steps: 12)
                     }
                     
-                    Toggle(isOn: $appState.isFirstChunkBoostEnabled) {
-                        Text("First-Chunk Boost (<150ms)")
+                    Toggle(isOn: firstChunkBoostBinding) {
+                        Text("Boost primo chunk")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(1)
+                            .foregroundStyle(.white.opacity(isFirstChunkBoostAvailable ? 0.8 : 0.45))
                     }
                     .toggleStyle(SwitchToggleStyle(tint: brandGreen))
+                    .disabled(!isFirstChunkBoostAvailable)
+                    .help(isFirstChunkBoostAvailable
+                          ? "Riduce a 5 step la sola sintesi del primo chunk; il resto della lettura resta a 8."
+                          : "Attivo solo con qualità bilanciata (8 step): con Turbo (5) e Hi-Fi (12) il primo chunk usa già gli step scelti.")
                     .padding(.top, 2)
                     
                     // Telemetria Reale Misurata
@@ -791,12 +808,30 @@ public struct LettoreStudioView: View {
         .buttonStyle(.plain)
     }
     
-    private func actionButton(icon: String, title: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
+    private func actionButton(
+        icon: String,
+        title: String,
+        isActive: Bool = false,
+        isDisabled: Bool = false,
+        fixedWidth: CGFloat? = nil,
+        isBusy: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundStyle(isActive ? brandGreen : .white)
+                if isBusy {
+                    // Occupa lo stesso spazio dell'icona: la toolbar resta
+                    // ferma mentre la cattura è in corso.
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.mini)
+                        .tint(brandCyan)
+                        .frame(width: 11, height: 11)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(isActive ? brandGreen : .white)
+                }
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
@@ -804,6 +839,9 @@ public struct LettoreStudioView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            // Larghezza minima fissa per i pulsanti con testo variabile
+            // ("Leggi da qui" / "Cattura…"): i vicini non si spostano.
+            .frame(minWidth: fixedWidth ?? 0)
             .background(isActive ? brandGreen.opacity(0.15) : Color.white.opacity(0.08))
             .foregroundStyle(isActive ? brandGreen : .white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -813,6 +851,8 @@ public struct LettoreStudioView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1)
     }
     
     private func voiceRow(id: String, name: String, isSelected: Bool) -> some View {
@@ -860,6 +900,25 @@ public struct LettoreStudioView: View {
         .buttonStyle(.plain)
     }
     
+    /// Il toggle mostra spento quando il boost non è disponibile, senza perdere
+    /// la scelta persistita: tornando a Bilanciato l'utente la ritrova.
+    private var firstChunkBoostBinding: Binding<Bool> {
+        Binding(
+            get: { appState.isFirstChunkBoostEnabled && isFirstChunkBoostAvailable },
+            set: { newValue in
+                guard isFirstChunkBoostAvailable else { return }
+                appState.isFirstChunkBoostEnabled = newValue
+            }
+        )
+    }
+
+    private var isFirstChunkBoostAvailable: Bool {
+        // Il boost scende a 5 step: con Turbo (5) non cambierebbe nulla e con
+        // Hi-Fi (12) abbasserebbe la qualità scelta. La policy vive in
+        // `SynthesisQuality` per non duplicarla fra UI e motore.
+        SynthesisQuality.isBoostApplicable(steps: appState.synthesisSteps)
+    }
+
     private func stepOptionButton(title: String, steps: Int) -> some View {
         Button(action: {
             appState.synthesisSteps = steps

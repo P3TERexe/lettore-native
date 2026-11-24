@@ -177,17 +177,44 @@ public final class PlaybackCoordinator {
         var requests: [SpeechRequest] = []
         requests.reserveCapacity(endIdx - startIdx + 1)
         for idx in startIdx...endIdx {
+            let chunk = appState.readingQueue[idx]
+            // Il prefetch parte da current+1 e non vede mai il chunk 0, quindi
+            // richiede sempre gli step pieni. Il boost del primo chunk resta al
+            // play, che ricalcola gli step (e la chiave di cache) sul chunk
+            // corrente se un salto lo rende il primo della sessione.
+            let steps = Self.effectiveSteps(
+                total: appState.synthesisSteps,
+                isFirstChunk: false,
+                boostEnabled: appState.isFirstChunkBoostEnabled
+            )
             requests.append(SpeechRequest(
-                chunk: appState.readingQueue[idx],
+                chunk: chunk,
                 voice: appState.selectedVoice,
                 speed: appState.playbackSpeed,
-                steps: appState.synthesisSteps
+                steps: steps
             ))
         }
         speechOutput.preload(requests)
     }
 
     // MARK: - Orchestrazione Riproduzione & Latenza (PERF-1, PERF-3)
+
+    /// Step di sintesi effettivi per un chunk.
+    ///
+    /// Il boost del primo chunk riduce la qualità solo sul preset bilanciato:
+    /// la decisione spetta a `SynthesisQuality.isBoostApplicable(steps:)`, unica
+    /// policy condivisa con la UI. Con Turbo (5) e Hi-Fi (12) non si tocca
+    /// nulla, altrimenti il primo chunk suonerebbe diverso dal resto e la
+    /// qualità scelta dall'utente non sarebbe reale.
+    public nonisolated static func effectiveSteps(
+        total: Int,
+        isFirstChunk: Bool,
+        boostEnabled: Bool
+    ) -> Int {
+        guard isFirstChunk, boostEnabled else { return total }
+        guard SynthesisQuality.isBoostApplicable(steps: total) else { return total }
+        return min(total, SynthesisQuality.firstChunkBoostSteps)
+    }
 
     public func playCurrentChunk() {
         guard let current = appState.currentChunk else {
@@ -224,12 +251,14 @@ public final class PlaybackCoordinator {
             playRequestedTime = CFAbsoluteTimeGetCurrent()
         }
 
-        // Il boost del primo chunk deve entrare nella chiave di cache: altrimenti
+        // Gli step effettivi devono entrare nella chiave di cache: altrimenti
         // un audio a 5 step verrebbe riusato come se fosse stato prodotto a 8.
         let isFirst = current.index == 0 || appState.playbackProgress == 0.0
-        let effectiveSteps = (isFirst && appState.isFirstChunkBoostEnabled)
-            ? min(appState.synthesisSteps, 5)
-            : appState.synthesisSteps
+        let effectiveSteps = Self.effectiveSteps(
+            total: appState.synthesisSteps,
+            isFirstChunk: isFirst,
+            boostEnabled: appState.isFirstChunkBoostEnabled
+        )
 
         let request = SpeechRequest(
             chunk: current,

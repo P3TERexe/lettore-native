@@ -68,6 +68,14 @@ _Avoid_: TTS, sintetizzatore, engine
 Voce fornita da macOS, usata come ripiego quando il motore vocale preferito non è disponibile.
 _Avoid_: fallback, voce di riserva
 
+**Qualità di sintesi adattiva**:
+Default degli step del motore vocale derivato dalla memoria fisica: 12 (Hi-Fi) con almeno 16 GiB, altrimenti 8 (bilanciato).
+_Avoid_: preset qualità, qualità automatica
+
+**Boost del primo chunk**:
+Riduzione a 5 step della sola sintesi del primo chunk, applicata solo con qualità bilanciata (8); con Turbo (5) e Hi-Fi (12) il primo chunk usa già gli step scelti e il boost non ha effetto.
+_Avoid_: first-chunk boost, accelerazione iniziale
+
 **Profilo di accessibilità**:
 Insieme di impostazioni di lettura e resa visiva calibrate su una specifica condizione dell'utente (DSA, ADHD, ipovisione).
 _Avoid_: modalità, tema, preset
