@@ -20,6 +20,12 @@ final class ContinuousReadingControllerTests: XCTestCase {
         private(set) var pageCallCount = 0
         private(set) var isHoldingPage = false
 
+        /// Quando attivo, la prossima `startContinuousCapture` si blocca finché
+        /// il test non chiama `releaseHeldStart()`. Copre la finestra dopo
+        /// `beginSession`, quando la sessione è già aperta.
+        var holdNextStart = false
+        private(set) var isHoldingStart = false
+
         /// Quando attivo, la prossima `endContinuousCapture` si blocca finché
         /// il test non chiama `releaseEndCleanup()`.
         var holdEndCleanup = false
@@ -27,11 +33,26 @@ final class ContinuousReadingControllerTests: XCTestCase {
 
         private var releaseContinuation: CheckedContinuation<Void, Never>?
         private var pageRequestWaiters: [CheckedContinuation<Void, Never>] = []
+        private var startContinuation: CheckedContinuation<Void, Never>?
+        private var startWaiters: [CheckedContinuation<Void, Never>] = []
         private var endCleanupContinuation: CheckedContinuation<Void, Never>?
         private var endCleanupWaiters: [CheckedContinuation<Void, Never>] = []
 
         func startContinuousCapture() async -> ContinuousCaptureStart {
             startCallCount += 1
+
+            if holdNextStart {
+                isHoldingStart = true
+                let waiters = startWaiters
+                startWaiters = []
+                waiters.forEach { $0.resume() }
+                await withCheckedContinuation { continuation in
+                    startContinuation = continuation
+                }
+                isHoldingStart = false
+                holdNextStart = false
+            }
+
             guard !startResults.isEmpty else {
                 return ContinuousCaptureStart(text: "", selectedText: "")
             }
@@ -99,6 +120,20 @@ final class ContinuousReadingControllerTests: XCTestCase {
             releaseContinuation?.resume()
             releaseContinuation = nil
         }
+
+        /// Attende che la cattura iniziale sia entrata nella fase bloccata,
+        /// cioè dopo `beginSession`.
+        func waitUntilStartBegins() async {
+            if isHoldingStart { return }
+            await withCheckedContinuation { continuation in
+                startWaiters.append(continuation)
+            }
+        }
+
+        func releaseHeldStart() {
+            startContinuation?.resume()
+            startContinuation = nil
+        }
     }
 
     // MARK: - Sink finto
@@ -118,6 +153,35 @@ final class ContinuousReadingControllerTests: XCTestCase {
 
         func playCurrentChunk() {
             playCallCount += 1
+        }
+    }
+
+    // MARK: - Pipeline TTS inerte
+
+    /// Pipeline che non produce audio: permette di usare il
+    /// `PlaybackCoordinator` reale (wiring di produzione) nei test di stop,
+    /// senza rete né uscita audio.
+    private final class SilentTTSPipeline: TTSPipelineProtocol, @unchecked Sendable {
+        var isModelLoaded = true
+
+        func loadModel() async throws {}
+
+        func synthesize(
+            text: String,
+            voice: VoiceProfile,
+            speed: Float
+        ) async throws -> Data {
+            try await synthesize(text: text, voice: voice, speed: speed, steps: 8)
+        }
+
+        func synthesize(
+            text: String,
+            voice: VoiceProfile,
+            speed: Float,
+            steps: Int
+        ) async throws -> Data {
+            try await Task.sleep(nanoseconds: 30_000_000_000)
+            return Data()
         }
     }
 
@@ -195,6 +259,75 @@ final class ContinuousReadingControllerTests: XCTestCase {
         XCTAssertNil(result)
         XCTAssertEqual(state.readingQueue.map(\.text), ["Sessione vecchia."])
         XCTAssertEqual(sink.playCallCount, 1, "La cattura superata non deve avviare il playback")
+        XCTAssertFalse(state.isContinuousSessionActive)
+    }
+
+    // MARK: - Stop di produzione durante la cattura continua
+
+    /// Stesso wiring di `LettoreApp` (`coordinator.onExplicitStop` →
+    /// `controller.stopSession()`) e sink reale: lo stop esplicito deve
+    /// scartare una cattura sospesa sul cleanup AX, prima di `beginSession`.
+    func testProductionStopBeforeBeginSessionDiscardsTheCaptureWaitingForCleanup() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+
+        let source = FakeContinuousTextSource()
+        source.startResults = [
+            ContinuousCaptureStart(text: "Sessione vecchia.", selectedText: "", canPage: false)
+        ]
+        let (controller, coordinator) = makeProductionController(state: state, source: source)
+
+        let first = await controller.captureAndPlay()
+        XCTAssertEqual(first, "Sessione vecchia.")
+
+        source.holdEndCleanup = true
+        source.startResults = [
+            ContinuousCaptureStart(text: "Testo della cattura superata.", selectedText: "", canPage: false)
+        ]
+
+        let pending = Task { await controller.captureAndPlay() }
+        await source.waitUntilEndCleanupStarts()
+        XCTAssertFalse(state.isContinuousSessionActive)
+
+        coordinator.stopAndClearQueue()
+        XCTAssertTrue(state.readingQueue.isEmpty, "Lo stop svuota la coda già catturata")
+
+        source.releaseEndCleanup()
+        let result = await pending.value
+
+        XCTAssertNil(result, "La cattura superata dallo stop non deve avviare il playback")
+        XCTAssertTrue(state.readingQueue.isEmpty, "La cattura in attesa non deve ripopolare la coda")
+        XCTAssertEqual(state.playbackState, .idle)
+        XCTAssertFalse(state.isContinuousSessionActive)
+    }
+
+    /// Stesso wiring di produzione, ma lo stop arriva dopo `beginSession`,
+    /// mentre la sorgente sta ancora catturando il testo iniziale.
+    func testProductionStopAfterBeginSessionDiscardsThePendingCapture() async {
+        let (state, cleanup) = makeState()
+        defer { cleanup() }
+
+        let source = FakeContinuousTextSource()
+        source.holdNextStart = true
+        source.startResults = [
+            ContinuousCaptureStart(text: "Testo arrivato dopo lo stop.", selectedText: "", canPage: false)
+        ]
+        let (controller, coordinator) = makeProductionController(state: state, source: source)
+
+        let pending = Task { await controller.captureAndPlay() }
+        await source.waitUntilStartBegins()
+        XCTAssertTrue(state.isContinuousSessionActive, "La sessione è già aperta prima dello stop")
+
+        coordinator.stopAndClearQueue()
+        XCTAssertTrue(state.readingQueue.isEmpty)
+        XCTAssertFalse(state.isContinuousSessionActive)
+
+        source.releaseHeldStart()
+        let result = await pending.value
+
+        XCTAssertNil(result, "La cattura superata dallo stop non deve avviare il playback")
+        XCTAssertTrue(state.readingQueue.isEmpty, "La cattura in attesa non deve ripopolare la coda")
+        XCTAssertEqual(state.playbackState, .idle)
         XCTAssertFalse(state.isContinuousSessionActive)
     }
 
@@ -715,6 +848,28 @@ final class ContinuousReadingControllerTests: XCTestCase {
             playback: sink
         )
         return (controller, sink)
+    }
+
+    /// Controller con il `PlaybackCoordinator` reale come sink e lo stesso
+    /// wiring di `LettoreApp`: lo stop esplicito chiude la sessione continua.
+    private func makeProductionController(
+        state: AppState,
+        source: FakeContinuousTextSource
+    ) -> (ContinuousReadingController, PlaybackCoordinator) {
+        let coordinator = PlaybackCoordinator(
+            appState: state,
+            audioEngine: AudioEngineService(),
+            supertonicPipeline: SilentTTSPipeline()
+        )
+        let controller = ContinuousReadingController(
+            appState: state,
+            coordinator: coordinator,
+            source: source
+        )
+        coordinator.onExplicitStop = { [weak controller] in
+            controller?.stopSession()
+        }
+        return (controller, coordinator)
     }
 
     private func waitUntilPagingEnabled(

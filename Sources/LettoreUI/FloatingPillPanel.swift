@@ -131,7 +131,7 @@ public final class FloatingPillPanelManager {
         hostingView.autoresizingMask = [.width, .height]
         // Il frame della finestra è deciso solo da `resolvedFrame`. Senza
         // questo, NSHostingView adatta la finestra alla dimensione intrinseca
-        // del contenuto (274×36 invece di 282×42) in un passaggio asincrono:
+        // del contenuto (282×36 invece di 290×42) in un passaggio asincrono:
         // il frame "scappa" sotto al manager e il morphing ai bordi deriva.
         hostingView.sizingOptions = []
 
@@ -266,7 +266,7 @@ public final class FloatingPillPanelManager {
         )
 
         // Il dock live si decide sulla posizione del **cursore**, non sul bordo
-        // della finestra: con la capsula espansa (282 px) il bordo destro
+        // della finestra: con la capsula espansa (290 px) il bordo destro
         // tocca lo schermo quando il puntatore è ancora ~265 px indietro, e
         // ancorare subito la verticale al bordo farebbe "teletrasportare" la
         // pillola lontano dal mouse. Col cursore il morphing avviene quando

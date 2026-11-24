@@ -50,6 +50,16 @@ final class PillGeometryTests: XCTestCase {
         }
     }
 
+    func testVerticalExpandedFitsPlayAndStopHitTargets() {
+        // La riga controlli verticale è play 22 + stop 22: il contenuto
+        // espanso deve lasciare almeno 2 pt di margine, altrimenti la
+        // capsula comprime i due cerchi (regressione del round 6).
+        let content = PillGeometry.contentSize(
+            orientation: .vertical, isExpanded: true, isFallback: false
+        )
+        XCTAssertGreaterThanOrEqual(content.width, 46)
+    }
+
     func testFallbackPanelIsWiderThanNormalPanel() {
         let normal = PillGeometry.panelSize(
             orientation: .horizontal, isExpanded: true, isFallback: false

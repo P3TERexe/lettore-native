@@ -10,11 +10,14 @@ public enum PillGeometry {
     /// Dimensioni canoniche della finestra. Unica fonte di verità: il contenuto
     /// SwiftUI resta sempre più piccolo di questi valori, mai più grande.
     public static let horizontalCompact = CGSize(width: 104, height: 42)
-    public static let horizontalExpanded = CGSize(width: 282, height: 42)
+    public static let horizontalExpanded = CGSize(width: 290, height: 42)
     public static let horizontalExpandedFallback = CGSize(width: 298, height: 42)
     public static let verticalCompact = CGSize(width: 48, height: 104)
-    public static let verticalExpanded = CGSize(width: 48, height: 170)
-    public static let verticalExpandedFallback = CGSize(width: 48, height: 192)
+    // Il pannello verticale espanso è più largo del compatto per ospitare la
+    // riga play + stop con due target da 22 pt (44 pt) più un margine: con i
+    // 48 pt di prima il contenuto utile era 42 pt e la riga veniva compressa.
+    public static let verticalExpanded = CGSize(width: 52, height: 170)
+    public static let verticalExpandedFallback = CGSize(width: 52, height: 192)
 
     /// Margine di sicurezza dai bordi dello schermo visibile.
     public static let screenInset: CGFloat = 8

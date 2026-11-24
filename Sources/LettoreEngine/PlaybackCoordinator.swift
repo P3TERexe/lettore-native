@@ -36,12 +36,21 @@ public final class PlaybackCoordinator {
     /// davvero: stop esplicito, coda esaurita, pagina finale senza nuovi chunk
     /// o assenza di un chunk corrente.
     public var onPlaybackEnded: (() -> Void)?
+    /// Chiamata all'inizio di uno stop esplicito dell'utente
+    /// (`stopAndClearQueue`): invalida catture e preparazioni ancora in volo,
+    /// così una richiesta partita prima dello stop non ripopola la coda appena
+    /// svuotata. Non viene chiamata dagli stop interni di skip/jump né dalla
+    /// fine naturale della coda.
+    public var onExplicitStop: (() -> Void)?
 
     private var pagingTask: Task<Void, Never>?
     private var isFetchingMoreText = false
     private var pendingPlayAfterFetch = false
     /// Evita `onPlaybackEnded` duplicati per lo stesso stop o fine coda.
     private var didNotifyPlaybackEnd = false
+    /// Evita `onSessionEnded` duplicati: la sessione si chiude una sola volta,
+    /// sia per fine coda sia per stop esplicito (anche ripetuto).
+    private var didNotifySessionEnd = false
     private var playRequestedTime: CFAbsoluteTime = 0
 
     public init(
@@ -146,9 +155,35 @@ public final class PlaybackCoordinator {
             appState.playbackProgress = 0.0
         }
         if endingSession {
-            onSessionEnded?()
+            notifySessionEnded()
             notifyPlaybackEnded()
         }
+    }
+
+    /// Ferma la lettura e svuota la coda in un'unica azione esplicita.
+    ///
+    /// `stop(endingSession:)` interrompe audio, sintesi, prefetch, paging e
+    /// fallback vocale, oltre a chiudere la sessione continua. `clearQueue`
+    /// azzera coda, chunk corrente e progresso senza toccare il documento o
+    /// la bozza di input. La fine sessione è già emessa da `stop` e
+    /// `notifyPlaybackEnded` è idempotente: arriva una sola volta anche se lo
+    /// stop viene ripetuto o la coda era terminata.
+    ///
+    /// `onExplicitStop` arriva per primo: invalida catture e preparazioni in
+    /// volo, altrimenti una richiesta partita prima dello stop potrebbe
+    /// ripopolare la coda subito dopo averla svuotata.
+    public func stopAndClearQueue() {
+        onExplicitStop?()
+        stop(endingSession: true)
+        appState.clearQueue()
+        // Lo stop esplicito chiude la sessione: il badge "voce di sistema"
+        // descriveva l'audio appena interrotto, non la coda svuotata. Senza
+        // questo azzeramento resterebbe visibile fino al play successivo.
+        appState.isUsingSpeechFallback = false
+        appState.speechFallbackNotice = nil
+        appState.playbackProgress = 0.0
+        appState.liveWaveformLevels = AudioEngineService.idleWaveformLevels
+        notifyPlaybackEnded()
     }
 
     // MARK: - Prefetch (PERF-2)
@@ -241,6 +276,7 @@ public final class PlaybackCoordinator {
         // jump e avanzamento automatico, senza toccare l'highlight a ogni
         // aggiornamento di progresso.
         didNotifyPlaybackEnd = false
+        didNotifySessionEnd = false
         onCurrentChunkChanged?(current)
 
         // Pianifica il caricamento della pagina successiva quando restano
@@ -368,7 +404,7 @@ public final class PlaybackCoordinator {
                 self.pendingPlayAfterFetch = false
                 self.appState.playbackState = .idle
                 self.notifyPlaybackEnded()
-                self.onSessionEnded?()
+                self.notifySessionEnded()
             }
         }
     }
@@ -389,7 +425,7 @@ public final class PlaybackCoordinator {
 
         appState.playbackState = .idle
         notifyPlaybackEnded()
-        onSessionEnded?()
+        notifySessionEnded()
     }
 
     public func skipForward() {
@@ -422,7 +458,17 @@ public final class PlaybackCoordinator {
     private func notifyCurrentChunkChanged() {
         guard let current = appState.currentChunk else { return }
         didNotifyPlaybackEnd = false
+        didNotifySessionEnd = false
         onCurrentChunkChanged?(current)
+    }
+
+    /// `onSessionEnded` deve arrivare una sola volta per sessione: stop
+    /// ripetuti o una fine coda seguita da stop non devono richiudere la
+    /// sessione continua.
+    private func notifySessionEnded() {
+        guard !didNotifySessionEnd else { return }
+        didNotifySessionEnd = true
+        onSessionEnded?()
     }
 
     /// `onPlaybackEnded` deve arrivare una sola volta per sessione: stop

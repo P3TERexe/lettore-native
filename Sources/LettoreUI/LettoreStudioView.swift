@@ -19,6 +19,11 @@ public struct LettoreStudioView: View {
     @State private var inputText: String = ""
     @State private var showingNotchPreview: Bool = false
     @State private var isCapturing: Bool = false
+    /// Token della cattura avviata dallo Studio: uno Stop o una nuova coda
+    /// superano il token, così la risposta AX tardiva non riaccende il
+    /// pulsante né applica l'esito alla sessione nuova.
+    @State private var captureToken: UInt64 = 0
+    @State private var isReconnecting: Bool = false
     
     public init(
         appState: AppState,
@@ -86,6 +91,12 @@ public struct LettoreStudioView: View {
         .onAppear {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onChange(of: appState.sessionGeneration) { _, _ in
+            // Stop o sostituzione della coda: la cattura in volo è superata.
+            // Il pulsante non deve restare "Cattura…" fino alla risposta AX.
+            captureToken &+= 1
+            isCapturing = false
         }
         .sheet(isPresented: $showingNotchPreview) {
             notchPreviewSheet
@@ -293,16 +304,32 @@ public struct LettoreStudioView: View {
             Spacer()
             
             Button("Riconnetti Supertonic") {
+                // Un solo tentativo alla volta: due tap avvierebbero due
+                // loadModel e l'esito più lento potrebbe sovrascrivere quello
+                // appena applicato.
+                guard !isReconnecting else { return }
+                isReconnecting = true
+                // La riconnessione può completare dopo uno Stop: badge e
+                // avvisi valgono solo per la sessione da cui sono partiti,
+                // altrimenti riaccenderebbero lo stato su una coda ormai
+                // svuotata. I fallimenti di sintesi, invece, appartengono al
+                // motore: vanno dimenticati subito, così la prossima cattura
+                // ritenta davvero la voce neurale.
+                let generation = appState.sessionGeneration
                 Task {
                     do {
                         try await coordinator.supertonicPipeline.loadModel()
                         await MainActor.run {
+                            isReconnecting = false
                             coordinator.clearSynthesisFailures()
+                            guard appState.isSessionCurrent(generation) else { return }
                             appState.isUsingSpeechFallback = false
                             appState.speechFallbackNotice = nil
                         }
                     } catch {
                         await MainActor.run {
+                            isReconnecting = false
+                            guard appState.isSessionCurrent(generation) else { return }
                             appState.isUsingSpeechFallback = true
                             appState.speechFallbackNotice = "Ritentativo fallito: \(error.localizedDescription). Assicurati che il backend Python sia attivo su 127.0.0.1:7788."
                         }
@@ -310,6 +337,8 @@ public struct LettoreStudioView: View {
                 }
             }
             .buttonStyle(.plain)
+            .disabled(isReconnecting)
+            .opacity(isReconnecting ? 0.5 : 1)
             .font(.system(size: 11, weight: .semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -420,6 +449,39 @@ public struct LettoreStudioView: View {
                             .font(.system(size: 12, weight: .bold, design: .monospaced))
                             .foregroundStyle(brandGreen)
                     }
+
+                    Button(action: {
+                        coordinator.stopAndClearQueue()
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Svuota coda")
+                                .font(.system(size: 11, weight: .semibold))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        // Area tappabile di almeno 22pt anche se il testo è
+                        // compatto: lo stop è distruttivo e non deve chiedere mira.
+                        .frame(minHeight: 22)
+                        .contentShape(Rectangle())
+                        .background(Color.white.opacity(0.08))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Interrompe la lettura e svuota la coda")
+                    // Il nome accessibile contiene il testo visibile
+                    // ("Svuota coda"), altrimenti Voice Control non può
+                    // attivarlo pronunciando la label a schermo (WCAG 2.5.3).
+                    .accessibilityLabel("Svuota coda e ferma la lettura")
+                    .accessibilityHint("Interrompe la lettura e svuota la coda")
                 }
                 
                 ScrollView {
@@ -1018,13 +1080,21 @@ public struct LettoreStudioView: View {
     
     private func captureFromFrontmostApp() {
         guard !isCapturing else { return }
+        // Il token lega busy ed esito alla stessa cattura: dopo uno Stop il
+        // defer della cattura superata non deve sbloccare quella nuova.
+        captureToken &+= 1
+        let token = captureToken
         isCapturing = true
         Task { @MainActor in
-            defer { isCapturing = false }
+            defer {
+                if captureToken == token { isCapturing = false }
+            }
 
             let outcome = await readingCapture.playFromUI(
                 isContinuousEnabled: appState.isContinuousReadingEnabled
             )
+
+            guard captureToken == token else { return }
 
             switch outcome {
             case .captured(let selection):

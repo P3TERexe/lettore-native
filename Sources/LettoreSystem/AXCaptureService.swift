@@ -397,6 +397,13 @@ public actor AXCaptureService {
             }
         }
 
+        // Stop o una nuova richiesta possono annullare la cattura mentre
+        // eravamo sospesi: nessun Cmd+C, gli appunti restano intatti.
+        guard !Task.isCancelled else {
+            print("[AXCapture] Cattura clipboard annullata prima del Cmd+C: nessun evento inviato.")
+            return nil
+        }
+
         await copyAction.copy(from: targetPID)
 
         // Il cambio può arrivare oltre i 150 ms (app lente): si osserva fino a

@@ -42,6 +42,14 @@ public final class ReadingCaptureController {
     /// Ogni percorso la incrementa all'ingresso e la verifica dopo ogni await,
     /// così una richiesta vecchia non può sostituire la coda di una nuova.
     private var requestGeneration: UInt64 = 0
+    /// Task che sta eseguendo la cattura AX della selezione.
+    ///
+    /// La sola generazione scarta l'esito, non ferma il lavoro: una cattura
+    /// già in volo continuerebbe a inviare Cmd+C e ad attivare l'app di
+    /// origine. Conservarne l'handle permette a Stop e a una nuova richiesta
+    /// di annullarla davvero. L'handle viene azzerato solo dal task che lo ha
+    /// installato, per non cancellare quello di una cattura più recente.
+    private var inFlightSelectionTask: Task<CapturedSelection?, Never>?
 
     public init(
         appState: AppState,
@@ -104,6 +112,17 @@ public final class ReadingCaptureController {
         generation == requestGeneration
     }
 
+    /// Invalida catture e preparazioni in volo senza avviarne una nuova.
+    ///
+    /// Serve allo stop esplicito dell'utente: una richiesta partita prima
+    /// dello stop non deve poter ripopolare la coda appena svuotata. Passa da
+    /// `beginRequest`, quindi incrementa la generazione, annulla la cattura
+    /// AX in volo e ferma anche la sessione continua attiva o ancora in
+    /// cattura.
+    public func invalidatePendingRequests() {
+        _ = beginRequest()
+    }
+
     // MARK: - Policy
 
     private func beginRequest() -> UInt64 {
@@ -112,6 +131,11 @@ public final class ReadingCaptureController {
         // in cattura, anche quando poi fallisce prima di leggere il testo
         // (per esempio PID di origine mancante).
         cancelContinuousSession()
+        // Annulla anche la cattura AX in volo: senza questo, dopo lo stop il
+        // servizio potrebbe ancora attivare l'app di origine e inviare Cmd+C,
+        // rubando il focus. L'esito della cattura annullata viene comunque
+        // scartato dal controllo di generazione.
+        inFlightSelectionTask?.cancel()
         return requestGeneration
     }
 
@@ -188,7 +212,21 @@ public final class ReadingCaptureController {
         from applicationPID: pid_t?,
         generation: UInt64
     ) async -> CaptureOutcome {
-        guard let selection = await selectedText.captureSelectedText(from: applicationPID),
+        // La cattura gira in un task dedicato per poter essere annullata
+        // mentre è sospesa sull'attesa AX/del fallback clipboard.
+        let capturer = selectedText
+        let task = Task<CapturedSelection?, Never> {
+            await capturer.captureSelectedText(from: applicationPID)
+        }
+        inFlightSelectionTask = task
+        let capturedSelection = await task.value
+        // Solo il task che ha installato l'handle può azzerarlo: una cattura
+        // più recente può aver già messo il proprio.
+        if inFlightSelectionTask == task {
+            inFlightSelectionTask = nil
+        }
+
+        guard let selection = capturedSelection,
               !selection.trimmedText.isEmpty else {
             return fallbackToQueue(
                 reason: "Nessuna selezione leggibile: seleziona testo nell'app di origine e verifica l'Accessibilità di Lettore.",

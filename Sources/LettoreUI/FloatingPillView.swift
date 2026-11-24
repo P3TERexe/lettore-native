@@ -232,20 +232,21 @@ public struct FloatingPillView: View {
     }
 
     private var horizontalControlsSection: some View {
-        HStack(spacing: 6) {
-            skipBackwardButton(size: 22, iconSize: 10)
-            playPauseButton(size: 26, iconSize: 10)
-            skipForwardButton(size: 22, iconSize: 10)
+        HStack(spacing: 4) {
+            skipBackwardButton(size: 20, iconSize: 9)
+            playPauseButton(size: 24, iconSize: 9.5)
+            stopButton(size: 18, iconSize: 8)
+            skipForwardButton(size: 20, iconSize: 9)
             speedMenu(width: nil, height: nil, fontSize: 9.5)
 
             if appState.isUsingSpeechFallback {
                 fallbackBadge(size: 10)
             }
 
-            pinButton(size: 22, iconSize: 9.5)
+            pinButton(size: 20, iconSize: 9)
 
             if isStandalone {
-                closeButton(size: 22, iconSize: 9.5)
+                closeButton(size: 20, iconSize: 9)
             }
         }
     }
@@ -353,8 +354,11 @@ public struct FloatingPillView: View {
     }
 
     private var verticalControlsSection: some View {
-        VStack(spacing: 6) {
-            playPauseButton(size: 26, iconSize: 10)
+        VStack(spacing: 5) {
+            HStack(spacing: 0) {
+                playPauseButton(size: 22, iconSize: 9)
+                stopButton(size: 18, iconSize: 8, hitTarget: verticalStopHitTarget)
+            }
 
             HStack(spacing: 3) {
                 skipBackwardButton(size: 18, iconSize: 9)
@@ -382,6 +386,13 @@ public struct FloatingPillView: View {
     private var brandCyan: Color {
         Color(red: 0.0, green: 0.9, blue: 1.0)
     }
+
+    /// Target minimo dello stop. Il cerchio resta compatto, ma l'area
+    /// cliccabile no. In verticale il pannello espanso è largo 52 pt
+    /// (contenuto 46): play 22 + stop 22 = 44 lascia 2 pt di margine, quindi
+    /// il target resta 22 pt senza comprimere i cerchi.
+    private let horizontalStopHitTarget: CGFloat = 26
+    private let verticalStopHitTarget: CGFloat = 22
 
     private var waveformGradient: LinearGradient {
         LinearGradient(
@@ -467,6 +478,42 @@ public struct FloatingPillView: View {
         .buttonStyle(.plain)
         .help("Frase successiva")
         .accessibilityLabel("Frase successiva")
+    }
+
+    /// Lo Stop è idempotente e invalida anche una preparazione o cattura
+    /// ancora in volo: resta attivo pure a coda vuota, altrimenti dopo un
+    /// clear non ci sarebbe modo di annullare una richiesta pendente. Serve
+    /// solo un motore a cui impartire l'ordine.
+    private var isStopDisabled: Bool {
+        coordinator == nil
+    }
+
+    private func stopButton(size: CGFloat, iconSize: CGFloat, hitTarget: CGFloat? = nil) -> some View {
+        Button(action: {
+            if let coordinator = coordinator {
+                coordinator.stopAndClearQueue()
+            }
+        }) {
+            Image(systemName: "stop.fill")
+                .font(.system(size: iconSize, weight: .bold))
+                .foregroundStyle(.white.opacity(isStopDisabled ? 0.35 : 0.85))
+                .frame(width: size, height: size)
+                .background(Color.white.opacity(isStopDisabled ? 0.05 : 0.12))
+                .clipShape(Circle())
+                // Il cerchio resta compatto, ma l'area cliccabile arriva ad
+                // almeno 26×26 dove il layout lo consente: lo stop è
+                // distruttivo e non deve richiedere mira.
+                .frame(
+                    width: max(size, hitTarget ?? horizontalStopHitTarget),
+                    height: max(size, hitTarget ?? horizontalStopHitTarget)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isStopDisabled)
+        .help("Interrompe la lettura e svuota la coda")
+        .accessibilityLabel("Ferma e svuota la coda")
+        .accessibilityHint("Interrompe la lettura e svuota la coda")
     }
 
     private func speedMenu(width: CGFloat?, height: CGFloat?, fontSize: CGFloat) -> some View {

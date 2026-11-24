@@ -7,6 +7,13 @@ public final class AppState: @unchecked Sendable {
     
     // MARK: - Proprietà di Riproduzione
     public var playbackState: PlaybackState = .idle
+    /// Token incrementato a ogni sostituzione o svuotamento della coda.
+    ///
+    /// Le operazioni asincrone che possono sopravvivere all'utente (es. la
+    /// riconnessione del backend vocale) lo catturano prima dell'`await` e
+    /// applicano l'esito solo se resta invariato: un completamento tardivo non
+    /// deve riaccendere badge o avvisi riferiti a una sessione già fermata.
+    public private(set) var sessionGeneration: Int = 0
     private var queue = ReadingQueue()
     /// Vista in sola lettura della coda. Le mutazioni passano dai metodi di
     /// `AppState`, che mantengono gli invarianti di `ReadingQueue`.
@@ -162,9 +169,39 @@ public final class AppState: @unchecked Sendable {
 
     // MARK: - Metodi di Mutazione Stato
     
+    /// Sostituisce la coda aprendo una sessione nuova.
+    ///
+    /// Come `clearQueue`, supera gli esiti asincroni ancora in volo riferiti
+    /// alla sessione precedente (es. la riconnessione del backend vocale): una
+    /// cattura o un testo nuovo non devono ereditare badge e avvisi di una
+    /// coda che l'utente ha già sostituito.
     public func setQueue(_ chunks: [ReadingChunk]) {
+        sessionGeneration &+= 1
         queue.replace(chunks)
         self.playbackProgress = 0.0
+    }
+
+    /// Svuota la coda di lettura riportando il playback a `.idle`.
+    ///
+    /// Tocca solo lo stato di riproduzione: il documento catturato e la bozza
+    /// di input dell'utente restano intatti, così una nuova cattura o un nuovo
+    /// testo non devono ricostruire il contesto.
+    public func clearQueue() {
+        // Invalida gli esiti asincroni ancora in volo relativi alla coda
+        // precedente (vedi `sessionGeneration`).
+        sessionGeneration &+= 1
+        queue.replace([])
+        self.playbackProgress = 0.0
+        self.currentWordIndex = nil
+        self.playbackState = .idle
+    }
+
+    /// `true` se nessuna sostituzione o svuotamento della coda ha superato il token.
+    ///
+    /// Le operazioni asincrone chiamano questo predicato dopo l'`await`, prima
+    /// di applicare il proprio esito allo stato condiviso.
+    public func isSessionCurrent(_ generation: Int) -> Bool {
+        generation == sessionGeneration
     }
 
     /// Accoda una pagina al documento catturato senza ricostruire il testo
@@ -232,5 +269,56 @@ public final class AppState: @unchecked Sendable {
         // Il rate di AVAudioPlayer è limitato a 2.0: evita che la UI mostri
         // un valore che il player non può riprodurre.
         self.playbackSpeed = max(0.5, min(2.0, newSpeed))
+    }
+}
+
+// MARK: - Gate delle Catture
+
+/// Serializza le catture AX e rende lo stop esplicito capace di liberare subito
+/// il gate.
+///
+/// `isBusy` da solo non basta: una cattura ancora in volo quando l'utente
+/// preme "Ferma" continuerebbe a tenerlo occupato fino alla risposta AX, e i
+/// comandi successivi (RIPRODUCI, ⌥P, ⌘⇧C) verrebbero scartati dal guard
+/// restando no-op. `invalidate()` libera il gate e supera la cattura in volo
+/// con una nuova generazione: la nuova cattura parte subito, mentre la vecchia
+/// non può più applicare il proprio esito né liberare il gate di quella nuova.
+@MainActor
+public final class CaptureInFlightGate {
+
+    /// Token della cattura corrente. Cambia solo con `invalidate()`.
+    public private(set) var generation: UInt64 = 0
+    public private(set) var isBusy = false
+
+    public init() {}
+
+    /// Apre una cattura se il gate è libero e ne restituisce il token.
+    ///
+    /// Restituisce `nil` quando una cattura è già in volo: niente code di
+    /// catture concorrenti (doppio tap, scorciatoia ripetuta).
+    public func begin() -> UInt64? {
+        guard !isBusy else { return nil }
+        isBusy = true
+        return generation
+    }
+
+    /// `true` solo se `token` è la cattura corrente e ancora in volo.
+    public func isCurrent(_ token: UInt64) -> Bool {
+        isBusy && token == generation
+    }
+
+    /// Chiude la cattura `token` solo se è ancora la corrente.
+    ///
+    /// Il `defer` di una cattura superata dallo stop non deve azzerare il gate
+    /// della cattura nuova che nel frattempo è partita.
+    public func end(_ token: UInt64) {
+        guard isCurrent(token) else { return }
+        isBusy = false
+    }
+
+    /// Stop esplicito: libera il gate e supera la cattura in volo.
+    public func invalidate() {
+        isBusy = false
+        generation &+= 1
     }
 }

@@ -48,6 +48,26 @@ final class ReadingCaptureControllerTests: XCTestCase {
         }
     }
 
+    /// Cattura che resta in volo finché il task non viene annullato, con un
+    /// limite di sicurezza per non bloccare la suite se l'annullamento non
+    /// arriva. Registra se il servizio ha davvero visto `Task.isCancelled`.
+    actor CancellationObservingCapture: SelectedTextCapturing {
+        private(set) var started = false
+        private(set) var sawCancellation = false
+
+        func captureSelectedText(from applicationPID: pid_t?) async -> CapturedSelection? {
+            started = true
+            let deadline = Date().addingTimeInterval(1)
+            while !Task.isCancelled, Date() < deadline {
+                try? await Task.sleep(nanoseconds: 1_000_000)
+            }
+            sawCancellation = Task.isCancelled
+            // Restituisce comunque un testo: dopo lo stop la generazione deve
+            // scartarlo senza toccare coda o avvisi.
+            return CapturedSelection(text: "Testo arrivato dopo lo stop.")
+        }
+    }
+
     @MainActor
     final class FakeSourceApplications: SourceApplicationProviding {
         var currentProcessIdentifier: pid_t = 900
@@ -432,6 +452,99 @@ final class ReadingCaptureControllerTests: XCTestCase {
             return XCTFail("La selezione superata dall'input manuale deve essere scartata, ricevuto \(outcome)")
         }
         XCTAssertTrue(state.readingQueue.isEmpty)
+    }
+
+    func testInvalidatePendingRequestsSupersedesPreviousGeneration() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+
+        let selectionCapture = GatedSelectedTextCapture(results: [
+            CapturedSelection(text: "Selezione pendente.")
+        ])
+        let session = ContinuousSessionSpy()
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications,
+            cancelContinuousSession: { session.stop() }
+        )
+
+        let pending = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let started = await waitUntil { await selectionCapture.startedCount == 1 }
+        XCTAssertTrue(started)
+
+        let manualToken = controller.beginManualReadingRequest()
+        XCTAssertTrue(controller.isCurrentReadingRequest(manualToken))
+
+        // Stop esplicito: invalida la generazione corrente e la sessione continua.
+        controller.invalidatePendingRequests()
+        XCTAssertFalse(
+            controller.isCurrentReadingRequest(manualToken),
+            "L'invalidazione dello stop deve superare la generazione precedente"
+        )
+        XCTAssertEqual(
+            session.stopCount,
+            3,
+            "Selezione, input manuale e invalidazione fermano la sessione continua"
+        )
+
+        // La UI svuota la coda nello stesso gesto di stop.
+        state.clearQueue()
+
+        await selectionCapture.release(0)
+        let outcome = await pending.value
+        guard case .unavailable = outcome else {
+            return XCTFail("La cattura pendente deve essere scartata dopo lo stop, ricevuto \(outcome)")
+        }
+        XCTAssertTrue(
+            state.readingQueue.isEmpty,
+            "La preparazione partita prima dello stop non deve ripopolare la coda svuotata"
+        )
+    }
+
+    func testInvalidatePendingRequestsCancelsInFlightSelectionCapture() async {
+        let (state, cleanup) = makeState(queue: [makeChunk("Coda iniziale.")])
+        defer { cleanup() }
+        state.lastExternalApplicationPID = 42
+        state.continuationNotice = "Avviso precedente"
+
+        let selectionCapture = CancellationObservingCapture()
+        let applications = makeApplications(runningExternalPIDs: [42])
+        let controller = makeController(
+            state: state,
+            selectedText: selectionCapture,
+            sourceApplications: applications
+        )
+
+        let pending = Task { await controller.playFromUI(isContinuousEnabled: false) }
+        let started = await waitUntil { await selectionCapture.started }
+        XCTAssertTrue(started)
+
+        // Stop esplicito mentre la cattura AX è ancora in volo.
+        controller.invalidatePendingRequests()
+
+        let sawCancellation = await waitUntil { await selectionCapture.sawCancellation }
+        XCTAssertTrue(
+            sawCancellation,
+            "La cattura in volo deve osservare l'annullamento del proprio task, non solo essere scartata"
+        )
+
+        let outcome = await pending.value
+        guard case .unavailable = outcome else {
+            return XCTFail("La cattura annullata deve essere scartata, ricevuto \(outcome)")
+        }
+        XCTAssertEqual(
+            state.readingQueue.map(\.text),
+            ["Coda iniziale."],
+            "La cattura annullata non deve scrivere la coda"
+        )
+        XCTAssertEqual(
+            state.continuationNotice,
+            "Avviso precedente",
+            "La cattura annullata non deve toccare gli avvisi"
+        )
     }
 
     func testInvalidSourceDuringContinuousCaptureStopsTheSession() async {

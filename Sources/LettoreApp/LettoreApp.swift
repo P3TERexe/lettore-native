@@ -14,7 +14,7 @@ struct LettoreApp: App {
     private let readingCapture: ReadingCaptureController
     @State private var sourceHighlightCoordinator: SourceHighlightCoordinator
     @State private var isCaptureLogicSetup = false
-    private let captureGate = CaptureInFlightGate()
+    private let captureGate: CaptureInFlightGate
 
     init() {
         let sample = "Benvenuto in Lettore Native. Questa è la nuova architettura 100% nativa macOS in Swift 6 con sintesi vocale fluida e a bassissima latenza. Passa il cursore sulla pillola o premi Play per iniziare l'ascolto."
@@ -75,10 +75,25 @@ struct LettoreApp: App {
         coordinator.onPlaybackEnded = { [weak sourceHighlightCoordinator] in
             sourceHighlightCoordinator?.end()
         }
+        // Lo Stop esplicito dello Studio svuota la coda: invalida anche le
+        // catture e le preparazioni in volo, altrimenti una richiesta partita
+        // prima dello stop può ripopolarla subito dopo. Weak per non creare un
+        // ciclo coordinator → closure → controller.
+        //
+        // Il gate viene invalidato per primo: libera subito RIPRODUCI/⌥P e
+        // supera la cattura in volo, che alla sua risposta non potrà più
+        // applicare l'esito alla sessione nuova.
+        let captureGate = CaptureInFlightGate()
+        coordinator.onExplicitStop = { [weak captureController, weak readingCapture, captureGate] in
+            captureGate.invalidate()
+            captureController?.stopSession()
+            readingCapture?.invalidatePendingRequests()
+        }
 
         self.shortcutManager = shortcutManager
         self.coordinator = coordinator
         self.readingCapture = readingCapture
+        self.captureGate = captureGate
         _sourceHighlightCoordinator = State(initialValue: sourceHighlightCoordinator)
     }
     
@@ -88,13 +103,18 @@ struct LettoreApp: App {
         
         let captureAction: @Sendable () -> Void = { [readingCapture, coordinator, sourceHighlightCoordinator, state, captureGate] in
             Task { @MainActor in
-                guard !captureGate.isBusy else { return }
-                captureGate.isBusy = true
-                defer { captureGate.isBusy = false }
+                // Il token lega busy ed esito alla stessa cattura: dopo uno
+                // stop la vecchia risposta non deve né applicare il proprio
+                // esito né liberare il gate della cattura nuova.
+                guard let generation = captureGate.begin() else { return }
+                defer { captureGate.end(generation) }
 
                 let outcome = await readingCapture.captureFromFrontmost(
                     isContinuousEnabled: state.isContinuousReadingEnabled
                 )
+
+                guard captureGate.isCurrent(generation) else { return }
+
                 switch outcome {
                 case .captured(let selection):
                     // La nuova selezione sostituisce la coda: ferma prima la
@@ -121,8 +141,14 @@ struct LettoreApp: App {
         
         state.isAccessibilityGranted = AXIsProcessTrusted()
         
+        // Con la coda vuota (dopo "Ferma") il toggle sarebbe un no-op: ⌥P
+        // riparte dalla cattura, come il RIPRODUCI della vista accessibile.
         shortcutManager.onTogglePlaybackRequested = { [weak coordinator] in
-            coordinator?.togglePlayPause()
+            if state.playbackState == .idle && state.readingQueue.isEmpty {
+                NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
+            } else {
+                coordinator?.togglePlayPause()
+            }
         }
 
         shortcutManager.onToggleContinuousReadingRequested = {
@@ -220,6 +246,10 @@ struct LettoreApp: App {
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
 
+                Button("Ferma e svuota coda") {
+                    coordinator.stopAndClearQueue()
+                }
+
                 Divider()
 
                 Toggle("Lettura continua", isOn: Binding(
@@ -293,13 +323,6 @@ struct LettoreApp: App {
             }
         }
     }
-}
-
-/// Impedisce che due attivazioni ravvicinate (doppio tap sulla pillola,
-/// ripetizione della scorciatoia) avviino due catture concorrenti.
-@MainActor
-private final class CaptureInFlightGate {
-    var isBusy = false
 }
 
 /// Helper AppKit per ottenere il blur di sistema nativo NSVisualEffectView in SwiftUI.

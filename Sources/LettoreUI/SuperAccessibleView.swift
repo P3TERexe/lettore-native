@@ -86,7 +86,7 @@ public struct SuperAccessibleView: View {
             
             // Pulsante Riproduci / Sospendi Tattile
             Button(action: {
-                coordinator?.togglePlayPause()
+                requestPlayback()
             }) {
                 HStack(spacing: 10) {
                     Image(systemName: appState.playbackState == .playing ? "pause.fill" : "play.fill")
@@ -108,16 +108,17 @@ public struct SuperAccessibleView: View {
             }
             .buttonStyle(.plain)
             
-            // Pulsante Ferma
+            // Pulsante Ferma: stesso comando delle altre superfici, così lo stop
+            // invalida anche catture e preparazioni ancora in volo.
             Button(action: {
-                coordinator?.stop()
+                coordinator?.stopAndClearQueue()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "stop.fill")
                     Text("FERMA")
                 }
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(coordinator == nil ? 0.35 : 1))
                 .frame(height: 48)
                 .padding(.horizontal, 16)
                 .background(cardSurface)
@@ -125,6 +126,12 @@ public struct SuperAccessibleView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
+            .disabled(coordinator == nil)
+            // Etichetta visibile "FERMA": VoiceOver deve dire la stessa cosa e
+            // spiegare che il gesto svuota anche la coda.
+            .help("Interrompe la lettura e svuota la coda")
+            .accessibilityLabel("Ferma e svuota la coda")
+            .accessibilityHint("Interrompe la lettura e svuota la coda")
             
             // Stepper Velocità
             HStack(spacing: 8) {
@@ -297,5 +304,16 @@ public struct SuperAccessibleView: View {
         .frame(height: 44)
         .background(deepObsidian)
         .overlay(Divider().background(Color.white.opacity(0.1)), alignment: .top)
+    }
+
+    /// Dopo "Ferma" la coda è vuota: il toggle del playback sarebbe un no-op.
+    /// In quel caso RIPRODUCI riparte dalla cattura, con la stessa regola di
+    /// ⌥P in `LettoreApp`.
+    private func requestPlayback() {
+        if appState.playbackState == .idle && appState.readingQueue.isEmpty {
+            NotificationCenter.default.post(name: NSNotification.Name("CaptureAXText"), object: nil)
+        } else {
+            coordinator?.togglePlayPause()
+        }
     }
 }
