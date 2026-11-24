@@ -235,7 +235,12 @@ public struct FloatingPillView: View {
         HStack(spacing: 4) {
             skipBackwardButton(size: 20, iconSize: 9)
             playPauseButton(size: 24, iconSize: 9.5)
+            // 2 pt per lato: l'area cliccabile resta 26 pt, ma il target
+            // distruttivo non tocca più i controlli adiacenti. La finestra
+            // espansa ha lo slack per questa riga; il fallback no, ed è il
+            // motivo per cui il pannello fallback arriva a 306 pt.
             stopButton(size: 18, iconSize: 8)
+                .padding(.horizontal, 2)
             skipForwardButton(size: 20, iconSize: 9)
             speedMenu(width: nil, height: nil, fontSize: 9.5)
 
@@ -355,10 +360,13 @@ public struct FloatingPillView: View {
 
     private var verticalControlsSection: some View {
         VStack(spacing: 5) {
-            HStack(spacing: 0) {
-                playPauseButton(size: 22, iconSize: 9)
-                stopButton(size: 18, iconSize: 8, hitTarget: verticalStopHitTarget)
-            }
+            // Lo Stop ha una riga propria: in verticale il contenuto è largo
+            // 46 pt, quindi play e stop affiancati lasciavano due target
+            // contigui a spacing 0. Un'azione distruttiva non deve stare a
+            // ridosso del Play; la riga sotto, con lo spacing 5 della colonna,
+            // separa i target senza comprimere i cerchi.
+            playPauseButton(size: 22, iconSize: 9)
+            stopButton(size: 18, iconSize: 8, hitTarget: verticalStopHitTarget)
 
             HStack(spacing: 3) {
                 skipBackwardButton(size: 18, iconSize: 9)
@@ -388,9 +396,10 @@ public struct FloatingPillView: View {
     }
 
     /// Target minimo dello stop. Il cerchio resta compatto, ma l'area
-    /// cliccabile no. In verticale il pannello espanso è largo 52 pt
-    /// (contenuto 46): play 22 + stop 22 = 44 lascia 2 pt di margine, quindi
-    /// il target resta 22 pt senza comprimere i cerchi.
+    /// cliccabile no. In orizzontale il target da 26 pt è separato dai
+    /// controlli adiacenti da 2 pt di padding per lato. In verticale lo stop
+    /// ha una riga propria sotto il Play: il target resta 22 pt per non
+    /// allungare la colonna, ma non è più contiguo a un'altra azione.
     private let horizontalStopHitTarget: CGFloat = 26
     private let verticalStopHitTarget: CGFloat = 22
 

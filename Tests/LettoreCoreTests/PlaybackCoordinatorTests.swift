@@ -368,6 +368,30 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertTrue(state.readingQueue.isEmpty)
     }
 
+    func testStopAndClearQueueClearsTheContinuationNoticeWithoutTouchingLatencyMetrics() {
+        let (state, cleanup) = makeState(["Uno."])
+        defer { cleanup() }
+        let coordinator = makeCoordinator(state: state)
+
+        state.continuationNotice = "Nessun testo leggibile nell'app in primo piano."
+        state.lastFirstChunkLatencyMs = 123.0
+        state.lastSynthesisLatencyMs = 456.0
+
+        coordinator.stopAndClearQueue()
+
+        XCTAssertNil(
+            state.continuationNotice,
+            "Il banner di una cattura abbandonata non deve sopravvivere allo stop"
+        )
+        XCTAssertTrue(state.readingQueue.isEmpty, "Lo stop svuota la coda")
+        XCTAssertEqual(
+            state.lastFirstChunkLatencyMs,
+            123.0,
+            "Le telemetrie di latenza sono misure storiche e restano intatte"
+        )
+        XCTAssertEqual(state.lastSynthesisLatencyMs, 456.0)
+    }
+
     func testExplicitStopInvalidatesPendingCapturesButPlainStopDoesNot() {
         let (state, cleanup) = makeState(["Uno."])
         defer { cleanup() }

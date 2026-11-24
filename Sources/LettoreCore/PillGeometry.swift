@@ -11,13 +11,33 @@ public enum PillGeometry {
     /// SwiftUI resta sempre più piccolo di questi valori, mai più grande.
     public static let horizontalCompact = CGSize(width: 104, height: 42)
     public static let horizontalExpanded = CGSize(width: 290, height: 42)
-    public static let horizontalExpandedFallback = CGSize(width: 298, height: 42)
+    // 306, non 298: lo stop orizzontale ha 2 pt di respiro per lato attorno al
+    // target da 26 pt e la riga con il badge di fallback arriva a 294 pt. Con
+    // 298 il contenuto era 290, quindi la riga usciva di 4 pt dalla capsula.
+    public static let horizontalExpandedFallback = CGSize(width: 306, height: 42)
     public static let verticalCompact = CGSize(width: 48, height: 104)
-    // Il pannello verticale espanso è più largo del compatto per ospitare la
-    // riga play + stop con due target da 22 pt (44 pt) più un margine: con i
-    // 48 pt di prima il contenuto utile era 42 pt e la riga veniva compressa.
-    public static let verticalExpanded = CGSize(width: 52, height: 170)
-    public static let verticalExpandedFallback = CGSize(width: 52, height: 192)
+    // Il pannello verticale espanso è più largo del compatto per ospitare i
+    // target da 22 pt con un margine: con i 48 pt di prima il contenuto utile
+    // era 42 pt e i controlli venivano compressi. In altezza lo Stop vive su
+    // una riga propria sotto il Play (spacing 5): il contenuto reale misura
+    // 173 pt (190 con il badge), quindi 180/202 lasciano 1/6 pt di margine
+    // dentro `contentSize` senza tagliare nulla.
+    public static let verticalExpanded = CGSize(width: 52, height: 180)
+    public static let verticalExpandedFallback = CGSize(width: 52, height: 202)
+
+    /// Larghezza misurata della riga orizzontale espansa: onda + controlli +
+    /// margini interni, con lo stop a target 26 pt e 2 pt di respiro per lato.
+    /// Il contenuto disponibile deve superarla di almeno 4 pt.
+    public static let horizontalExpandedContentRowWidth: CGFloat = 277
+    /// Stessa misura con il badge di fallback: il badge occupa 12 pt più lo
+    /// spacing di 4 della riga controlli, quindi la riga sale a 294 pt.
+    public static let horizontalExpandedFallbackContentRowWidth: CGFloat = 294
+    /// Altezza misurata del contenuto verticale espanso: grip 12 + onda 20 +
+    /// controlli impilati 117 + due spacing da 6 + padding verticale 12.
+    public static let verticalExpandedContentHeight: CGFloat = 173
+    /// Stessa misura con il badge di fallback (12 pt più lo spacing di 5):
+    /// il contenuto verticale arriva a 190 pt.
+    public static let verticalExpandedFallbackContentHeight: CGFloat = 190
 
     /// Margine di sicurezza dai bordi dello schermo visibile.
     public static let screenInset: CGFloat = 8

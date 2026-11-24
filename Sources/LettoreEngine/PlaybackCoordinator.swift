@@ -181,6 +181,11 @@ public final class PlaybackCoordinator {
         // questo azzeramento resterebbe visibile fino al play successivo.
         appState.isUsingSpeechFallback = false
         appState.speechFallbackNotice = nil
+        // Anche il banner della cattura descriveva una richiesta che lo stop
+        // ha abbandonato: senza questo azzeramento resterebbe a schermo fino
+        // alla cattura successiva. Le telemetrie di latenza restano intatte:
+        // sono misure storiche, non stato della sessione.
+        appState.continuationNotice = nil
         appState.playbackProgress = 0.0
         appState.liveWaveformLevels = AudioEngineService.idleWaveformLevels
         notifyPlaybackEnded()

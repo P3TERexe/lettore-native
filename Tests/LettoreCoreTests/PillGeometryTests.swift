@@ -51,13 +51,62 @@ final class PillGeometryTests: XCTestCase {
     }
 
     func testVerticalExpandedFitsPlayAndStopHitTargets() {
-        // La riga controlli verticale è play 22 + stop 22: il contenuto
-        // espanso deve lasciare almeno 2 pt di margine, altrimenti la
-        // capsula comprime i due cerchi (regressione del round 6).
+        // La riga controlli verticale tiene play e stop su due righe da 22 pt
+        // (lo stop non è più contiguo al play): il contenuto espanso deve
+        // lasciare almeno 2 pt di margine in larghezza, altrimenti la capsula
+        // comprime i cerchi (regressione del round 6).
         let content = PillGeometry.contentSize(
             orientation: .vertical, isExpanded: true, isFallback: false
         )
         XCTAssertGreaterThanOrEqual(content.width, 46)
+    }
+
+    func testVerticalExpandedContentIsTallEnoughForStackedControls() {
+        // Lo Stop su una riga propria aggiunge 22 pt di cerchio più 5 pt di
+        // spacing: il contenuto reale misura 173 pt (190 con il badge). Il
+        // pannello deve ospitarlo senza tagliare la colonna dei controlli.
+        let normalContent = PillGeometry.contentSize(
+            orientation: .vertical, isExpanded: true, isFallback: false
+        )
+        XCTAssertGreaterThanOrEqual(
+            normalContent.height,
+            PillGeometry.verticalExpandedContentHeight,
+            "La colonna verticale espansa non deve tagliare i controlli impilati"
+        )
+
+        let fallbackContent = PillGeometry.contentSize(
+            orientation: .vertical, isExpanded: true, isFallback: true
+        )
+        XCTAssertGreaterThanOrEqual(
+            fallbackContent.height,
+            PillGeometry.verticalExpandedFallbackContentHeight,
+            "Il badge di fallback non deve spingere i controlli fuori dalla capsula"
+        )
+
+        // Il compatto non cambia con questa rifinitura.
+        XCTAssertEqual(PillGeometry.verticalCompact, CGSize(width: 48, height: 104))
+    }
+
+    func testHorizontalExpandedContentRowFitsWithMargin() {
+        let content = PillGeometry.contentSize(
+            orientation: .horizontal, isExpanded: true, isFallback: false
+        )
+        XCTAssertGreaterThanOrEqual(
+            content.width - PillGeometry.horizontalExpandedContentRowWidth,
+            4,
+            "Lo stop da 26 pt con 2 pt di respiro per lato deve restare dentro la capsula"
+        )
+    }
+
+    func testHorizontalExpandedFallbackContentRowFitsWithMargin() {
+        let content = PillGeometry.contentSize(
+            orientation: .horizontal, isExpanded: true, isFallback: true
+        )
+        XCTAssertGreaterThanOrEqual(
+            content.width - PillGeometry.horizontalExpandedFallbackContentRowWidth,
+            4,
+            "Anche con il badge la riga espansa non deve uscire dalla capsula"
+        )
     }
 
     func testFallbackPanelIsWiderThanNormalPanel() {
